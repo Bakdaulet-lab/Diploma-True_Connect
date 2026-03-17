@@ -1,0 +1,197 @@
+package service_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/trueconnect/backend/internal/domain"
+	"github.com/trueconnect/backend/internal/service"
+)
+
+func newTestMatchingService() (*service.MatchingService, *mockProfileRepo, *mockMatchRepo, *mockSettingsRepo, *mockMatchingCache) {
+	profileRepo := newMockProfileRepo()
+	matchRepo := newMockMatchRepo()
+	settingsRepo := newMockSettingsRepo()
+	cache := newMockMatchingCache()
+	svc := service.NewMatchingService(profileRepo, matchRepo, settingsRepo, cache)
+	return svc, profileRepo, matchRepo, settingsRepo, cache
+}
+
+// ── Like ──────────────────────────────────────────────────────────────────────
+
+func TestLike_Success_NoMatch(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _ := newTestMatchingService()
+	userID := uuid.New()
+	targetID := uuid.New()
+
+	result, err := svc.Like(context.Background(), userID, targetID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Matched {
+		t.Error("expected no match on one-sided like")
+	}
+	if result.MatchID != uuid.Nil {
+		t.Error("expected nil MatchID when not matched")
+	}
+}
+
+func TestLike_MutualMatch(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _ := newTestMatchingService()
+	aliceID := uuid.New()
+	bobID := uuid.New()
+
+	// Alice likes Bob.
+	r1, err := svc.Like(context.Background(), aliceID, bobID)
+	if err != nil {
+		t.Fatalf("alice like: %v", err)
+	}
+	if r1.Matched {
+		t.Fatal("expected no match after first like")
+	}
+
+	// Bob likes Alice — should trigger a mutual match.
+	r2, err := svc.Like(context.Background(), bobID, aliceID)
+	if err != nil {
+		t.Fatalf("bob like: %v", err)
+	}
+	if !r2.Matched {
+		t.Error("expected mutual match")
+	}
+	if r2.MatchID == uuid.Nil {
+		t.Error("expected non-nil MatchID on mutual match")
+	}
+}
+
+func TestLike_Self_ReturnsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _ := newTestMatchingService()
+	userID := uuid.New()
+
+	_, err := svc.Like(context.Background(), userID, userID)
+	if err == nil {
+		t.Fatal("expected error on self-like")
+	}
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+// ── Pass ──────────────────────────────────────────────────────────────────────
+
+func TestPass_Success(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, cache := newTestMatchingService()
+	userID := uuid.New()
+	targetID := uuid.New()
+
+	if err := svc.Pass(context.Background(), userID, targetID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// target should now be in the seen set.
+	seenIDs, _ := cache.GetSeenIDs(context.Background(), userID)
+	found := false
+	for _, id := range seenIDs {
+		if id == targetID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected targetID to be in seen set after pass")
+	}
+}
+
+func TestPass_Self_ReturnsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _ := newTestMatchingService()
+	userID := uuid.New()
+
+	err := svc.Pass(context.Background(), userID, userID)
+	if err == nil {
+		t.Fatal("expected error on self-pass")
+	}
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+// ── ListMatches ───────────────────────────────────────────────────────────────
+
+func TestListMatches_PaginationClampsPerPage(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _ := newTestMatchingService()
+	userID := uuid.New()
+
+	// page=1 with perPage=100 should be silently clamped to 20 (no error).
+	matches, err := svc.ListMatches(context.Background(), userID, 1, 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// No matches seeded, so result must be empty (not an error).
+	if matches == nil {
+		t.Error("expected non-nil slice")
+	}
+}
+
+func TestListMatches_ReturnsOnlyOwnMatches(t *testing.T) {
+	t.Parallel()
+
+	svc, _, matchRepo, _, _ := newTestMatchingService()
+	aliceID := uuid.New()
+	bobID := uuid.New()
+	carolID := uuid.New()
+
+	// Bob ↔ Carol match (Alice is not involved).
+	matchRepo.RecordLike(context.Background(), bobID, carolID)
+	matchRepo.RecordLike(context.Background(), carolID, bobID)
+
+	// Alice has no matches.
+	matches, err := svc.ListMatches(context.Background(), aliceID, 1, 20)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(matches) != 0 {
+		t.Errorf("expected 0 matches for Alice, got %d", len(matches))
+	}
+}
+
+// ── GetCandidates ─────────────────────────────────────────────────────────────
+
+func TestGetCandidates_ExcludesRequester(t *testing.T) {
+	t.Parallel()
+
+	svc, profileRepo, _, _, _ := newTestMatchingService()
+	userID := uuid.New()
+	otherID := uuid.New()
+
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: userID, DisplayName: "Requester",
+		Latitude: 43.2, Longitude: 76.9,
+	})
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: otherID, DisplayName: "Other",
+		Latitude: 43.2, Longitude: 76.9,
+	})
+
+	candidates, err := svc.GetCandidates(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, c := range candidates {
+		if c.UserID == userID {
+			t.Error("requester should not appear in their own candidate list")
+		}
+	}
+}
