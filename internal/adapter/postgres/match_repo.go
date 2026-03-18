@@ -50,7 +50,7 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
 	var otherLiked bool
 	var matchedAt interface{} // may be null
 
-	err := r.pool.QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
+	err := runner(ctx, r.pool).QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
 	if err != nil {
 		return false, uuid.Nil, fmt.Errorf("recording like: %w", err)
 	}
@@ -60,7 +60,7 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
 		updateQuery := `
 			UPDATE social.matches SET matched_at = NOW()
 			WHERE id = $1 AND matched_at IS NULL`
-		if _, err := r.pool.Exec(ctx, updateQuery, matchID); err != nil {
+		if _, err := runner(ctx, r.pool).Exec(ctx, updateQuery, matchID); err != nil {
 			return false, uuid.Nil, fmt.Errorf("finalising match: %w", err)
 		}
 		return true, matchID, nil
@@ -83,7 +83,7 @@ func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, limit, of
 		ORDER BY matched_at DESC
 		LIMIT $2 OFFSET $3`
 
-	rows, err := r.pool.Query(ctx, query, userID, limit, offset)
+	rows, err := runner(ctx, r.pool).Query(ctx, query, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("listing matches: %w", err)
 	}
@@ -115,7 +115,7 @@ func (r *MatchRepo) GetMatch(ctx context.Context, matchID uuid.UUID, userID uuid
 		WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2)`
 
 	m := &domain.Match{}
-	err := r.pool.QueryRow(ctx, query, matchID, userID).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, matchID, userID).Scan(
 		&m.ID, &m.UserAID, &m.UserBID,
 		&m.UserALiked, &m.UserBLiked,
 		&m.MatchedAt, &m.CreatedAt,
@@ -138,7 +138,7 @@ func (r *MatchRepo) IsMatched(ctx context.Context, userA, userB uuid.UUID) (bool
 		LIMIT 1`
 
 	var dummy int
-	err := r.pool.QueryRow(ctx, query, a, b).Scan(&dummy)
+	err := runner(ctx, r.pool).QueryRow(ctx, query, a, b).Scan(&dummy)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil

@@ -180,6 +180,8 @@ func newMockUserRepoS3() *mockUserRepoS3 {
 	}
 }
 
+func (m *mockUserRepoS3) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error { return nil }
+
 func (m *mockUserRepoS3) Create(_ context.Context, user *domain.User) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

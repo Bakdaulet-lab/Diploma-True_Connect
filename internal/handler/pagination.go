@@ -29,3 +29,19 @@ func parsePagination(c *gin.Context) (page, perPage int) {
 
 	return page, perPage
 }
+
+// parseCursorPagination extracts and clamps limit and reads cursor query parameters.
+func parseCursorPagination(c *gin.Context) (cursor string, limit int) {
+	cursor = c.Query("cursor")
+	limit, _ = strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	if limit < 1 {
+		limit = defaultPerPage
+	}
+	if limit > maxPerPage {
+		limit = maxPerPage
+	}
+
+	return cursor, limit
+
+}

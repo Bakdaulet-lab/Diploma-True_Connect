@@ -11,6 +11,12 @@ import (
 	"github.com/trueconnect/backend/internal/service"
 )
 
+type dummyUoW struct{}
+
+func (d *dummyUoW) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 func setupInteractionService(t *testing.T) (
 	*service.InteractionService,
 	*mockInteractionRepo,
@@ -23,7 +29,8 @@ func setupInteractionService(t *testing.T) (
 	matchRepo := newMockMatchRepo()
 	graphRepo := newTrackingGraphRepo()
 	eventCh := make(chan uuid.UUID, 10)
-	svc := service.NewInteractionService(interactionRepo, matchRepo, graphRepo, eventCh)
+	uow := &dummyUoW{}
+	svc := service.NewInteractionService(interactionRepo, matchRepo, graphRepo, uow, eventCh)
 	return svc, interactionRepo, matchRepo, graphRepo, eventCh
 }
 

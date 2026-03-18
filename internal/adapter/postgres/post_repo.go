@@ -30,7 +30,7 @@ func (r *PostRepo) Create(ctx context.Context, post *domain.Post) error {
 		VALUES ($1, $2, $3)
 		RETURNING id, like_count, comment_count, created_at, updated_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		post.AuthorID, post.Content, post.MediaURL,
 	).Scan(&post.ID, &post.LikeCount, &post.CommentCount, &post.CreatedAt, &post.UpdatedAt)
 	if err != nil {
@@ -47,7 +47,7 @@ func (r *PostRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Post, err
 		WHERE id = $1`
 
 	p := &domain.Post{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, id).Scan(
 		&p.ID, &p.AuthorID, &p.Content, &p.MediaURL,
 		&p.LikeCount, &p.CommentCount, &p.CreatedAt, &p.UpdatedAt,
 	)
@@ -64,7 +64,7 @@ func (r *PostRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Post, err
 func (r *PostRepo) Delete(ctx context.Context, id uuid.UUID, authorID uuid.UUID) error {
 	query := `DELETE FROM social.posts WHERE id = $1 AND author_id = $2`
 
-	tag, err := r.pool.Exec(ctx, query, id, authorID)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, authorID)
 	if err != nil {
 		return fmt.Errorf("deleting post: %w", err)
 	}
@@ -75,16 +75,24 @@ func (r *PostRepo) Delete(ctx context.Context, id uuid.UUID, authorID uuid.UUID)
 	return nil
 }
 
-func (r *PostRepo) ListFeed(ctx context.Context, limit, offset int) ([]domain.Post, error) {
+func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int) ([]domain.Post, string, error) {
 	query := `
 		SELECT id, author_id, content, media_url, like_count, comment_count, created_at, updated_at
 		FROM social.posts
+		WHERE ($2::timestamptz IS NULL OR created_at < $2::timestamptz)
 		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2`
+		LIMIT $1`
 
-	rows, err := r.pool.Query(ctx, query, limit, offset)
+	var cursorArg interface{}
+	if cursor == "" {
+		cursorArg = nil
+	} else {
+		cursorArg = cursor
+	}
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, limit, cursorArg)
 	if err != nil {
-		return nil, fmt.Errorf("listing feed: %w", err)
+		return nil, "", fmt.Errorf("listing feed: %w", err)
 	}
 	defer rows.Close()
 
@@ -95,28 +103,40 @@ func (r *PostRepo) ListFeed(ctx context.Context, limit, offset int) ([]domain.Po
 			&p.ID, &p.AuthorID, &p.Content, &p.MediaURL,
 			&p.LikeCount, &p.CommentCount, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scanning post row: %w", err)
+			return nil, "", fmt.Errorf("scanning post row: %w", err)
 		}
 		posts = append(posts, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating feed: %w", err)
+		return nil, "", fmt.Errorf("iterating feed: %w", err)
 	}
 
-	return posts, nil
+	var nextCursor string
+	if len(posts) == limit {
+		nextCursor = posts[len(posts)-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+
+	return posts, nextCursor, nil
 }
 
-func (r *PostRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID, limit, offset int) ([]domain.Post, error) {
+func (r *PostRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID, cursor string, limit int) ([]domain.Post, string, error) {
 	query := `
 		SELECT id, author_id, content, media_url, like_count, comment_count, created_at, updated_at
 		FROM social.posts
-		WHERE author_id = $1
+		WHERE author_id = $1 AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
 		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`
+		LIMIT $2`
 
-	rows, err := r.pool.Query(ctx, query, authorID, limit, offset)
+	var cursorArg interface{}
+	if cursor == "" {
+		cursorArg = nil
+	} else {
+		cursorArg = cursor
+	}
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, authorID, limit, cursorArg)
 	if err != nil {
-		return nil, fmt.Errorf("listing posts by author: %w", err)
+		return nil, "", fmt.Errorf("listing posts by author: %w", err)
 	}
 	defer rows.Close()
 
@@ -127,20 +147,25 @@ func (r *PostRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID, limit, 
 			&p.ID, &p.AuthorID, &p.Content, &p.MediaURL,
 			&p.LikeCount, &p.CommentCount, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scanning author post row: %w", err)
+			return nil, "", fmt.Errorf("scanning author post row: %w", err)
 		}
 		posts = append(posts, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating author posts: %w", err)
+		return nil, "", fmt.Errorf("iterating author posts: %w", err)
 	}
 
-	return posts, nil
+	var nextCursor string
+	if len(posts) == limit {
+		nextCursor = posts[len(posts)-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+
+	return posts, nextCursor, nil
 }
 
 func (r *PostRepo) IncrementLikeCount(ctx context.Context, id uuid.UUID, delta int) error {
 	query := `UPDATE social.posts SET like_count = like_count + $2, updated_at = NOW() WHERE id = $1`
-	tag, err := r.pool.Exec(ctx, query, id, delta)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, delta)
 	if err != nil {
 		return fmt.Errorf("incrementing like count: %w", err)
 	}
@@ -152,7 +177,7 @@ func (r *PostRepo) IncrementLikeCount(ctx context.Context, id uuid.UUID, delta i
 
 func (r *PostRepo) IncrementCommentCount(ctx context.Context, id uuid.UUID, delta int) error {
 	query := `UPDATE social.posts SET comment_count = comment_count + $2, updated_at = NOW() WHERE id = $1`
-	tag, err := r.pool.Exec(ctx, query, id, delta)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, delta)
 	if err != nil {
 		return fmt.Errorf("incrementing comment count: %w", err)
 	}
@@ -164,7 +189,7 @@ func (r *PostRepo) IncrementCommentCount(ctx context.Context, id uuid.UUID, delt
 
 func (r *PostRepo) LikePost(ctx context.Context, postID, userID uuid.UUID) error {
 	query := `INSERT INTO social.post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-	tag, err := r.pool.Exec(ctx, query, postID, userID)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, postID, userID)
 	if err != nil {
 		return fmt.Errorf("liking post: %w", err)
 	}
@@ -176,7 +201,7 @@ func (r *PostRepo) LikePost(ctx context.Context, postID, userID uuid.UUID) error
 
 func (r *PostRepo) UnlikePost(ctx context.Context, postID, userID uuid.UUID) error {
 	query := `DELETE FROM social.post_likes WHERE post_id = $1 AND user_id = $2`
-	tag, err := r.pool.Exec(ctx, query, postID, userID)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, postID, userID)
 	if err != nil {
 		return fmt.Errorf("unliking post: %w", err)
 	}
@@ -189,7 +214,7 @@ func (r *PostRepo) UnlikePost(ctx context.Context, postID, userID uuid.UUID) err
 func (r *PostRepo) IsLikedBy(ctx context.Context, postID, userID uuid.UUID) (bool, error) {
 	query := `SELECT 1 FROM social.post_likes WHERE post_id = $1 AND user_id = $2 LIMIT 1`
 	var dummy int
-	err := r.pool.QueryRow(ctx, query, postID, userID).Scan(&dummy)
+	err := runner(ctx, r.pool).QueryRow(ctx, query, postID, userID).Scan(&dummy)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
@@ -205,7 +230,7 @@ func (r *PostRepo) CreateComment(ctx context.Context, comment *domain.PostCommen
 		VALUES ($1, $2, $3)
 		RETURNING id, created_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		comment.PostID, comment.AuthorID, comment.Content,
 	).Scan(&comment.ID, &comment.CreatedAt)
 	if err != nil {
@@ -215,17 +240,24 @@ func (r *PostRepo) CreateComment(ctx context.Context, comment *domain.PostCommen
 	return r.IncrementCommentCount(ctx, comment.PostID, 1)
 }
 
-func (r *PostRepo) ListComments(ctx context.Context, postID uuid.UUID, limit, offset int) ([]domain.PostComment, error) {
+func (r *PostRepo) ListComments(ctx context.Context, postID uuid.UUID, cursor string, limit int) ([]domain.PostComment, string, error) {
 	query := `
 		SELECT id, post_id, author_id, content, created_at
 		FROM social.post_comments
-		WHERE post_id = $1
+		WHERE post_id = $1 AND ($3::timestamptz IS NULL OR created_at > $3::timestamptz)
 		ORDER BY created_at ASC
-		LIMIT $2 OFFSET $3`
+		LIMIT $2`
 
-	rows, err := r.pool.Query(ctx, query, postID, limit, offset)
+	var cursorArg interface{}
+	if cursor == "" {
+		cursorArg = nil
+	} else {
+		cursorArg = cursor
+	}
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, postID, limit, cursorArg)
 	if err != nil {
-		return nil, fmt.Errorf("listing comments: %w", err)
+		return nil, "", fmt.Errorf("listing comments: %w", err)
 	}
 	defer rows.Close()
 
@@ -233,13 +265,18 @@ func (r *PostRepo) ListComments(ctx context.Context, postID uuid.UUID, limit, of
 	for rows.Next() {
 		var c domain.PostComment
 		if err := rows.Scan(&c.ID, &c.PostID, &c.AuthorID, &c.Content, &c.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scanning comment row: %w", err)
+			return nil, "", fmt.Errorf("scanning comment row: %w", err)
 		}
 		comments = append(comments, c)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating comments: %w", err)
+		return nil, "", fmt.Errorf("iterating comments: %w", err)
 	}
 
-	return comments, nil
+	var nextCursor string
+	if len(comments) == limit {
+		nextCursor = comments[len(comments)-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+
+	return comments, nextCursor, nil
 }

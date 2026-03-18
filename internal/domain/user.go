@@ -35,6 +35,7 @@ type User struct {
 	TrustScore        int
 	IsActive          bool
 	LastLoginAt       *time.Time
+	FCMToken          *string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }

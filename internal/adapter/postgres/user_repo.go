@@ -28,11 +28,11 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO social.users (
 			id, phone_hash, phone_encrypted, email_encrypted,
-			password_hash, verification_level, trust_status, trust_score, is_active
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			password_hash, verification_level, trust_status, trust_score, is_active, fcm_token
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING created_at, updated_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		user.ID,
 		user.PhoneHash,
 		user.PhoneEncrypted,
@@ -42,6 +42,7 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 		user.TrustStatus,
 		user.TrustScore,
 		user.IsActive,
+		user.FCMToken,
 	).Scan(&user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if isDuplicateKey(err) {
@@ -57,12 +58,12 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted,
 			   password_hash, verification_level, trust_status, trust_score,
-			   is_active, last_login_at, created_at, updated_at
+			   is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE id = $1 AND is_active = true`
 
 	user := &domain.User{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, id).Scan(
 		&user.ID,
 		&user.PhoneHash,
 		&user.PhoneEncrypted,
@@ -73,6 +74,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 		&user.TrustScore,
 		&user.IsActive,
 		&user.LastLoginAt,
+		&user.FCMToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -90,12 +92,12 @@ func (r *UserRepo) GetByPhoneHash(ctx context.Context, phoneHash []byte) (*domai
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted,
 			   password_hash, verification_level, trust_status, trust_score,
-			   is_active, last_login_at, created_at, updated_at
+			   is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE phone_hash = $1 AND is_active = true`
 
 	user := &domain.User{}
-	err := r.pool.QueryRow(ctx, query, phoneHash).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, phoneHash).Scan(
 		&user.ID,
 		&user.PhoneHash,
 		&user.PhoneEncrypted,
@@ -106,6 +108,7 @@ func (r *UserRepo) GetByPhoneHash(ctx context.Context, phoneHash []byte) (*domai
 		&user.TrustScore,
 		&user.IsActive,
 		&user.LastLoginAt,
+		&user.FCMToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -125,7 +128,7 @@ func (r *UserRepo) UpdateVerificationLevel(ctx context.Context, id uuid.UUID, le
 		SET verification_level = $2, updated_at = NOW()
 		WHERE id = $1 AND is_active = true`
 
-	tag, err := r.pool.Exec(ctx, query, id, level)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, level)
 	if err != nil {
 		return fmt.Errorf("updating verification level: %w", err)
 	}
@@ -142,7 +145,7 @@ func (r *UserRepo) UpdateTrustScore(ctx context.Context, id uuid.UUID, score int
 		SET trust_score = $2, updated_at = NOW()
 		WHERE id = $1 AND is_active = true`
 
-	tag, err := r.pool.Exec(ctx, query, id, score)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, score)
 	if err != nil {
 		return fmt.Errorf("updating trust score: %w", err)
 	}
@@ -159,7 +162,7 @@ func (r *UserRepo) UpdateTrustStatus(ctx context.Context, id uuid.UUID, status d
 		SET trust_status = $2, updated_at = NOW()
 		WHERE id = $1 AND is_active = true`
 
-	tag, err := r.pool.Exec(ctx, query, id, status)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, status)
 	if err != nil {
 		return fmt.Errorf("updating trust status: %w", err)
 	}
@@ -176,7 +179,7 @@ func (r *UserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
 		SET last_login_at = NOW(), updated_at = NOW()
 		WHERE id = $1 AND is_active = true`
 
-	tag, err := r.pool.Exec(ctx, query, id)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("updating last login: %w", err)
 	}
@@ -193,7 +196,7 @@ func (r *UserRepo) SoftDelete(ctx context.Context, id uuid.UUID) error {
 		SET is_active = false, updated_at = NOW()
 		WHERE id = $1 AND is_active = true`
 
-	tag, err := r.pool.Exec(ctx, query, id)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("soft deleting user: %w", err)
 	}
@@ -211,4 +214,16 @@ func isDuplicateKey(err error) bool {
 		return pgErr.SQLState() == "23505"
 	}
 	return false
+}
+
+func (r *UserRepo) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error {
+	query := "UPDATE social.users SET fcm_token = $2, updated_at = NOW() WHERE id = $1"
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, token)
+	if err != nil {
+		return fmt.Errorf("updating fcm token: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }

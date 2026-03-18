@@ -1,0 +1,1 @@
+ALTER TABLE social.users DROP COLUMN fcm_token;

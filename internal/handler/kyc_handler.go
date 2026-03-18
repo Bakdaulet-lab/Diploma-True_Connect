@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/domain"
 	"github.com/trueconnect/backend/internal/handler/middleware"
+	"github.com/trueconnect/backend/internal/provider"
 	"github.com/trueconnect/backend/internal/repository"
 )
 
@@ -15,14 +18,15 @@ const maxKYCDocBytes = 10 << 20 // 10 MB
 
 // KYCHandler holds HTTP handlers for KYC document submission.
 type KYCHandler struct {
-	mediaStore repository.MediaStore
-	userRepo   repository.UserRepository
-	log        *slog.Logger
+	mediaStore  repository.MediaStore
+	userRepo    repository.UserRepository
+	kycProvider provider.KYCProvider
+	log         *slog.Logger
 }
 
 // NewKYCHandler creates a new KYC handler.
-func NewKYCHandler(mediaStore repository.MediaStore, userRepo repository.UserRepository, log *slog.Logger) *KYCHandler {
-	return &KYCHandler{mediaStore: mediaStore, userRepo: userRepo, log: log}
+func NewKYCHandler(mediaStore repository.MediaStore, userRepo repository.UserRepository, kycProvider provider.KYCProvider, log *slog.Logger) *KYCHandler {
+	return &KYCHandler{mediaStore: mediaStore, userRepo: userRepo, kycProvider: kycProvider, log: log}
 }
 
 // SubmitKYC handles POST /v1/kyc/submit — accepts a document upload.
@@ -78,6 +82,22 @@ func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 		slog.String("object_key", objectKey),
 		slog.String("filename", header.Filename),
 	)
+
+	// In a real system, this could be triggered via a worker task. For now, running in a goroutine.
+	go func(uid uuid.UUID, key string, docData []byte, mime string) {
+		ctx := context.Background() // new context for async task
+		level, verifyErr := h.kycProvider.VerifyDocument(ctx, uid, key, docData, mime)
+		if verifyErr != nil {
+			h.log.Error("external kyc verification failed", slog.String("error", verifyErr.Error()))
+			return
+		}
+
+		if updateErr := h.userRepo.UpdateVerificationLevel(ctx, uid, level); updateErr != nil {
+			h.log.Error("failed to update user verification level", slog.String("error", updateErr.Error()))
+		} else {
+			h.log.Info("kyc verified successfully", slog.String("user_id", uid.String()), slog.Any("level", level))
+		}
+	}(userID, objectKey, data, mimeType)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"data": gin.H{

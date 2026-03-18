@@ -31,7 +31,7 @@ func (r *ReportRepo) Create(ctx context.Context, report *domain.Report) error {
 		INSERT INTO social.reports (id, reporter_id, reported_id, reason, description, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-	_, err := r.pool.Exec(ctx, query,
+	_, err := runner(ctx, r.pool).Exec(ctx, query,
 		report.ID,
 		report.ReporterID,
 		report.ReportedID,
@@ -54,7 +54,7 @@ func (r *ReportRepo) ExistsBetween(ctx context.Context, reporterID, reportedID u
 		LIMIT 1`
 
 	var dummy int
-	err := r.pool.QueryRow(ctx, query, reporterID, reportedID).Scan(&dummy)
+	err := runner(ctx, r.pool).QueryRow(ctx, query, reporterID, reportedID).Scan(&dummy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}

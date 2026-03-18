@@ -28,7 +28,7 @@ func (r *MessageRepo) Create(ctx context.Context, msg *domain.Message) error {
 		VALUES ($1, $2, $3)
 		RETURNING id, created_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		msg.MatchID, msg.SenderID, msg.ContentEncrypted,
 	).Scan(&msg.ID, &msg.CreatedAt)
 	if err != nil {
@@ -46,7 +46,7 @@ func (r *MessageRepo) ListByMatch(ctx context.Context, matchID uuid.UUID, limit,
 		ORDER BY created_at ASC
 		LIMIT $2 OFFSET $3`
 
-	rows, err := r.pool.Query(ctx, query, matchID, limit, offset)
+	rows, err := runner(ctx, r.pool).Query(ctx, query, matchID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("listing messages: %w", err)
 	}
@@ -78,7 +78,7 @@ func (r *MessageRepo) MarkRead(ctx context.Context, matchID uuid.UUID, readerID 
 		  AND sender_id != $2
 		  AND read_at IS NULL`
 
-	_, err := r.pool.Exec(ctx, query, matchID, readerID)
+	_, err := runner(ctx, r.pool).Exec(ctx, query, matchID, readerID)
 	if err != nil {
 		return fmt.Errorf("marking messages read: %w", err)
 	}

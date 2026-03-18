@@ -63,7 +63,7 @@ func (m *mockPostRepo) Delete(_ context.Context, id uuid.UUID, authorID uuid.UUI
 	return nil
 }
 
-func (m *mockPostRepo) ListFeed(_ context.Context, limit, offset int) ([]domain.Post, error) {
+func (m *mockPostRepo) ListFeed(_ context.Context, cursor string, limit int) ([]domain.Post, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var all []domain.Post
@@ -71,18 +71,32 @@ func (m *mockPostRepo) ListFeed(_ context.Context, limit, offset int) ([]domain.
 		all = append(all, *p)
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.After(all[j].CreatedAt) })
-	start := offset
+
+	// Very simple mock cursor processing
+	start := 0
+	if cursor != "" {
+		for i, p := range all {
+			if p.CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00") == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
 	if start >= len(all) {
-		return []domain.Post{}, nil
+		return []domain.Post{}, "", nil
 	}
 	end := start + limit
 	if end > len(all) {
 		end = len(all)
 	}
-	return all[start:end], nil
+	nextCursor := ""
+	if end == start+limit {
+		nextCursor = all[end-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+	return all[start:end], nextCursor, nil
 }
 
-func (m *mockPostRepo) ListByAuthor(_ context.Context, authorID uuid.UUID, limit, offset int) ([]domain.Post, error) {
+func (m *mockPostRepo) ListByAuthor(_ context.Context, authorID uuid.UUID, cursor string, limit int) ([]domain.Post, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var all []domain.Post
@@ -92,15 +106,28 @@ func (m *mockPostRepo) ListByAuthor(_ context.Context, authorID uuid.UUID, limit
 		}
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.After(all[j].CreatedAt) })
-	start := offset
+
+	start := 0
+	if cursor != "" {
+		for i, p := range all {
+			if p.CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00") == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
 	if start >= len(all) {
-		return []domain.Post{}, nil
+		return []domain.Post{}, "", nil
 	}
 	end := start + limit
 	if end > len(all) {
 		end = len(all)
 	}
-	return all[start:end], nil
+	nextCursor := ""
+	if end == start+limit {
+		nextCursor = all[end-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+	return all[start:end], nextCursor, nil
 }
 
 func (m *mockPostRepo) IncrementLikeCount(_ context.Context, id uuid.UUID, delta int) error {
@@ -182,19 +209,32 @@ func (m *mockPostRepo) CreateComment(_ context.Context, comment *domain.PostComm
 	return nil
 }
 
-func (m *mockPostRepo) ListComments(_ context.Context, postID uuid.UUID, limit, offset int) ([]domain.PostComment, error) {
+func (m *mockPostRepo) ListComments(_ context.Context, postID uuid.UUID, cursor string, limit int) ([]domain.PostComment, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	all := m.comments[postID]
-	start := offset
+
+	start := 0
+	if cursor != "" {
+		for i, c := range all {
+			if c.CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00") == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
 	if start >= len(all) {
-		return []domain.PostComment{}, nil
+		return []domain.PostComment{}, "", nil
 	}
 	end := start + limit
 	if end > len(all) {
 		end = len(all)
 	}
-	return all[start:end], nil
+	nextCursor := ""
+	if end == start+limit {
+		nextCursor = all[end-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+	return all[start:end], nextCursor, nil
 }
 
 // ── mockMessageRepo ──────────────────────────────────────────────────────────

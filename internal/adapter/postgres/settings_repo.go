@@ -39,7 +39,7 @@ func (r *SettingsRepo) Get(ctx context.Context, userID uuid.UUID) (*domain.UserS
 		WHERE user_id = $1`
 
 	s := &domain.UserSettings{}
-	err := r.pool.QueryRow(ctx, query, userID).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&s.UserID,
 		&s.PushNotifications,
 		&s.ShowOnlineStatus,
@@ -81,7 +81,7 @@ func (r *SettingsRepo) Upsert(ctx context.Context, s *domain.UserSettings) error
 		return fmt.Errorf("parsing user id: %w", err)
 	}
 
-	return r.pool.QueryRow(ctx, query,
+	return runner(ctx, r.pool).QueryRow(ctx, query,
 		userID,
 		s.PushNotifications,
 		s.ShowOnlineStatus,

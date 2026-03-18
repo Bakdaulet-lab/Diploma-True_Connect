@@ -35,7 +35,7 @@ var testEncKey = []byte("0123456789abcdef0123456789abcdef")
 func TestSendMessage_Success(t *testing.T) {
 	matchRepo, userA, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	dm, err := svc.SendMessage(context.Background(), userA, matchID, "hello!")
 	if err != nil {
@@ -55,7 +55,7 @@ func TestSendMessage_Success(t *testing.T) {
 func TestSendMessage_EmptyContent(t *testing.T) {
 	matchRepo, userA, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	_, err := svc.SendMessage(context.Background(), userA, matchID, "")
 	if err == nil {
@@ -66,7 +66,7 @@ func TestSendMessage_EmptyContent(t *testing.T) {
 func TestSendMessage_NotInMatch(t *testing.T) {
 	matchRepo, _, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	outsider := uuid.New()
 	_, err := svc.SendMessage(context.Background(), outsider, matchID, "sneaky")
@@ -90,7 +90,7 @@ func TestSendMessage_MatchNotFinalized(t *testing.T) {
 	matchRepo.mu.Unlock()
 
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	_, err := svc.SendMessage(context.Background(), userA, matchID, "hi")
 	if err == nil {
@@ -101,7 +101,7 @@ func TestSendMessage_MatchNotFinalized(t *testing.T) {
 func TestGetMessages_Success(t *testing.T) {
 	matchRepo, userA, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	// Send some messages.
 	svc.SendMessage(context.Background(), userA, matchID, "msg one")
@@ -125,7 +125,7 @@ func TestGetMessages_Success(t *testing.T) {
 func TestGetMessages_NotInMatch(t *testing.T) {
 	matchRepo, _, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	outsider := uuid.New()
 	_, err := svc.GetMessages(context.Background(), matchID, outsider, 1, 50)
@@ -137,7 +137,7 @@ func TestGetMessages_NotInMatch(t *testing.T) {
 func TestGetMessages_EmptyList(t *testing.T) {
 	matchRepo, userA, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	msgs, err := svc.GetMessages(context.Background(), matchID, userA, 1, 50)
 	if err != nil {
@@ -151,7 +151,7 @@ func TestGetMessages_EmptyList(t *testing.T) {
 func TestMarkRead_Success(t *testing.T) {
 	matchRepo, userA, userB, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	// User A sends a message.
 	svc.SendMessage(context.Background(), userA, matchID, "read me")
@@ -168,7 +168,7 @@ func TestMarkRead_Success(t *testing.T) {
 func TestMarkRead_NotInMatch(t *testing.T) {
 	matchRepo, _, _, matchID := setupChatMatch(t)
 	msgRepo := newMockMessageRepo()
-	svc := service.NewChatService(msgRepo, matchRepo, testEncKey)
+	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	outsider := uuid.New()
 	err := svc.MarkRead(context.Background(), matchID, outsider)

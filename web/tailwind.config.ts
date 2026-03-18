@@ -5,7 +5,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        background: '#F9FAFB', // gray-50
+        foreground: '#111827', // gray-900
+        card: {
+          DEFAULT: '#FFFFFF',
+          foreground: '#111827',
+        },
+        muted: {
+          DEFAULT: '#F3F4F6', // gray-100
+          foreground: '#6B7280', // gray-500
+        },
         primary: {
+          DEFAULT: '#F43F5E',
+          foreground: '#FFFFFF',
           50: '#FFF1F2',
           100: '#FFE4E6',
           200: '#FECDD3',

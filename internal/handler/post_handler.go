@@ -105,9 +105,9 @@ func (h *PostHandler) DeletePost(c *gin.Context) {
 
 // ListFeed handles GET /v1/posts
 func (h *PostHandler) ListFeed(c *gin.Context) {
-	page, perPage := parsePagination(c)
+	cursor, limit := parseCursorPagination(c)
 
-	posts, err := h.postSvc.ListFeed(c.Request.Context(), page, perPage)
+	posts, nextCursor, err := h.postSvc.ListFeed(c.Request.Context(), cursor, limit)
 	if err != nil {
 		h.log.Error("list feed error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not list feed", nil)
@@ -116,7 +116,7 @@ func (h *PostHandler) ListFeed(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": posts,
-		"meta": gin.H{"page": page, "per_page": perPage},
+		"meta": gin.H{"next_cursor": nextCursor, "limit": limit},
 	})
 }
 
@@ -214,9 +214,9 @@ func (h *PostHandler) ListComments(c *gin.Context) {
 		return
 	}
 
-	page, perPage := parsePagination(c)
+	cursor, limit := parseCursorPagination(c)
 
-	comments, err := h.postSvc.ListComments(c.Request.Context(), postID, page, perPage)
+	comments, nextCursor, err := h.postSvc.ListComments(c.Request.Context(), postID, cursor, limit)
 	if err != nil {
 		h.log.Error("list comments error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not list comments", nil)
@@ -225,6 +225,6 @@ func (h *PostHandler) ListComments(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": comments,
-		"meta": gin.H{"page": page, "per_page": perPage},
+		"meta": gin.H{"next_cursor": nextCursor, "limit": limit},
 	})
 }

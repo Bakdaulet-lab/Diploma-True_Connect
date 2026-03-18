@@ -17,6 +17,7 @@ type InteractionService struct {
 	interactionRepo repository.InteractionRepository
 	matchRepo       repository.MatchRepository
 	graphRepo       repository.TrustGraphRepository
+	uow             repository.UnitOfWork
 	eventCh         chan<- uuid.UUID
 }
 
@@ -25,12 +26,14 @@ func NewInteractionService(
 	interactionRepo repository.InteractionRepository,
 	matchRepo repository.MatchRepository,
 	graphRepo repository.TrustGraphRepository,
+	uow repository.UnitOfWork,
 	eventCh chan<- uuid.UUID,
 ) *InteractionService {
 	return &InteractionService{
 		interactionRepo: interactionRepo,
 		matchRepo:       matchRepo,
 		graphRepo:       graphRepo,
+		uow:             uow,
 		eventCh:         eventCh,
 	}
 }
@@ -77,12 +80,18 @@ func (s *InteractionService) SubmitRating(
 		IsVerified: false,
 	}
 
-	if err := s.interactionRepo.Create(ctx, interaction); err != nil {
-		return nil, fmt.Errorf("submit rating: creating interaction: %w", err)
-	}
+	err = s.uow.Do(ctx, func(txCtx context.Context) error {
+		if err := s.interactionRepo.Create(txCtx, interaction); err != nil {
+			return fmt.Errorf("creating interaction: %w", err)
+		}
 
-	if err := s.graphRepo.AddRating(ctx, raterID, ratedID, rating, interactionContext, false); err != nil {
-		return nil, fmt.Errorf("submit rating: adding graph rating: %w", err)
+		if err := s.graphRepo.AddRating(txCtx, raterID, ratedID, rating, interactionContext, false); err != nil {
+			return fmt.Errorf("adding graph rating: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("submit rating: %w", err)
 	}
 
 	// Notify trust engine (non-blocking).
@@ -109,18 +118,24 @@ func (s *InteractionService) ConfirmInteraction(ctx context.Context, interaction
 		return nil // already confirmed — idempotent
 	}
 
-	if err := s.interactionRepo.ConfirmInteraction(ctx, interactionID); err != nil {
-		return fmt.Errorf("confirm interaction: updating PG: %w", err)
-	}
+	err = s.uow.Do(ctx, func(txCtx context.Context) error {
+		if err := s.interactionRepo.ConfirmInteraction(txCtx, interactionID); err != nil {
+			return fmt.Errorf("updating PG: %w", err)
+		}
 
-	// Add a verified rating edge in Neo4j.
-	if err := s.graphRepo.AddRating(ctx, interaction.RaterID, interaction.RatedID, interaction.Rating, interaction.Context, true); err != nil {
-		return fmt.Errorf("confirm interaction: adding verified graph rating: %w", err)
-	}
+		// Add a verified rating edge in Neo4j.
+		if err := s.graphRepo.AddRating(txCtx, interaction.RaterID, interaction.RatedID, interaction.Rating, interaction.Context, true); err != nil {
+			return fmt.Errorf("adding verified graph rating: %w", err)
+		}
 
-	// Record the confirmed meeting.
-	if err := s.graphRepo.AddMeeting(ctx, interaction.RaterID, interaction.RatedID, true); err != nil {
-		return fmt.Errorf("confirm interaction: adding meeting edge: %w", err)
+		// Record the confirmed meeting.
+		if err := s.graphRepo.AddMeeting(txCtx, interaction.RaterID, interaction.RatedID, true); err != nil {
+			return fmt.Errorf("adding meeting edge: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("confirm interaction: %w", err)
 	}
 
 	// Notify trust engine (non-blocking).

@@ -30,7 +30,7 @@ func (r *MediaRepo) Create(ctx context.Context, m *domain.Media) error {
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING created_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		m.ID, m.UserID, m.ObjectKey, m.MediaType, m.SortOrder,
 	).Scan(&m.CreatedAt)
 	if err != nil {
@@ -47,7 +47,7 @@ func (r *MediaRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]*domain
 		WHERE user_id = $1
 		ORDER BY sort_order ASC, created_at ASC`
 
-	rows, err := r.pool.Query(ctx, query, userID)
+	rows, err := runner(ctx, r.pool).Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("listing media: %w", err)
 	}
@@ -78,7 +78,7 @@ func (r *MediaRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Media, e
 		WHERE id = $1`
 
 	m := &domain.Media{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, id).Scan(
 		&m.ID, &m.UserID, &m.ObjectKey, &m.MediaType,
 		&m.SortOrder, &m.IsVerified, &m.CreatedAt,
 	)
@@ -96,7 +96,7 @@ func (r *MediaRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Media, e
 func (r *MediaRepo) Delete(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) error {
 	query := `DELETE FROM social.media WHERE id = $1 AND user_id = $2`
 
-	tag, err := r.pool.Exec(ctx, query, id, ownerID)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, ownerID)
 	if err != nil {
 		return fmt.Errorf("deleting media: %w", err)
 	}
@@ -111,7 +111,7 @@ func (r *MediaRepo) CountByUser(ctx context.Context, userID uuid.UUID) (int, err
 	query := `SELECT COUNT(*) FROM social.media WHERE user_id = $1`
 
 	var count int
-	if err := r.pool.QueryRow(ctx, query, userID).Scan(&count); err != nil {
+	if err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(&count); err != nil {
 		return 0, fmt.Errorf("counting media: %w", err)
 	}
 
@@ -125,7 +125,7 @@ func (r *MediaRepo) UpdateAvatar(ctx context.Context, userID uuid.UUID, objectKe
 		SET avatar_url = $2, updated_at = NOW()
 		WHERE user_id = $1`
 
-	_, err := r.pool.Exec(ctx, query, userID, objectKey)
+	_, err := runner(ctx, r.pool).Exec(ctx, query, userID, objectKey)
 	if err != nil {
 		return fmt.Errorf("updating avatar: %w", err)
 	}

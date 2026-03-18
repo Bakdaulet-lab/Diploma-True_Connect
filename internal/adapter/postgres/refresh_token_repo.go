@@ -33,7 +33,7 @@ func (r *RefreshTokenRepo) Create(ctx context.Context, userID uuid.UUID, tokenHa
 		RETURNING id`
 
 	var id uuid.UUID
-	err := r.pool.QueryRow(ctx, query, userID, tokenHash, expiresAt).Scan(&id)
+	err := runner(ctx, r.pool).QueryRow(ctx, query, userID, tokenHash, expiresAt).Scan(&id)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("creating refresh token: %w", err)
 	}
@@ -51,7 +51,7 @@ func (r *RefreshTokenRepo) GetByTokenHash(ctx context.Context, tokenHash []byte)
 		WHERE token_hash = $1 AND expires_at > NOW()`
 
 	token := &repository.RefreshToken{}
-	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, tokenHash).Scan(
 		&token.ID,
 		&token.UserID,
 		&token.TokenHash,
@@ -75,7 +75,7 @@ func (r *RefreshTokenRepo) Revoke(ctx context.Context, tokenHash []byte) error {
 		SET revoked = true
 		WHERE token_hash = $1 AND revoked = false`
 
-	_, err := r.pool.Exec(ctx, query, tokenHash)
+	_, err := runner(ctx, r.pool).Exec(ctx, query, tokenHash)
 	if err != nil {
 		return fmt.Errorf("revoking refresh token: %w", err)
 	}
@@ -90,7 +90,7 @@ func (r *RefreshTokenRepo) RevokeAllForUser(ctx context.Context, userID uuid.UUI
 		SET revoked = true
 		WHERE user_id = $1 AND revoked = false`
 
-	_, err := r.pool.Exec(ctx, query, userID)
+	_, err := runner(ctx, r.pool).Exec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("revoking all tokens for user: %w", err)
 	}
@@ -102,7 +102,7 @@ func (r *RefreshTokenRepo) RevokeAllForUser(ctx context.Context, userID uuid.UUI
 func (r *RefreshTokenRepo) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM social.refresh_tokens WHERE expires_at < NOW() OR revoked = true`
 
-	tag, err := r.pool.Exec(ctx, query)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query)
 	if err != nil {
 		return 0, fmt.Errorf("deleting expired tokens: %w", err)
 	}

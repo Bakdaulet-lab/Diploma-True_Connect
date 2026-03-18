@@ -69,6 +69,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 	// ── Protected routes (JWT required) ──────────────────────────────
 	protected := v1.Group("")
 	protected.Use(middleware.Auth(deps.JWT))
+	protected.Use(middleware.AuditLogMiddleware(deps.Log))
 
 	// Per-user rate limit for write-heavy endpoints: 30 req/min.
 	userRL := middleware.RateLimitByUser(deps.Redis, middleware.RateLimitConfig{
@@ -96,6 +97,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 		// ── User Account ─────────────────────────────────────────────
 		protected.GET("/users/me", deps.User.GetMe)
+		protected.POST("/users/me/fcm-token", deps.User.UpdateFCMToken)
 		protected.DELETE("/users/me", deps.User.DeleteMe)
 
 		// ── Interactions & Reputation ────────────────────────────────

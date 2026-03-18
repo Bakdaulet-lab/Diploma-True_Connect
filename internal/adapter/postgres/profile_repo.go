@@ -45,7 +45,7 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 			updated_at   = NOW()
 		RETURNING created_at, updated_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		p.UserID,
 		p.DisplayName,
 		nullableString(p.Bio),
@@ -79,7 +79,7 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	var bio, city, avatarURL *string
 	var gender, lookingFor *string
 
-	err := r.pool.QueryRow(ctx, query, userID).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.DisplayName, &bio, &gender, &p.BirthDate,
 		&city, &p.Latitude, &p.Longitude,
 		&lookingFor, &avatarURL, &p.CreatedAt, &p.UpdatedAt,
@@ -151,7 +151,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 		ORDER BY u.trust_score DESC, u.last_login_at DESC NULLS LAST
 		LIMIT $9`
 
-	rows, err := r.pool.Query(ctx, query,
+	rows, err := runner(ctx, r.pool).Query(ctx, query,
 		opts.Lat,                // $1
 		opts.Lon,                // $2
 		opts.MaxDistanceMeters,  // $3

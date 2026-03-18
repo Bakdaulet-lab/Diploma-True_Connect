@@ -84,3 +84,7 @@ func (s *UserService) DeleteMe(ctx context.Context, userID uuid.UUID) error {
 
 	return nil
 }
+
+func (s *UserService) UpdateFCMToken(ctx context.Context, userID uuid.UUID, token string) error {
+	return s.userRepo.UpdateFCMToken(ctx, userID, token)
+}

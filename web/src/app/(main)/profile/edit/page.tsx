@@ -13,7 +13,7 @@ export default function EditProfilePage() {
   const { data: profile, isLoading } = useMyProfile();
   const { mutate: updateProfile, isPending } = useUpdateProfile();
 
-  const { register, handleSubmit, reset } = useForm<ProfileUpsert>();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileUpsert>();
 
   useEffect(() => {
     if (profile) {
@@ -21,8 +21,11 @@ export default function EditProfilePage() {
         display_name: profile.display_name || '',
         bio: profile.bio || '',
         gender: profile.gender || '',
+        birth_date: profile.birth_date ? profile.birth_date.split('T')[0] : '',
         city: profile.city || '',
         looking_for: profile.looking_for || '',
+        latitude: profile.latitude || undefined,
+        longitude: profile.longitude || undefined,
       });
     }
   }, [profile, reset]);
@@ -49,9 +52,19 @@ export default function EditProfilePage() {
         <div>
           <label className="block text-sm font-medium mb-2 text-gray-700">Display Name</label>
           <input
-            {...register('display_name', { required: true })}
+            {...register('display_name', { required: 'Display name is required', minLength: { value: 2, message: 'Minimum 2 characters' } })}
             className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
             placeholder="Your name"
+          />
+          {errors.display_name && <p className="text-red-500 text-sm mt-1">{errors.display_name.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2 text-gray-700">Birth Date</label>
+          <input
+            type="date"
+            {...register('birth_date')}
+            className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
           />
         </div>
 
@@ -92,13 +105,37 @@ export default function EditProfilePage() {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-2 text-gray-700">City</label>
-          <input
-            {...register('city')}
-            className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
-            placeholder="Where do you live?"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700">City</label>
+            <input
+              {...register('city')}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
+              placeholder="Where do you live?"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700">Latitude</label>
+            <input
+              type="number"
+              step="any"
+              {...register('latitude', { valueAsNumber: true, min: { value: -90, message: 'Invalid latitude' }, max: { value: 90, message: 'Invalid latitude' } })}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
+              placeholder="e.g. 51.5074"
+            />
+            {errors.latitude && <p className="text-red-500 text-sm mt-1">{errors.latitude.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700">Longitude</label>
+            <input
+              type="number"
+              step="any"
+              {...register('longitude', { valueAsNumber: true, min: { value: -180, message: 'Invalid longitude' }, max: { value: 180, message: 'Invalid longitude' } })}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
+              placeholder="e.g. -0.1278"
+            />
+            {errors.longitude && <p className="text-red-500 text-sm mt-1">{errors.longitude.message}</p>}
+          </div>
         </div>
 
         <div className="pt-4 flex justify-end gap-3 flex-wrap">

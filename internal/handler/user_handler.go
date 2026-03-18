@@ -56,3 +56,27 @@ func (h *UserHandler) DeleteMe(c *gin.Context) {
 		"data": gin.H{"message": "account deleted"},
 	})
 }
+
+func (h *UserHandler) UpdateFCMToken(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	var req struct {
+		Token string `json:"fcm_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errorResponse(c, http.StatusBadRequest, "INVALID_JSON", "invalid request body", nil)
+		return
+	}
+
+	if err := h.userSvc.UpdateFCMToken(c.Request.Context(), userID, req.Token); err != nil {
+		h.log.Error("update fcm token error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not update fcm token", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "token updated"}})
+}

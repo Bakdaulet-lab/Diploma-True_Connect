@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Edit, Shield, Settings, Camera } from 'lucide-react';
-import { useMyProfile, useMyPhotos, useCurrentUser } from '@/hooks/api';
+import { Edit, Shield, Settings, Camera, Trash2, Plus } from 'lucide-react';
+import { useMyProfile, useMyPhotos, useCurrentUser, useUploadPhoto, useDeletePhoto } from '@/hooks/api';
 import { LoadingScreen, Avatar, TrustBadge } from '@/components/ui/common';
 import { calculateAge } from '@/lib/utils';
 
@@ -10,6 +10,15 @@ export default function ProfilePage() {
   const { data: profile, isLoading: profileLoading } = useMyProfile();
   const { data: photos } = useMyPhotos();
   const { data: user } = useCurrentUser();
+  const { mutate: uploadPhoto, isPending: isUploading } = useUploadPhoto();
+  const { mutate: deletePhoto } = useDeletePhoto();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadPhoto(file);
+    }
+  };
 
   if (profileLoading) return <LoadingScreen />;
 
@@ -89,21 +98,39 @@ export default function ProfilePage() {
         </div>
 
         {/* Photos */}
-        {photos && photos.length > 0 && (
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Photos</h3>
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Photos</h3>
+            <label className="btn-ghost cursor-pointer text-xs p-2 shrink-0 h-auto">
+              {isUploading ? 'Uploading...' : <><Plus className="h-4 w-4 mr-1"/> Add Photo</>}
+              <input type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={handleFileChange} />
+            </label>
+          </div>
+          
+          {(!photos || photos.length === 0) ? (
+            <div className="bg-gray-50 rounded-xl p-8 text-center border-2 border-dashed border-gray-200">
+              <p className="text-sm text-gray-500 mb-2">No photos uploaded yet</p>
+            </div>
+          ) : (
             <div className="grid grid-cols-3 gap-2">
               {photos.map((photo) => (
-                <img
-                  key={photo.id}
-                  src={photo.url}
-                  alt=""
-                  className="aspect-square w-full rounded-xl object-cover"
-                />
+                <div key={photo.id} className="relative group aspect-square">
+                  <img
+                    src={photo.url}
+                    alt=""
+                    className="w-full h-full rounded-xl object-cover"
+                  />
+                  <button
+                    onClick={() => deletePhoto(photo.id)}
+                    className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Actions */}

@@ -13,14 +13,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trueconnect/backend/internal/adapter/kyc"
 	minioadapter "github.com/trueconnect/backend/internal/adapter/minio"
 	neo4jadapter "github.com/trueconnect/backend/internal/adapter/neo4j"
 	"github.com/trueconnect/backend/internal/adapter/postgres"
 	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
 	"github.com/trueconnect/backend/internal/config"
+	"github.com/trueconnect/backend/internal/domain"
 	"github.com/trueconnect/backend/internal/handler"
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
 	"github.com/trueconnect/backend/internal/pkg/logger"
+	"github.com/trueconnect/backend/internal/provider"
 	"github.com/trueconnect/backend/internal/service"
 	"github.com/trueconnect/backend/internal/worker"
 )
@@ -129,20 +132,33 @@ func run() error {
 	// Sprint 3 repos, services, and trust engine
 	interactionRepo := postgres.NewInteractionRepo(pgPool)
 	eventCh := make(chan uuid.UUID, 100)
-	interactionSvc := service.NewInteractionService(interactionRepo, matchRepo, graphRepo, eventCh)
+	uow := postgres.NewUoW(pgPool)
+	interactionSvc := service.NewInteractionService(
+		interactionRepo,
+		matchRepo,
+		graphRepo,
+		uow,
+		eventCh,
+	)
 	reputeSvc := service.NewReputationService(graphRepo, userRepo, matchingCache)
 
 	trustEngine := worker.NewTrustEngine(eventCh, reputeSvc, log)
 	go trustEngine.Run(ctx)
+
+	// Push Notifications
+	pushCh := make(chan domain.PushEvent, 100)
+	pushProvider := provider.NewMockPushProvider() // Use Mock for now to avoid dealing with credentials during testing
+	pushWorker := worker.NewPushWorker(pushProvider, userRepo, pushCh, log)
+	go pushWorker.Run(ctx)
 
 	// Sprint 4 repos and services
 	postRepo := postgres.NewPostRepo(pgPool)
 	messageRepo := postgres.NewMessageRepo(pgPool)
 
 	postSvc := service.NewPostService(postRepo)
-	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey)
+	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey, pushCh)
 
-	// ── Handlers ─────────────────────────────────────────────────────
+	// ── Handlers ────────────────────────────────────────────────────────────────
 
 	authHandler := handler.NewAuthHandler(authSvc, log, cfg.Server.Env == "development")
 
@@ -158,7 +174,9 @@ func run() error {
 	postHandler := handler.NewPostHandler(postSvc, log)
 	chatHub := handler.NewHub(chatSvc, matchingSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
-	kycHandler := handler.NewKYCHandler(mediaStore, userRepo, log)
+
+	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)
+	kycHandler := handler.NewKYCHandler(mediaStore, userRepo, kycProvider, log)
 
 	// Sprint 5 service and handler
 	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, encryptionKey)

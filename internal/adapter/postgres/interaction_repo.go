@@ -32,7 +32,7 @@ func (r *InteractionRepo) Create(ctx context.Context, interaction *domain.Intera
 		) VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := runner(ctx, r.pool).QueryRow(ctx, query,
 		interaction.RaterID,
 		interaction.RatedID,
 		interaction.Rating,
@@ -54,7 +54,7 @@ func (r *InteractionRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.In
 		WHERE id = $1`
 
 	i := &domain.Interaction{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := runner(ctx, r.pool).QueryRow(ctx, query, id).Scan(
 		&i.ID, &i.RaterID, &i.RatedID,
 		&i.Rating, &i.Context, &i.Comment,
 		&i.IsVerified, &i.CreatedAt,
@@ -75,7 +75,7 @@ func (r *InteractionRepo) ConfirmInteraction(ctx context.Context, id uuid.UUID) 
 		SET is_verified = true
 		WHERE id = $1`
 
-	tag, err := r.pool.Exec(ctx, query, id)
+	tag, err := runner(ctx, r.pool).Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("confirming interaction: %w", err)
 	}
@@ -94,7 +94,7 @@ func (r *InteractionRepo) GetByRatedUser(ctx context.Context, ratedID uuid.UUID,
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3`
 
-	rows, err := r.pool.Query(ctx, query, ratedID, limit, offset)
+	rows, err := runner(ctx, r.pool).Query(ctx, query, ratedID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("listing interactions: %w", err)
 	}
@@ -131,7 +131,7 @@ func (r *InteractionRepo) ExistsBetweenUsersAfter(ctx context.Context, raterID, 
 		LIMIT 1`
 
 	var dummy int
-	err = r.pool.QueryRow(ctx, query, raterID, ratedID, afterTime).Scan(&dummy)
+	err = runner(ctx, r.pool).QueryRow(ctx, query, raterID, ratedID, afterTime).Scan(&dummy)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil

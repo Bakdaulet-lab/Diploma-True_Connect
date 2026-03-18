@@ -26,6 +26,7 @@ type ChatService struct {
 	messageRepo   repository.MessageRepository
 	matchRepo     repository.MatchRepository
 	encryptionKey []byte
+	pushCh        chan<- domain.PushEvent
 }
 
 // NewChatService creates a new chat service.
@@ -33,11 +34,13 @@ func NewChatService(
 	messageRepo repository.MessageRepository,
 	matchRepo repository.MatchRepository,
 	encryptionKey []byte,
+	pushCh chan<- domain.PushEvent,
 ) *ChatService {
 	return &ChatService{
 		messageRepo:   messageRepo,
 		matchRepo:     matchRepo,
 		encryptionKey: encryptionKey,
+		pushCh:        pushCh,
 	}
 }
 
@@ -70,6 +73,21 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, matchID uuid.UU
 
 	if err := s.messageRepo.Create(ctx, msg); err != nil {
 		return nil, fmt.Errorf("send message: storing: %w", err)
+	}
+
+	// Send Push Notification
+	recipientID := RecipientID(match, senderID)
+	if s.pushCh != nil {
+		select {
+		case s.pushCh <- domain.PushEvent{
+			UserID: recipientID,
+			Title:  "New Message",
+			Body:   "You have a new message from a match",
+			Data:   map[string]string{"type": "chat", "match_id": matchID.String()},
+		}:
+		default:
+			// channel full, skip
+		}
 	}
 
 	return &DecryptedMessage{

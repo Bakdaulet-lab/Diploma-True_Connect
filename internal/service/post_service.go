@@ -57,22 +57,18 @@ func (s *PostService) DeletePost(ctx context.Context, postID, authorID uuid.UUID
 	return nil
 }
 
-// ListFeed returns a paginated feed of posts sorted by recency.
-func (s *PostService) ListFeed(ctx context.Context, page, perPage int) ([]domain.Post, error) {
-	if page < 1 {
-		page = 1
+// ListFeed returns a paginated feed of posts sorted by recency using cursor.
+func (s *PostService) ListFeed(ctx context.Context, cursor string, limit int) ([]domain.Post, string, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if perPage < 1 || perPage > 50 {
-		perPage = 20
-	}
-	offset := (page - 1) * perPage
 
-	posts, err := s.postRepo.ListFeed(ctx, perPage, offset)
+	posts, nextCursor, err := s.postRepo.ListFeed(ctx, cursor, limit)
 	if err != nil {
-		return nil, fmt.Errorf("list feed: %w", err)
+		return nil, "", fmt.Errorf("list feed: %w", err)
 	}
 
-	return posts, nil
+	return posts, nextCursor, nil
 }
 
 // LikePost records a like on a post.
@@ -116,20 +112,16 @@ func (s *PostService) CreateComment(ctx context.Context, postID, authorID uuid.U
 	return comment, nil
 }
 
-// ListComments returns paginated comments for a post.
-func (s *PostService) ListComments(ctx context.Context, postID uuid.UUID, page, perPage int) ([]domain.PostComment, error) {
-	if page < 1 {
-		page = 1
+// ListComments returns paginated comments for a post using cursor.
+func (s *PostService) ListComments(ctx context.Context, postID uuid.UUID, cursor string, limit int) ([]domain.PostComment, string, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if perPage < 1 || perPage > 50 {
-		perPage = 20
-	}
-	offset := (page - 1) * perPage
 
-	comments, err := s.postRepo.ListComments(ctx, postID, perPage, offset)
+	comments, nextCursor, err := s.postRepo.ListComments(ctx, postID, cursor, limit)
 	if err != nil {
-		return nil, fmt.Errorf("list comments: %w", err)
+		return nil, "", fmt.Errorf("list comments: %w", err)
 	}
 
-	return comments, nil
+	return comments, nextCursor, nil
 }

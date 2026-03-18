@@ -122,7 +122,7 @@ func TestListFeed_Paginated(t *testing.T) {
 		svc.CreatePost(context.Background(), authorID, "post "+string(rune('A'+i)), "")
 	}
 
-	posts, err := svc.ListFeed(context.Background(), 1, 3)
+	posts, _, err := svc.ListFeed(context.Background(), "", 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestListComments_Paginated(t *testing.T) {
 		svc.CreateComment(context.Background(), post.ID, uuid.New(), "comment "+string(rune('A'+i)))
 	}
 
-	comments, err := svc.ListComments(context.Background(), post.ID, 1, 3)
+	comments, _, err := svc.ListComments(context.Background(), post.ID, "", 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
