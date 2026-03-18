@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Compass, MessageCircle, Newspaper, User } from 'lucide-react';
+import { Compass, MessageCircle, Newspaper, User, Settings, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLogout } from '@/hooks/api';
 
 const navItems = [
   { href: '/discover', label: 'Discover', icon: Compass },
@@ -12,8 +13,14 @@ const navItems = [
   { href: '/profile', label: 'Profile', icon: User },
 ];
 
+const secondaryNavItems = [
+  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/kyc', label: 'Verification', icon: ShieldCheck },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
+  const logout = useLogout();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-gray-200 bg-white">
@@ -45,7 +52,39 @@ export function Sidebar() {
             </Link>
           );
         })}
+        
+        <div className="pt-8 pb-2">
+          <p className="px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">Settings</p>
+        </div>
+        
+        {secondaryNavItems.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary-50 text-primary-600'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
+      
+      <div className="border-t p-4">
+        <button 
+          onClick={() => logout.mutate()}
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+        >
+          Logout
+        </button>
+      </div>
     </aside>
   );
 }

@@ -49,7 +49,7 @@ export default function ChatPage() {
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages.length]);
 
   const handleSend = () => {
     if (!input.trim()) return;
