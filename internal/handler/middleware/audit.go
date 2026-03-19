@@ -6,11 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trueconnect/backend/internal/repository"
 )
 
 // AuditLogMiddleware creates an audit trail for important requests.
-// In a full system, this would write to a specialized database or log stream.
-func AuditLogMiddleware(log *slog.Logger) gin.HandlerFunc {
+// Persists the access logs into identity_vault.access_log schema.
+func AuditLogMiddleware(log *slog.Logger, auditRepo repository.AuditRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
@@ -23,13 +24,14 @@ func AuditLogMiddleware(log *slog.Logger) gin.HandlerFunc {
 
 		if status >= 200 && status < 300 {
 			uidStr := "unknown"
+			var uid uuid.UUID
 			if val, exists := c.Get(ContextKeyUserID); exists {
 				if id, ok := val.(uuid.UUID); ok {
 					uidStr = id.String()
+					uid = id
 				}
 			}
 
-			// Do not flood audit logs with simple GETs unless required
 			if method != "GET" {
 				log.Info("AUDIT_TRAIL",
 					slog.String("user_id", uidStr),
@@ -39,6 +41,18 @@ func AuditLogMiddleware(log *slog.Logger) gin.HandlerFunc {
 					slog.Duration("duration", duration),
 					slog.String("ip", c.ClientIP()),
 				)
+
+				// Async save to database
+				if uid != uuid.Nil {
+					go func() {
+						_ = auditRepo.LogAction(c.Copy(), &repository.AuditLog{
+							UserID:    uid,
+							Path:      path,
+							Method:    method,
+							IPAddress: c.ClientIP(),
+						})
+					}()
+				}
 			}
 		}
 	}

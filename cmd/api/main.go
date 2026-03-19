@@ -147,7 +147,18 @@ func run() error {
 
 	// Push Notifications
 	pushCh := make(chan domain.PushEvent, 100)
-	pushProvider := provider.NewMockPushProvider() // Use Mock for now to avoid dealing with credentials during testing
+	var pushProvider provider.PushProvider
+	if cfg.Firebase.CredentialsFile != "" {
+		pushProvider, err = provider.NewFCMPushProvider(ctx, cfg.Firebase.CredentialsFile)
+		if err != nil {
+			return fmt.Errorf("initializing fcm: %w", err)
+		}
+		log.Info("initialized FCM push provider")
+	} else {
+		pushProvider = provider.NewMockPushProvider()
+		log.Warn("using Mock push provider (no FIREBASE_CREDENTIALS set)")
+	}
+
 	pushWorker := worker.NewPushWorker(pushProvider, userRepo, pushCh, log)
 	go pushWorker.Run(ctx)
 
@@ -179,12 +190,16 @@ func run() error {
 	kycHandler := handler.NewKYCHandler(mediaStore, userRepo, kycProvider, log)
 
 	// Sprint 5 service and handler
-	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, encryptionKey)
+	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, graphRepo, encryptionKey)
 	userHandler := handler.NewUserHandler(userSvc, log)
 
 	reportRepo := postgres.NewReportRepo(pgPool)
 	reportSvc := service.NewReportService(reportRepo, graphRepo)
 	reportHandler := handler.NewReportHandler(reportSvc, log)
+
+	adminHandler := handler.NewAdminHandler(userSvc, log)
+
+	auditRepo := postgres.NewAuditRepo(pgPool)
 
 	healthDeps := &handler.HealthDeps{
 		PG:    pgPool,
@@ -206,6 +221,8 @@ func run() error {
 		KYC:         kycHandler,
 		User:        userHandler,
 		Report:      reportHandler,
+		Admin:       adminHandler,
+		AuditRepo:   auditRepo,
 		JWT:         jwtManager,
 		Redis:       redisClient,
 		CORSOrigins: cfg.Server.CORSOrigins,

@@ -16,18 +16,22 @@ export default function ChatPage() {
   const router = useRouter();
   const matchId = params.id;
   const userId = useAuthStore((s) => s.userId);
-  const { data: serverMessages, isLoading } = useMessages(matchId);
+  const { data: serverMessagesData, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useMessages(matchId);
   const { data: matches } = useMatches();
   const { messages: storeMessages, addMessage, setMessages } = useChatStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   const match = matches?.find((m) => m.id === matchId);
   const messages = storeMessages[matchId] || [];
 
+  // Flatten infinite pages
+  const serverMessages = serverMessagesData?.pages.flatMap((p) => p.items) ?? [];
+
   // Sync server messages to store
   useEffect(() => {
-    if (serverMessages) {
+    if (serverMessages.length > 0) {
       setMessages(matchId, serverMessages);
     }
   }, [serverMessages, matchId, setMessages]);
@@ -50,6 +54,20 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  // Infinite scroll up
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 1.0 }
+    );
+    if (observerTarget.current) observer.observe(observerTarget.current);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -86,11 +104,16 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-3 flex flex-col">
+        <div ref={observerTarget} className="h-1 w-full" />
+        {isFetchingNextPage && <p className="text-center text-xs text-gray-400">Loading older messages...</p>}
+        
         {messages.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-8">
-            No messages yet. Say hello! 👋
-          </p>
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-center text-sm text-gray-400 py-8">
+              No messages yet. Say hello! 👋
+            </p>
+          </div>
         )}
         {messages.map((msg) => {
           const isMe = msg.sender_id === userId;

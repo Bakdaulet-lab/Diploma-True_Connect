@@ -174,6 +174,28 @@ func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (
 	return int(score), nil
 }
 
+// DeleteUserNode completely removes a user and their edges from the graph.
+func (r *TrustGraphRepo) DeleteUserNode(ctx context.Context, uid uuid.UUID) error {
+	query := `
+		MATCH (u:User {id: $uid})
+		DETACH DELETE u
+	`
+	params := map[string]any{"uid": uid.String()}
+
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+
+	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		return tx.Run(ctx, query, params)
+	})
+
+	if err != nil {
+		return fmt.Errorf("neo4j delete user node: %w", err)
+	}
+
+	return nil
+}
+
 // UpdateTrustScore sets the trust_score property on a user node.
 func (r *TrustGraphRepo) UpdateTrustScore(ctx context.Context, uid uuid.UUID, score int) error {
 	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
 	"github.com/trueconnect/backend/internal/config"
 	"github.com/trueconnect/backend/internal/pkg/logger"
+	"github.com/trueconnect/backend/internal/service"
 	"github.com/trueconnect/backend/internal/worker"
 )
 
@@ -67,13 +69,23 @@ func run() error {
 
 	userRepo := postgres.NewUserRepo(pgPool)
 	graphRepo := neo4jadapter.NewTrustGraphRepo(neo4jDriver)
+	tokenRepo := postgres.NewRefreshTokenRepo(pgPool)
+	sessionStore := redisadapter.NewSessionStore(redisClient)
 
-	// ── Workers ──────────────────────────────────────────────────────
+	// Decode encryption key
+	encryptionKey, err := hex.DecodeString(cfg.Auth.EncryptionKey)
+	if err != nil {
+		return fmt.Errorf("decoding encryption key: %w", err)
+	}
+
+	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, graphRepo, encryptionKey)
+
+	// ─── Workers ───────────────────────────────────────────────────────────────
 	// NOTE: TrustEngine runs inside the API process (cmd/api), not here.
 	// It consumes events from InteractionService which only exist in the API.
 	// This worker binary runs scheduled background jobs only.
 
-	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, log, 6*time.Hour)
+	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, userSvc, log, 6*time.Hour)
 	go sybilDetector.Run(ctx)
 
 	log.Info("worker running, waiting for shutdown signal")

@@ -165,10 +165,12 @@ export interface KycStatus {
 // --- Pagination ---
 export interface PaginatedResponse<T> {
   items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-  has_more: boolean;
+  total?: number;
+  page?: number;     // legacy offset pagination
+  page_size?: number; // legacy offset pagination
+  has_more?: boolean; // legacy offset fallback
+  next_cursor?: string; // modern cursor pagination
+  limit?: number;     // modern cursor
 }
 
 // --- Match Candidate ---

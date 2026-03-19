@@ -15,6 +15,7 @@ type UserService struct {
 	userRepo      repository.UserRepository
 	tokenRepo     repository.RefreshTokenRepository
 	sessionStore  repository.SessionStore
+	graphRepo     repository.TrustGraphRepository
 	encryptionKey []byte
 }
 
@@ -23,12 +24,14 @@ func NewUserService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.RefreshTokenRepository,
 	sessionStore repository.SessionStore,
+	graphRepo repository.TrustGraphRepository,
 	encryptionKey []byte,
 ) *UserService {
 	return &UserService{
 		userRepo:      userRepo,
 		tokenRepo:     tokenRepo,
 		sessionStore:  sessionStore,
+		graphRepo:     graphRepo,
 		encryptionKey: encryptionKey,
 	}
 }
@@ -67,7 +70,7 @@ func (s *UserService) GetMe(ctx context.Context, userID uuid.UUID) (*UserView, e
 
 // DeleteMe soft-deletes the user and revokes all sessions.
 func (s *UserService) DeleteMe(ctx context.Context, userID uuid.UUID) error {
-	// Soft-delete the user record.
+	// Soft-delete the user record (and cascades app-level data in repo).
 	if err := s.userRepo.SoftDelete(ctx, userID); err != nil {
 		return fmt.Errorf("delete me: %w", err)
 	}
@@ -82,6 +85,49 @@ func (s *UserService) DeleteMe(ctx context.Context, userID uuid.UUID) error {
 		return fmt.Errorf("delete me: removing sessions: %w", err)
 	}
 
+	// Remove the user from the Trust Graph to prevent orphaned nodes
+	_ = s.graphRepo.DeleteUserNode(ctx, userID)
+
+	// Disconnect active websockets
+	_ = s.sessionStore.PublishUserBanned(ctx, userID.String())
+
+	return nil
+}
+
+// BanUser restricts a user from platform access instantly. Used by SybilDetector and Admins.
+func (s *UserService) BanUser(ctx context.Context, userID uuid.UUID, reason string) error {
+	if err := s.userRepo.UpdateTrustStatus(ctx, userID, domain.TrustStatusBanned); err != nil {
+		return fmt.Errorf("ban user: %w", err)
+	}
+
+	// Remove from Neo4j so their edges don't break trust computations
+	_ = s.graphRepo.DeleteUserNode(ctx, userID)
+
+	// Flush tokens and sessions
+	_ = s.tokenRepo.RevokeAllForUser(ctx, userID)
+	_ = s.sessionStore.RemoveAllRefreshTokens(ctx, userID.String())
+
+	// Push ban event to active instances so WebSockets are killed
+	_ = s.sessionStore.PublishUserBanned(ctx, userID.String())
+
+	return nil
+}
+
+func (s *UserService) ListUsersUnderReview(ctx context.Context, limit, offset int) ([]*domain.User, error) {
+	return s.userRepo.ListByTrustStatus(ctx, domain.TrustStatusUnderReview, limit, offset)
+}
+
+func (s *UserService) ReviewSybilVerdict(ctx context.Context, targetID uuid.UUID, isBan bool) error {
+	if isBan {
+		if err := s.BanUser(ctx, targetID, "manual review: sybil confirmed"); err != nil {
+			return err
+		}
+	} else {
+		// Restore to normal
+		if err := s.userRepo.UpdateTrustStatus(ctx, targetID, domain.TrustStatusNormal); err != nil {
+			return fmt.Errorf("restoring user: %w", err)
+		}
+	}
 	return nil
 }
 

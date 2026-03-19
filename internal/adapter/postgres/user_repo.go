@@ -191,17 +191,37 @@ func (r *UserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *UserRepo) SoftDelete(ctx context.Context, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("soft deleting user begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	query := `
 		UPDATE social.users
 		SET is_active = false, updated_at = NOW()
 		WHERE id = $1 AND is_active = true`
 
-	tag, err := runner(ctx, r.pool).Exec(ctx, query, id)
+	tag, err := tx.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("soft deleting user: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("soft deleting user: %w", domain.ErrNotFound)
+	}
+
+	// Cascade delete posts
+	if _, err := tx.Exec(ctx, "DELETE FROM social.posts WHERE author_id = $1", id); err != nil {
+		return fmt.Errorf("deleting user posts: %w", err)
+	}
+
+	// Cascade delete matches
+	if _, err := tx.Exec(ctx, "DELETE FROM social.matches WHERE user_a_id = $1 OR user_b_id = $1", id); err != nil {
+		return fmt.Errorf("deleting user matches: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit soft delete: %w", err)
 	}
 
 	return nil
@@ -214,6 +234,47 @@ func isDuplicateKey(err error) bool {
 		return pgErr.SQLState() == "23505"
 	}
 	return false
+}
+
+func (r *UserRepo) ListByTrustStatus(ctx context.Context, status domain.TrustStatus, limit, offset int) ([]*domain.User, error) {
+	query := `
+		SELECT id, phone_hash, phone_encrypted, email_encrypted, password_hash,
+		       verification_level, trust_status, trust_score, is_active, last_login_at, fcm_token, created_at, updated_at
+		FROM social.users
+		WHERE trust_status = $1
+		ORDER BY created_at ASC
+		LIMIT $2 OFFSET $3`
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, status, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list by trust status: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*domain.User
+	for rows.Next() {
+		user := &domain.User{}
+		err := rows.Scan(
+			&user.ID,
+			&user.PhoneHash,
+			&user.PhoneEncrypted,
+			&user.EmailEncrypted,
+			&user.PasswordHash,
+			&user.VerificationLevel,
+			&user.TrustStatus,
+			&user.TrustScore,
+			&user.IsActive,
+			&user.LastLoginAt,
+			&user.FCMToken,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scanning user: %w", err)
+		}
+		users = append(users, user)
+	}
+	return users, rows.Err()
 }
 
 func (r *UserRepo) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error {

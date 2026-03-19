@@ -15,6 +15,11 @@ type Config struct {
 	Redis    RedisConfig
 	MinIO    MinIOConfig
 	Auth     AuthConfig
+	Firebase FirebaseConfig
+}
+
+type FirebaseConfig struct {
+	CredentialsFile string
 }
 
 type ServerConfig struct {
@@ -113,6 +118,9 @@ func Load() (*Config, error) {
 			AccessTokenExpiry:  getEnvDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
 			RefreshTokenExpiry: getEnvDuration("JWT_REFRESH_EXPIRY", 7*24*time.Hour),
 			EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
+		},
+		Firebase: FirebaseConfig{
+			CredentialsFile: getEnv("FIREBASE_CREDENTIALS", ""),
 		},
 	}
 

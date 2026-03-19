@@ -72,7 +72,7 @@ func NewHub(
 	allowedOrigins []string,
 	isDev bool,
 ) *Hub {
-	return &Hub{
+	hub := &Hub{
 		connections:    make(map[uuid.UUID]*websocket.Conn),
 		chatSvc:        chatSvc,
 		matchSvc:       matchSvc,
@@ -81,6 +81,31 @@ func NewHub(
 		log:            log,
 		allowedOrigins: allowedOrigins,
 		isDev:          isDev,
+	}
+
+	go hub.listenForBans()
+	return hub
+}
+
+func (h *Hub) listenForBans() {
+	ctx := context.Background()
+	pubsub := h.rdb.Subscribe(ctx, "user:banned")
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for msg := range ch {
+		uid, err := uuid.Parse(msg.Payload)
+		if err != nil {
+			continue
+		}
+
+		h.mu.Lock()
+		if conn, ok := h.connections[uid]; ok {
+			h.log.Info("ws disconnecting banned user", slog.String("user_id", msg.Payload))
+			conn.Close(websocket.StatusPolicyViolation, "account restricted")
+			delete(h.connections, uid)
+		}
+		h.mu.Unlock()
 	}
 }
 
@@ -98,6 +123,15 @@ func (h *Hub) unregister(userID uuid.UUID) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	delete(h.connections, userID)
+}
+
+func (h *Hub) publish(ctx context.Context, userID uuid.UUID, msg wsOutgoing) {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		h.log.Error("ws publish marshal error", slog.String("error", err.Error()))
+		return
+	}
+	h.rdb.Publish(ctx, "ws:user:"+userID.String(), b)
 }
 
 func (h *Hub) sendTo(userID uuid.UUID, msg wsOutgoing) {
@@ -121,6 +155,28 @@ func (h *Hub) setPresence(ctx context.Context, userID uuid.UUID) {
 }
 
 // ── HandleWS — WebSocket upgrade + auth + read loop ────────────────
+
+func (h *Hub) redisSubLoop(ctx context.Context, userID uuid.UUID, done <-chan struct{}) {
+	pubsub := h.rdb.Subscribe(ctx, "ws:user:"+userID.String())
+	defer pubsub.Close()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			var outMsg wsOutgoing
+			if err := json.Unmarshal([]byte(msg.Payload), &outMsg); err == nil {
+				h.sendTo(userID, outMsg)
+			}
+		}
+	}
+}
 
 // HandleWS handles GET /v1/ws — upgrades to WebSocket.
 func (h *Hub) HandleWS(c *gin.Context) {
@@ -180,6 +236,7 @@ func (h *Hub) HandleWS(c *gin.Context) {
 	// Start ping ticker.
 	pingDone := make(chan struct{})
 	go h.pingLoop(ctx, conn, userID, pingDone)
+	go h.redisSubLoop(ctx, userID, pingDone)
 
 	// Read loop.
 	h.readLoop(ctx, conn, userID)
@@ -270,7 +327,7 @@ func (h *Hub) handleChatMsg(ctx context.Context, senderID uuid.UUID, payload jso
 	match, err := h.matchSvc.GetMatchByID(ctx, matchID, senderID)
 	if err == nil {
 		recipientID := service.RecipientID(match, senderID)
-		h.sendTo(recipientID, outMsg)
+		h.publish(ctx, recipientID, outMsg)
 	}
 }
 
@@ -291,7 +348,7 @@ func (h *Hub) handleTyping(ctx context.Context, senderID uuid.UUID, payload json
 	}
 
 	recipientID := service.RecipientID(match, senderID)
-	h.sendTo(recipientID, wsOutgoing{
+	h.publish(ctx, recipientID, wsOutgoing{
 		Type:    "typing",
 		Payload: gin.H{"match_id": matchID.String(), "user_id": senderID.String()},
 	})
@@ -320,7 +377,7 @@ func (h *Hub) handleRead(ctx context.Context, readerID uuid.UUID, payload json.R
 	}
 
 	partnerID := service.RecipientID(match, readerID)
-	h.sendTo(partnerID, wsOutgoing{
+	h.publish(ctx, partnerID, wsOutgoing{
 		Type:    "read",
 		Payload: gin.H{"match_id": matchID.String(), "reader_id": readerID.String()},
 	})
@@ -342,9 +399,9 @@ func (h *Hub) GetMessages(c *gin.Context) {
 		return
 	}
 
-	page, perPage := parsePagination(c)
+	cursor, limit := parseCursorPagination(c)
 
-	messages, err := h.chatSvc.GetMessages(c.Request.Context(), matchID, userID, page, perPage)
+	messages, nextCursor, err := h.chatSvc.GetMessages(c.Request.Context(), matchID, userID, cursor, limit)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			errorResponse(c, http.StatusNotFound, "NOT_FOUND", "match not found", nil)
@@ -357,6 +414,6 @@ func (h *Hub) GetMessages(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": messages,
-		"meta": gin.H{"page": page, "per_page": perPage},
+		"meta": gin.H{"has_more": nextCursor != "", "next_cursor": nextCursor},
 	})
 }

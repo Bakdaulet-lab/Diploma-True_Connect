@@ -99,31 +99,23 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, matchID uuid.UU
 	}, nil
 }
 
-// GetMessages returns decrypted messages for a match.
-func (s *ChatService) GetMessages(ctx context.Context, matchID, userID uuid.UUID, page, perPage int) ([]DecryptedMessage, error) {
+// GetMessages returns decrypted messages for a match with cursor-based pagination.
+func (s *ChatService) GetMessages(ctx context.Context, matchID, userID uuid.UUID, cursor string, limit int) ([]DecryptedMessage, string, error) {
 	// Verify the user is part of the match.
 	if _, err := s.matchRepo.GetMatch(ctx, matchID, userID); err != nil {
-		return nil, fmt.Errorf("get messages: %w", err)
+		return nil, "", fmt.Errorf("get messages: %w", err)
 	}
 
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 100 {
-		perPage = 50
-	}
-	offset := (page - 1) * perPage
-
-	messages, err := s.messageRepo.ListByMatch(ctx, matchID, perPage, offset)
+	messages, nextCursor, err := s.messageRepo.ListByMatch(ctx, matchID, cursor, limit)
 	if err != nil {
-		return nil, fmt.Errorf("get messages: listing: %w", err)
+		return nil, "", fmt.Errorf("get messages: listing: %w", err)
 	}
 
 	result := make([]DecryptedMessage, 0, len(messages))
 	for _, m := range messages {
 		plaintext, err := crypto.Decrypt(m.ContentEncrypted, s.encryptionKey)
 		if err != nil {
-			return nil, fmt.Errorf("get messages: decrypting: %w", err)
+			return nil, "", fmt.Errorf("get messages: decrypting: %w", err)
 		}
 
 		dm := DecryptedMessage{
@@ -140,7 +132,7 @@ func (s *ChatService) GetMessages(ctx context.Context, matchID, userID uuid.UUID
 		result = append(result, dm)
 	}
 
-	return result, nil
+	return result, nextCursor, nil
 }
 
 // MarkRead marks all unread messages in a match as read for the given user.

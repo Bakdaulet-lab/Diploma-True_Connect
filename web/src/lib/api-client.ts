@@ -43,7 +43,21 @@ function processQueue(error: unknown, token: string | null = null) {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // If the response contains a 'meta' object (e.g., pagination), preserve it
+    // by attaching it to the data array/object, or returning the entire envelope.
+    // For our hooks, if there's meta, we'll return the whole envelope as expected.
+    if (response.data && response.data.data !== undefined) {
+      if (response.data.meta !== undefined) {
+          // If there's metadata, keep the envelope so hooks can read items and cursors
+          response.data = { items: response.data.data, ...response.data.meta };
+      } else {
+          // Flatten data directly if no meta is present
+          response.data = response.data.data;
+      }
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
@@ -66,8 +80,9 @@ api.interceptors.response.use(
           {},
           { withCredentials: true }
         );
-        const newToken = data.access_token;
-        useAuthStore.getState().setAuth(newToken, data.user_id);
+        const backendData = data.data !== undefined ? data.data : data;
+        const newToken = backendData.access_token;
+        useAuthStore.getState().setAuth(newToken, backendData.user_id);
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);

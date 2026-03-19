@@ -40,33 +40,29 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
 	}
 
 	query := fmt.Sprintf(`
-		INSERT INTO social.matches (user_a_id, user_b_id, %s)
-		VALUES ($1, $2, true)
-		ON CONFLICT (user_a_id, user_b_id) DO UPDATE
-			SET %s = true
-		RETURNING id, %s, matched_at`, setCol, setCol, checkCol)
+                INSERT INTO social.matches (user_a_id, user_b_id, %[1]s)
+                VALUES ($1, $2, true)
+                ON CONFLICT (user_a_id, user_b_id) DO UPDATE
+                        SET %[1]s = true,
+                            matched_at = CASE
+                                WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.matched_at, NOW())
+                                ELSE social.matches.matched_at
+                            END
+                RETURNING id, %[2]s, matched_at`, setCol, checkCol)
 
-	var matchID uuid.UUID
-	var otherLiked bool
-	var matchedAt interface{} // may be null
+        var matchID uuid.UUID
+        var otherLiked bool
+        var matchedAt interface{} // may be null
 
-	err := runner(ctx, r.pool).QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
-	if err != nil {
-		return false, uuid.Nil, fmt.Errorf("recording like: %w", err)
-	}
+        err := runner(ctx, r.pool).QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
+        if err != nil {
+                return false, uuid.Nil, fmt.Errorf("recording like: %w", err)
+        }
 
-	// If the other party had already liked — this completes a mutual match.
-	if otherLiked && matchedAt == nil {
-		updateQuery := `
-			UPDATE social.matches SET matched_at = NOW()
-			WHERE id = $1 AND matched_at IS NULL`
-		if _, err := runner(ctx, r.pool).Exec(ctx, updateQuery, matchID); err != nil {
-			return false, uuid.Nil, fmt.Errorf("finalising match: %w", err)
-		}
-		return true, matchID, nil
-	}
-
-	return false, uuid.Nil, nil
+        // The query atomically updates matched_at if both have liked.
+        // We consider it a "new mutual match" if both have liked and matchedAt is NOT nil.
+        isMatch := otherLiked && matchedAt != nil
+        return isMatch, matchID, nil
 }
 
 // RecordPass is a no-op in PostgreSQL (the seen-set lives in Redis).

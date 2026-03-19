@@ -11,6 +11,7 @@ type SessionStore interface {
 	ValidateRefreshToken(ctx context.Context, userID string, tokenHash string) (bool, error)
 	RemoveRefreshToken(ctx context.Context, userID string, tokenHash string) error
 	RemoveAllRefreshTokens(ctx context.Context, userID string) error
+	PublishUserBanned(ctx context.Context, userID string) error
 
 	IncrementAuthFailure(ctx context.Context, phoneHash string, window time.Duration) (int64, error)
 	GetAuthFailureCount(ctx context.Context, phoneHash string) (int64, error)

@@ -186,12 +186,16 @@ export function useMatches() {
 // ─── Chat ───────────────────────────────────────────────
 
 export function useMessages(matchId: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['messages', matchId],
-    queryFn: async () => {
-      const res = await api.get<Message[]>(`/v1/matches/${matchId}/messages`);
+    queryFn: async ({ pageParam = '' }) => {
+      const res = await api.get<PaginatedResponse<Message>>(`/v1/matches/${matchId}/messages`, {
+        params: { cursor: pageParam, limit: 20 },
+      });
       return res.data;
     },
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    initialPageParam: '',
     enabled: !!matchId,
   });
 }
@@ -201,14 +205,14 @@ export function useMessages(matchId: string) {
 export function usePosts() {
   return useInfiniteQuery({
     queryKey: ['posts'],
-    queryFn: async ({ pageParam = 1 }) => {
+    queryFn: async ({ pageParam = '' }) => {
       const res = await api.get<PaginatedResponse<Post>>('/v1/posts', {
-        params: { page: pageParam, page_size: 20 },
+        params: { cursor: pageParam, limit: 20 },
       });
       return res.data;
     },
-    getNextPageParam: (last, pages) => (last.has_more ? pages.length + 1 : undefined),
-    initialPageParam: 1,
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    initialPageParam: '',
   });
 }
 

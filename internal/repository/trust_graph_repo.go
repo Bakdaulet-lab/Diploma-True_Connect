@@ -24,6 +24,9 @@ type TrustGraphRepository interface {
 	// ComputeTrustScore runs the weighted trust score calculation and returns 0-100.
 	ComputeTrustScore(ctx context.Context, uid uuid.UUID) (int, error)
 
+	// DeleteUserNode completely removes a user and their edges from the graph.
+	DeleteUserNode(ctx context.Context, uid uuid.UUID) error
+
 	// UpdateTrustScore sets the trust_score property on a user node.
 	UpdateTrustScore(ctx context.Context, uid uuid.UUID, score int) error
 

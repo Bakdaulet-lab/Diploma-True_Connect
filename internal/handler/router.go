@@ -8,6 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/trueconnect/backend/internal/handler/middleware"
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
+	"github.com/trueconnect/backend/internal/repository"
 )
 
 // RouterDeps holds all handler and middleware dependencies needed to build the router.
@@ -23,6 +24,8 @@ type RouterDeps struct {
 	KYC         *KYCHandler
 	User        *UserHandler
 	Report      *ReportHandler
+	Admin       *AdminHandler
+	AuditRepo   repository.AuditRepository
 	JWT         *tcjwt.Manager
 	Redis       *redis.Client
 	CORSOrigins []string
@@ -69,7 +72,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 	// ── Protected routes (JWT required) ──────────────────────────────
 	protected := v1.Group("")
 	protected.Use(middleware.Auth(deps.JWT))
-	protected.Use(middleware.AuditLogMiddleware(deps.Log))
+	protected.Use(middleware.AuditLogMiddleware(deps.Log, deps.AuditRepo))
 
 	// Per-user rate limit for write-heavy endpoints: 30 req/min.
 	userRL := middleware.RateLimitByUser(deps.Redis, middleware.RateLimitConfig{
@@ -124,6 +127,13 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 		// ── Reports ──────────────────────────────────────────────────
 		protected.POST("/reports", userRL, deps.Report.CreateReport)
+
+		// ────── Admin / Review Workflow ──────────────────────────────────────────
+		if deps.Admin != nil {
+			adminGroup := protected.Group("/admin")
+			adminGroup.GET("/users/under-review", deps.Admin.ListUnderReview)
+			adminGroup.POST("/users/:id/review", deps.Admin.ReviewVerdict)
+		}
 	}
 
 	// ── WebSocket (public route, auth via first message) ────────────

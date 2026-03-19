@@ -72,6 +72,11 @@ func (s *SessionStore) RemoveAllRefreshTokens(ctx context.Context, userID string
 	return nil
 }
 
+// PublishUserBanned publishes an event to disconnect WS sessions.
+func (s *SessionStore) PublishUserBanned(ctx context.Context, userID string) error {
+	return s.client.Publish(ctx, "user:banned", userID).Err()
+}
+
 // IncrementAuthFailure increments the auth failure counter for brute-force protection.
 // Returns the new count. Key auto-expires after the window.
 func (s *SessionStore) IncrementAuthFailure(ctx context.Context, phoneHash string, window time.Duration) (int64, error) {

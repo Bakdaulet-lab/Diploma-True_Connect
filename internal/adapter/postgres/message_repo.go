@@ -38,17 +38,24 @@ func (r *MessageRepo) Create(ctx context.Context, msg *domain.Message) error {
 	return nil
 }
 
-func (r *MessageRepo) ListByMatch(ctx context.Context, matchID uuid.UUID, limit, offset int) ([]domain.Message, error) {
+func (r *MessageRepo) ListByMatch(ctx context.Context, matchID uuid.UUID, cursor string, limit int) ([]domain.Message, string, error) {
 	query := `
-		SELECT id, match_id, sender_id, content_encrypted, read_at, created_at
-		FROM social.messages
-		WHERE match_id = $1
-		ORDER BY created_at ASC
-		LIMIT $2 OFFSET $3`
+                SELECT id, match_id, sender_id, content_encrypted, read_at, created_at
+                FROM social.messages
+                WHERE match_id = $1 AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
+                ORDER BY created_at DESC
+                LIMIT $2`
 
-	rows, err := runner(ctx, r.pool).Query(ctx, query, matchID, limit, offset)
+	var cursorArg interface{}
+	if cursor == "" {
+		cursorArg = nil
+	} else {
+		cursorArg = cursor
+	}
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, matchID, limit, cursorArg)
 	if err != nil {
-		return nil, fmt.Errorf("listing messages: %w", err)
+		return nil, "", fmt.Errorf("listing messages: %w", err)
 	}
 	defer rows.Close()
 
@@ -59,15 +66,25 @@ func (r *MessageRepo) ListByMatch(ctx context.Context, matchID uuid.UUID, limit,
 			&m.ID, &m.MatchID, &m.SenderID,
 			&m.ContentEncrypted, &m.ReadAt, &m.CreatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scanning message row: %w", err)
+			return nil, "", fmt.Errorf("scanning message row: %w", err)
 		}
 		messages = append(messages, m)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating messages: %w", err)
+		return nil, "", fmt.Errorf("iterating messages: %w", err)
 	}
 
-	return messages, nil
+	nextCursor := ""
+	if len(messages) == limit {
+		nextCursor = messages[len(messages)-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+
+	// Reverse to ASC order for typical chat display (oldest first in the paginated slice)
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	return messages, nextCursor, nil
 }
 
 func (r *MessageRepo) MarkRead(ctx context.Context, matchID uuid.UUID, readerID uuid.UUID) error {

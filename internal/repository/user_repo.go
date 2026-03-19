@@ -16,5 +16,6 @@ type UserRepository interface {
 	UpdateTrustStatus(ctx context.Context, id uuid.UUID, status domain.TrustStatus) error
 	UpdateLastLogin(ctx context.Context, id uuid.UUID) error
 	UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error
+	ListByTrustStatus(ctx context.Context, status domain.TrustStatus, limit, offset int) ([]*domain.User, error)
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 }
