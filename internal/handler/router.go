@@ -82,11 +82,15 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 	{
 		// ── Profiles ─────────────────────────────────────────────────
-		protected.GET("/profiles/:id", deps.Profile.GetProfile)
+		// СНАЧАЛА статические маршруты (me)
+		protected.GET("/profiles/me", deps.Profile.GetMyProfile) // <-- ДОБАВИТЬ ЭТУ СТРОКУ
 		protected.PUT("/profiles/me", deps.Profile.UpsertProfile)
 		protected.GET("/profiles/me/photos", deps.Profile.ListPhotos)
 		protected.POST("/profiles/me/photos", deps.Profile.UploadPhoto)
 		protected.DELETE("/profiles/me/photos/:photoID", deps.Profile.DeletePhoto)
+
+		// ПОТОМ динамические маршруты с ID
+		protected.GET("/profiles/:id", deps.Profile.GetProfile)
 
 		// ── Matching ─────────────────────────────────────────────────
 		protected.GET("/matching/candidates", deps.Matching.GetCandidates)

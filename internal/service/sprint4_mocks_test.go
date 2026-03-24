@@ -258,7 +258,7 @@ func (m *mockMessageRepo) Create(_ context.Context, msg *domain.Message) error {
 	return nil
 }
 
-func (m *mockMessageRepo) ListByMatch(_ context.Context, matchID uuid.UUID, limit, offset int) ([]domain.Message, error) {
+func (m *mockMessageRepo) ListByMatch(_ context.Context, matchID uuid.UUID, before string, limit int) ([]domain.Message, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var filtered []domain.Message
@@ -268,17 +268,34 @@ func (m *mockMessageRepo) ListByMatch(_ context.Context, matchID uuid.UUID, limi
 		}
 	}
 	sort.Slice(filtered, func(i, j int) bool { return filtered[i].CreatedAt.Before(filtered[j].CreatedAt) })
-	start := offset
+
+	start := 0
+	if before != "" {
+		for i, msg := range filtered {
+			if msg.CreatedAt.Format(time.RFC3339Nano) == before {
+				start = i + 1
+				break
+			}
+		}
+	}
+
 	if start >= len(filtered) {
-		return []domain.Message{}, nil
+		return []domain.Message{}, "", nil
 	}
 	end := start + limit
 	if end > len(filtered) {
 		end = len(filtered)
 	}
-	return filtered[start:end], nil
+
+	nextCursor := ""
+	if end == start+limit {
+		nextCursor = filtered[end-1].CreatedAt.Format(time.RFC3339Nano)
+	}
+
+	return filtered[start:end], nextCursor, nil
 }
 
+// ИСПРАВЛЕНО: Метод снова называется MarkRead (а не MarkReadByMatch)
 func (m *mockMessageRepo) MarkRead(_ context.Context, matchID uuid.UUID, readerID uuid.UUID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

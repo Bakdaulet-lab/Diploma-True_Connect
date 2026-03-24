@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
+import { useQueryClient } from '@tanstack/react-query'; // Добавлен импорт
 import { useMyProfile, useUpdateProfile } from '@/hooks/api';
 import { LoadingScreen } from '@/components/ui/common';
 import type { ProfileUpsert } from '@/types';
@@ -10,6 +11,8 @@ import toast from 'react-hot-toast';
 
 export default function EditProfilePage() {
   const router = useRouter();
+  const queryClient = useQueryClient(); // Инициализация queryClient
+  
   const { data: profile, isLoading } = useMyProfile();
   const { mutate: updateProfile, isPending } = useUpdateProfile();
 
@@ -33,8 +36,19 @@ export default function EditProfilePage() {
   if (isLoading) return <LoadingScreen />;
 
   const onSubmit = (data: ProfileUpsert) => {
-    updateProfile(data, {
-      onSuccess: () => {
+    // Очищаем пустые строки, чтобы бэкенд не ругался на валидацию
+    const cleanData = {
+      ...data,
+      gender: data.gender === '' ? undefined : data.gender,
+      looking_for: data.looking_for === '' ? undefined : data.looking_for,
+      birth_date: data.birth_date === '' ? undefined : data.birth_date,
+    };
+
+    updateProfile(cleanData, {
+      onSuccess: async () => {
+        // ЖДЕМ, пока кэш полностью сбросится, и только потом делаем редирект
+        await queryClient.invalidateQueries({ queryKey: ['myProfile'] });
+        
         toast.success('Profile updated successfully');
         router.push('/profile');
       },

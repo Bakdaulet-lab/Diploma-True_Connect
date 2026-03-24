@@ -162,6 +162,14 @@ func (m *trackingGraphRepo) DetectSybilClusters(_ context.Context) ([]repository
 	return m.clusters, nil
 }
 
+// ИСПРАВЛЕНИЕ: Добавлен метод DeleteUserNode для соответствия новому интерфейсу TrustGraphRepository
+func (m *trackingGraphRepo) DeleteUserNode(ctx context.Context, uid uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.nodes, uid)
+	return nil
+}
+
 // ── mockUserRepoS3 ──────────────────────────────────────────────────────────
 // Minimal user repo mock for Sprint 3 (trust score/status updates).
 
@@ -180,7 +188,9 @@ func newMockUserRepoS3() *mockUserRepoS3 {
 	}
 }
 
-func (m *mockUserRepoS3) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error { return nil }
+func (m *mockUserRepoS3) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error {
+	return nil
+}
 
 func (m *mockUserRepoS3) Create(_ context.Context, user *domain.User) error {
 	m.mu.Lock()
@@ -229,4 +239,9 @@ func (m *mockUserRepoS3) UpdateLastLogin(_ context.Context, _ uuid.UUID) error {
 
 func (m *mockUserRepoS3) SoftDelete(_ context.Context, _ uuid.UUID) error {
 	return nil
+}
+
+// ИСПРАВЛЕНИЕ: Добавлен метод ListByTrustStatus для соответствия интерфейсу UserRepository
+func (m *mockUserRepoS3) ListByTrustStatus(ctx context.Context, status domain.TrustStatus, limit, offset int) ([]*domain.User, error) {
+	return []*domain.User{}, nil
 }

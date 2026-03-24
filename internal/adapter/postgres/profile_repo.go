@@ -31,7 +31,9 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 			city, location, looking_for, avatar_url
 		) VALUES (
 			$1, $2, $3, $4, $5,
-			$6, ST_SetSRID(ST_MakePoint($8, $7), 4326)::geography, $9, $10
+			$6, 
+			CASE WHEN $7::numeric = 0 AND $8::numeric = 0 THEN NULL ELSE ST_SetSRID(ST_MakePoint($8, $7), 4326)::geography END, 
+			$9, $10
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
@@ -39,9 +41,9 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 			gender       = EXCLUDED.gender,
 			birth_date   = EXCLUDED.birth_date,
 			city         = EXCLUDED.city,
-			location     = EXCLUDED.location,
+			location     = COALESCE(EXCLUDED.location, social.profiles.location),
 			looking_for  = EXCLUDED.looking_for,
-			avatar_url   = EXCLUDED.avatar_url,
+			avatar_url   = COALESCE(EXCLUDED.avatar_url, social.profiles.avatar_url),
 			updated_at   = NOW()
 		RETURNING created_at, updated_at`
 
@@ -52,7 +54,7 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 		nullableGender(p.Gender),
 		p.BirthDate,
 		nullableString(p.City),
-		p.Latitude,  // $7 → ST_MakePoint($8, $7) means MakePoint(lon, lat)
+		p.Latitude,  // $7
 		p.Longitude, // $8
 		nullableGender(p.LookingFor),
 		nullableString(p.AvatarURL),
@@ -78,10 +80,11 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	p := &domain.Profile{}
 	var bio, city, avatarURL *string
 	var gender, lookingFor *string
+	var lat, lon *float64 // ИСПРАВЛЕНО: Защита от NULL координат
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.DisplayName, &bio, &gender, &p.BirthDate,
-		&city, &p.Latitude, &p.Longitude,
+		&city, &lat, &lon,
 		&lookingFor, &avatarURL, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
@@ -105,6 +108,14 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	}
 	if lookingFor != nil {
 		p.LookingFor = domain.Gender(*lookingFor)
+	}
+
+	// ИСПРАВЛЕНО: Безопасное присвоение координат
+	if lat != nil {
+		p.Latitude = *lat
+	}
+	if lon != nil {
+		p.Longitude = *lon
 	}
 
 	return p, nil

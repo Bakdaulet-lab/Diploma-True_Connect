@@ -18,8 +18,12 @@ type ProfileView struct {
 	DisplayName       string      `json:"display_name"`
 	Bio               string      `json:"bio,omitempty"`
 	Gender            string      `json:"gender,omitempty"`
+	BirthDate         *time.Time  `json:"birth_date,omitempty"` // ИСПРАВЛЕНО: Добавлено
 	Age               *int        `json:"age,omitempty"`
 	City              string      `json:"city,omitempty"`
+	Latitude          float64     `json:"latitude,omitempty"`    // ИСПРАВЛЕНО: Добавлено
+	Longitude         float64     `json:"longitude,omitempty"`   // ИСПРАВЛЕНО: Добавлено
+	LookingFor        string      `json:"looking_for,omitempty"` // ИСПРАВЛЕНО: Добавлено
 	AvatarURL         string      `json:"avatar_url,omitempty"`
 	Photos            []PhotoView `json:"photos"`
 	TrustScore        int         `json:"trust_score"`
@@ -113,7 +117,11 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		DisplayName:       profile.DisplayName,
 		Bio:               profile.Bio,
 		Gender:            string(profile.Gender),
+		BirthDate:         profile.BirthDate, // ИСПРАВЛЕНО
 		City:              profile.City,
+		Latitude:          profile.Latitude,           // ИСПРАВЛЕНО
+		Longitude:         profile.Longitude,          // ИСПРАВЛЕНО
+		LookingFor:        string(profile.LookingFor), // ИСПРАВЛЕНО
 		AvatarURL:         profile.AvatarURL,
 		Photos:            photoViews,
 		TrustScore:        trustScore,

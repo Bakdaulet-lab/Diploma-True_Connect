@@ -32,7 +32,9 @@ func newMockUserRepo() *mockUserRepo {
 	}
 }
 
-func (m *mockUserRepo) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error { return nil }
+func (m *mockUserRepo) UpdateFCMToken(ctx context.Context, id uuid.UUID, token string) error {
+	return nil
+}
 
 func (m *mockUserRepo) Create(_ context.Context, user *domain.User) error {
 	m.mu.Lock()
@@ -109,6 +111,11 @@ func (m *mockUserRepo) SoftDelete(_ context.Context, id uuid.UUID) error {
 	defer m.mu.Unlock()
 	delete(m.byID, id)
 	return nil
+}
+
+// ДОБАВЛЕНО: метод для реализации интерфейса UserRepository
+func (m *mockUserRepo) ListByTrustStatus(ctx context.Context, status domain.TrustStatus, limit, offset int) ([]*domain.User, error) {
+	return []*domain.User{}, nil
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -207,6 +214,11 @@ func (m *mockSessionStore) ClearAuthFailures(_ context.Context, phoneHash string
 	return nil
 }
 
+// ДОБАВЛЕНО: метод для реализации интерфейса SessionStore
+func (m *mockSessionStore) PublishUserBanned(ctx context.Context, userID string) error {
+	return nil
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 type mockGraphRepo struct{}
@@ -225,6 +237,11 @@ func (m *mockGraphRepo) ComputeTrustScore(_ context.Context, _ uuid.UUID) (int, 
 func (m *mockGraphRepo) UpdateTrustScore(_ context.Context, _ uuid.UUID, _ int) error { return nil }
 func (m *mockGraphRepo) DetectSybilClusters(_ context.Context) ([]repository.SybilCluster, error) {
 	return nil, nil
+}
+
+// ДОБАВЛЕНО: метод для реализации интерфейса TrustGraphRepository
+func (m *mockGraphRepo) DeleteUserNode(ctx context.Context, uid uuid.UUID) error {
+	return nil
 }
 
 // ── Test helpers ──────────────────────────────────────────────────────────────

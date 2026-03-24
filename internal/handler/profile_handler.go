@@ -123,6 +123,25 @@ func (h *ProfileHandler) ListPhotos(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": photos})
 }
 
+// ── GET /v1/profiles/me ───────────────────────────────────────────────────────
+
+// GetMyProfile возвращает профиль авторизованного пользователя
+func (h *ProfileHandler) GetMyProfile(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	view, err := h.profileSvc.GetProfile(c.Request.Context(), userID)
+	if err != nil {
+		h.handleProfileError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": view})
+}
+
 // ── POST /v1/profiles/me/photos ──────────────────────────────────────────────
 
 const maxUploadBytes = 10 * 1024 * 1024 // 10 MB

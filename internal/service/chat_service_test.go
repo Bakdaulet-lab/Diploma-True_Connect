@@ -107,7 +107,7 @@ func TestGetMessages_Success(t *testing.T) {
 	svc.SendMessage(context.Background(), userA, matchID, "msg one")
 	svc.SendMessage(context.Background(), userA, matchID, "msg two")
 
-	msgs, err := svc.GetMessages(context.Background(), matchID, userA, 1, 50)
+	msgs, _, err := svc.GetMessages(context.Background(), matchID, userA, "", 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestGetMessages_NotInMatch(t *testing.T) {
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	outsider := uuid.New()
-	_, err := svc.GetMessages(context.Background(), matchID, outsider, 1, 50)
+	_, _, err := svc.GetMessages(context.Background(), matchID, outsider, "", 50)
 	if err == nil {
 		t.Fatal("expected error for outsider reading messages")
 	}
@@ -139,7 +139,7 @@ func TestGetMessages_EmptyList(t *testing.T) {
 	msgRepo := newMockMessageRepo()
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
-	msgs, err := svc.GetMessages(context.Background(), matchID, userA, 1, 50)
+	msgs, _, err := svc.GetMessages(context.Background(), matchID, userA, "", 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
