@@ -1,0 +1,14 @@
+package domain
+
+import "errors"
+
+var (
+	ErrNotFound           = errors.New("resource not found")
+	ErrAlreadyExists      = errors.New("resource already exists")
+	ErrInvalidInput       = errors.New("invalid input")
+	ErrUnauthorized       = errors.New("unauthorized")
+	ErrForbidden          = errors.New("forbidden")
+	ErrAccountSuspended   = errors.New("account suspended")
+	ErrRateLimitExceeded  = errors.New("rate limit exceeded")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)

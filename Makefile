@@ -1,0 +1,49 @@
+.PHONY: build run test lint migrate-up migrate-down docker-up docker-down clean
+
+# Build all binaries
+build:
+	go build -o bin/api ./cmd/api
+	go build -o bin/worker ./cmd/worker
+	go build -o bin/migrate ./cmd/migrate
+
+# Run the API server locally
+run:
+	go run ./cmd/api
+
+# Run the worker locally
+run-worker:
+	go run ./cmd/worker
+
+# Run all tests
+test:
+	go test ./... -v -race -count=1
+
+# Run linter (requires golangci-lint installed)
+lint:
+	golangci-lint run ./...
+
+# Database migrations
+migrate-up:
+	go run ./cmd/migrate up
+
+migrate-down:
+	go run ./cmd/migrate down
+
+# Docker
+docker-up:
+	docker compose -f deployments/docker-compose.yml --env-file .env up --build -d
+
+docker-down:
+	docker compose -f deployments/docker-compose.yml down
+
+docker-logs:
+	docker compose -f deployments/docker-compose.yml logs -f
+
+# Reset everything (volumes too)
+docker-reset:
+	docker compose -f deployments/docker-compose.yml down -v
+	docker compose -f deployments/docker-compose.yml --env-file .env up --build -d
+
+# Clean build artifacts
+clean:
+	rm -rf bin/
