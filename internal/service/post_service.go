@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/domain"
@@ -10,32 +11,67 @@ import (
 	"github.com/trueconnect/backend/internal/repository"
 )
 
+// fixMediaURL преобразует ключ объекта в прямую публичную ссылку.
+// Мы не используем PresignedURL, так как бакет PUBLIC, и подпись ломается при смене домена.
+func fixMediaURL(mediaKey string) string {
+	if mediaKey == "" {
+		return ""
+	}
+	// Если ключ уже содержит протокол, значит это полная ссылка (редкий случай)
+	if strings.HasPrefix(mediaKey, "http") {
+		return strings.ReplaceAll(mediaKey, "minio:9000", "localhost:9000")
+	}
+
+	// Собираем прямую ссылку: http://localhost:9000/ + ИМЯ_БАКЕТА + / + КЛЮЧ
+	// Убедись, что имя бакета в MinIO именно "trueconnect"
+	return fmt.Sprintf("http://localhost:9000/trueconnect/%s", strings.TrimPrefix(mediaKey, "/"))
+}
+
 // PostService handles social feed business logic.
 type PostService struct {
-	postRepo repository.PostRepository
+	postRepo   repository.PostRepository
+	mediaStore repository.MediaStore
 }
 
 // NewPostService creates a new post service.
-func NewPostService(postRepo repository.PostRepository) *PostService {
-	return &PostService{postRepo: postRepo}
+func NewPostService(postRepo repository.PostRepository, mediaStore repository.MediaStore) *PostService {
+	return &PostService{
+		postRepo:   postRepo,
+		mediaStore: mediaStore,
+	}
 }
 
 // CreatePost creates a new social feed post.
-func (s *PostService) CreatePost(ctx context.Context, authorID uuid.UUID, content, mediaURL string) (*domain.Post, error) {
+func (s *PostService) CreatePost(ctx context.Context, authorID uuid.UUID, content string, mediaData []byte) (*domain.Post, error) {
 	content = sanitize.StripHTML(content)
 	if len(content) == 0 || len(content) > 2000 {
 		return nil, fmt.Errorf("create post: content must be 1-2000 chars: %w", domain.ErrInvalidInput)
 	}
 
+	var mediaKey string
+	if len(mediaData) > 0 {
+		key, err := s.mediaStore.UploadPhoto(ctx, authorID, mediaData)
+		if err != nil {
+			return nil, fmt.Errorf("create post: upload media: %w", err)
+		}
+		mediaKey = key
+	}
+
 	post := &domain.Post{
 		AuthorID: authorID,
 		Content:  content,
-		MediaURL: mediaURL,
+		MediaURL: mediaKey,
 	}
 
 	if err := s.postRepo.Create(ctx, post); err != nil {
+		if mediaKey != "" {
+			_ = s.mediaStore.DeletePhoto(ctx, mediaKey)
+		}
 		return nil, fmt.Errorf("create post: %w", err)
 	}
+
+	// Устанавливаем прямую ссылку для ответа
+	post.MediaURL = fixMediaURL(post.MediaURL)
 
 	return post, nil
 }
@@ -46,14 +82,28 @@ func (s *PostService) GetPost(ctx context.Context, postID uuid.UUID) (*domain.Po
 	if err != nil {
 		return nil, fmt.Errorf("get post: %w", err)
 	}
+
+	post.MediaURL = fixMediaURL(post.MediaURL)
+
 	return post, nil
 }
 
 // DeletePost deletes a post owned by the given author.
 func (s *PostService) DeletePost(ctx context.Context, postID, authorID uuid.UUID) error {
+	post, err := s.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return fmt.Errorf("delete post: get: %w", err)
+	}
+
 	if err := s.postRepo.Delete(ctx, postID, authorID); err != nil {
 		return fmt.Errorf("delete post: %w", err)
 	}
+
+	// В хранилище мы все еще используем оригинальный ключ для удаления
+	if post.MediaURL != "" {
+		_ = s.mediaStore.DeletePhoto(ctx, post.MediaURL)
+	}
+
 	return nil
 }
 
@@ -66,6 +116,10 @@ func (s *PostService) ListFeed(ctx context.Context, cursor string, limit int) ([
 	posts, nextCursor, err := s.postRepo.ListFeed(ctx, cursor, limit)
 	if err != nil {
 		return nil, "", fmt.Errorf("list feed: %w", err)
+	}
+
+	for i := range posts {
+		posts[i].MediaURL = fixMediaURL(posts[i].MediaURL)
 	}
 
 	return posts, nextCursor, nil
@@ -94,7 +148,6 @@ func (s *PostService) CreateComment(ctx context.Context, postID, authorID uuid.U
 		return nil, fmt.Errorf("create comment: content must be 1-500 chars: %w", domain.ErrInvalidInput)
 	}
 
-	// Verify post exists.
 	if _, err := s.postRepo.GetByID(ctx, postID); err != nil {
 		return nil, fmt.Errorf("create comment: %w", err)
 	}

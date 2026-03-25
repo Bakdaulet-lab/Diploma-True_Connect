@@ -42,14 +42,17 @@ func (r *PostRepo) Create(ctx context.Context, post *domain.Post) error {
 
 func (r *PostRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Post, error) {
 	query := `
-		SELECT id, author_id, content, media_url, like_count, comment_count, created_at, updated_at
-		FROM social.posts
-		WHERE id = $1`
+		SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
+		       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
+		FROM social.posts p
+		LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
+		WHERE p.id = $1`
 
 	p := &domain.Post{}
 	err := runner(ctx, r.pool).QueryRow(ctx, query, id).Scan(
 		&p.ID, &p.AuthorID, &p.Content, &p.MediaURL,
 		&p.LikeCount, &p.CommentCount, &p.CreatedAt, &p.UpdatedAt,
+		&p.AuthorName, &p.AuthorAvatar,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -76,21 +79,31 @@ func (r *PostRepo) Delete(ctx context.Context, id uuid.UUID, authorID uuid.UUID)
 }
 
 func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int) ([]domain.Post, string, error) {
-	query := `
-		SELECT id, author_id, content, media_url, like_count, comment_count, created_at, updated_at
-		FROM social.posts
-		WHERE ($2::timestamptz IS NULL OR created_at < $2::timestamptz)
-		ORDER BY created_at DESC
-		LIMIT $1`
+	var query string
+	var rows pgx.Rows
+	var err error
 
-	var cursorArg interface{}
 	if cursor == "" {
-		cursorArg = nil
+		query = `
+			SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
+			       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
+			FROM social.posts p
+			LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
+			ORDER BY p.created_at DESC
+			LIMIT $1`
+		rows, err = runner(ctx, r.pool).Query(ctx, query, limit)
 	} else {
-		cursorArg = cursor
+		query = `
+			SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
+			       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
+			FROM social.posts p
+			LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
+			WHERE p.created_at < $2::timestamptz
+			ORDER BY p.created_at DESC
+			LIMIT $1`
+		rows, err = runner(ctx, r.pool).Query(ctx, query, limit, cursor)
 	}
 
-	rows, err := runner(ctx, r.pool).Query(ctx, query, limit, cursorArg)
 	if err != nil {
 		return nil, "", fmt.Errorf("listing feed: %w", err)
 	}
@@ -102,6 +115,7 @@ func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int) ([]do
 		if err := rows.Scan(
 			&p.ID, &p.AuthorID, &p.Content, &p.MediaURL,
 			&p.LikeCount, &p.CommentCount, &p.CreatedAt, &p.UpdatedAt,
+			&p.AuthorName, &p.AuthorAvatar,
 		); err != nil {
 			return nil, "", fmt.Errorf("scanning post row: %w", err)
 		}
@@ -120,21 +134,32 @@ func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int) ([]do
 }
 
 func (r *PostRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID, cursor string, limit int) ([]domain.Post, string, error) {
-	query := `
-		SELECT id, author_id, content, media_url, like_count, comment_count, created_at, updated_at
-		FROM social.posts
-		WHERE author_id = $1 AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
-		ORDER BY created_at DESC
-		LIMIT $2`
+	var query string
+	var rows pgx.Rows
+	var err error
 
-	var cursorArg interface{}
 	if cursor == "" {
-		cursorArg = nil
+		query = `
+			SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
+			       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
+			FROM social.posts p
+			LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
+			WHERE p.author_id = $1
+			ORDER BY p.created_at DESC
+			LIMIT $2`
+		rows, err = runner(ctx, r.pool).Query(ctx, query, authorID, limit)
 	} else {
-		cursorArg = cursor
+		query = `
+			SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
+			       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
+			FROM social.posts p
+			LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
+			WHERE p.author_id = $1 AND p.created_at < $3::timestamptz
+			ORDER BY p.created_at DESC
+			LIMIT $2`
+		rows, err = runner(ctx, r.pool).Query(ctx, query, authorID, limit, cursor)
 	}
 
-	rows, err := runner(ctx, r.pool).Query(ctx, query, authorID, limit, cursorArg)
 	if err != nil {
 		return nil, "", fmt.Errorf("listing posts by author: %w", err)
 	}
@@ -146,13 +171,11 @@ func (r *PostRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID, cursor 
 		if err := rows.Scan(
 			&p.ID, &p.AuthorID, &p.Content, &p.MediaURL,
 			&p.LikeCount, &p.CommentCount, &p.CreatedAt, &p.UpdatedAt,
+			&p.AuthorName, &p.AuthorAvatar,
 		); err != nil {
 			return nil, "", fmt.Errorf("scanning author post row: %w", err)
 		}
 		posts = append(posts, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, "", fmt.Errorf("iterating author posts: %w", err)
 	}
 
 	var nextCursor string
@@ -169,6 +192,7 @@ func (r *PostRepo) IncrementLikeCount(ctx context.Context, id uuid.UUID, delta i
 	if err != nil {
 		return fmt.Errorf("incrementing like count: %w", err)
 	}
+	// Используем tag, чтобы ошибка исчезла
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("incrementing like count: %w", domain.ErrNotFound)
 	}
@@ -177,16 +201,20 @@ func (r *PostRepo) IncrementLikeCount(ctx context.Context, id uuid.UUID, delta i
 
 func (r *PostRepo) IncrementCommentCount(ctx context.Context, id uuid.UUID, delta int) error {
 	query := `UPDATE social.posts SET comment_count = comment_count + $2, updated_at = NOW() WHERE id = $1`
+
+	// Выполняем запрос и получаем tag
 	tag, err := runner(ctx, r.pool).Exec(ctx, query, id, delta)
 	if err != nil {
 		return fmt.Errorf("incrementing comment count: %w", err)
 	}
+
+	// ИСПОЛЬЗУЕМ tag: проверяем, что пост вообще существовал в базе
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("incrementing comment count: %w", domain.ErrNotFound)
 	}
+
 	return nil
 }
-
 func (r *PostRepo) LikePost(ctx context.Context, postID, userID uuid.UUID) error {
 	query := `INSERT INTO social.post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
 	tag, err := runner(ctx, r.pool).Exec(ctx, query, postID, userID)
@@ -196,7 +224,7 @@ func (r *PostRepo) LikePost(ctx context.Context, postID, userID uuid.UUID) error
 	if tag.RowsAffected() == 1 {
 		return r.IncrementLikeCount(ctx, postID, 1)
 	}
-	return nil // already liked — idempotent
+	return nil
 }
 
 func (r *PostRepo) UnlikePost(ctx context.Context, postID, userID uuid.UUID) error {
@@ -208,7 +236,7 @@ func (r *PostRepo) UnlikePost(ctx context.Context, postID, userID uuid.UUID) err
 	if tag.RowsAffected() == 1 {
 		return r.IncrementLikeCount(ctx, postID, -1)
 	}
-	return nil // wasn't liked — idempotent
+	return nil
 }
 
 func (r *PostRepo) IsLikedBy(ctx context.Context, postID, userID uuid.UUID) (bool, error) {
@@ -241,21 +269,34 @@ func (r *PostRepo) CreateComment(ctx context.Context, comment *domain.PostCommen
 }
 
 func (r *PostRepo) ListComments(ctx context.Context, postID uuid.UUID, cursor string, limit int) ([]domain.PostComment, string, error) {
-	query := `
-		SELECT id, post_id, author_id, content, created_at
-		FROM social.post_comments
-		WHERE post_id = $1 AND ($3::timestamptz IS NULL OR created_at > $3::timestamptz)
-		ORDER BY created_at ASC
-		LIMIT $2`
+	var query string
+	var rows pgx.Rows
+	var err error
 
-	var cursorArg interface{}
+	// ИСПРАВЛЕНО: Добавлен JOIN с профилями для имен в комментариях
 	if cursor == "" {
-		cursorArg = nil
+		// В post_repo.go метод ListComments
+		query = `
+    SELECT c.id, c.post_id, c.author_id, COALESCE(c.content, ''), c.created_at,
+           COALESCE(pr.display_name, 'User'), COALESCE(pr.avatar_url, '')
+    FROM social.post_comments c
+    LEFT JOIN social.profiles pr ON c.author_id = pr.user_id
+    WHERE c.post_id = $1  -- ПРОВЕРЬТЕ ЭТУ СТРОКУ
+    ORDER BY c.created_at ASC
+    LIMIT $2`
+		rows, err = runner(ctx, r.pool).Query(ctx, query, postID, limit)
 	} else {
-		cursorArg = cursor
+		query = `
+			SELECT c.id, c.post_id, c.author_id, COALESCE(c.content, ''), c.created_at,
+			       COALESCE(pr.display_name, 'User'), COALESCE(pr.avatar_url, '')
+			FROM social.post_comments c
+			LEFT JOIN social.profiles pr ON c.author_id = pr.user_id
+			WHERE c.post_id = $1 AND c.created_at > $3::timestamptz
+			ORDER BY c.created_at ASC
+			LIMIT $2`
+		rows, err = runner(ctx, r.pool).Query(ctx, query, postID, limit, cursor)
 	}
 
-	rows, err := runner(ctx, r.pool).Query(ctx, query, postID, limit, cursorArg)
 	if err != nil {
 		return nil, "", fmt.Errorf("listing comments: %w", err)
 	}
@@ -264,13 +305,10 @@ func (r *PostRepo) ListComments(ctx context.Context, postID uuid.UUID, cursor st
 	var comments []domain.PostComment
 	for rows.Next() {
 		var c domain.PostComment
-		if err := rows.Scan(&c.ID, &c.PostID, &c.AuthorID, &c.Content, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.PostID, &c.AuthorID, &c.Content, &c.CreatedAt, &c.AuthorName, &c.AuthorAvatar); err != nil {
 			return nil, "", fmt.Errorf("scanning comment row: %w", err)
 		}
 		comments = append(comments, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, "", fmt.Errorf("iterating comments: %w", err)
 	}
 
 	var nextCursor string

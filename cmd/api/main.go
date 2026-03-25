@@ -166,7 +166,7 @@ func run() error {
 	postRepo := postgres.NewPostRepo(pgPool)
 	messageRepo := postgres.NewMessageRepo(pgPool)
 
-	postSvc := service.NewPostService(postRepo)
+	postSvc := service.NewPostService(postRepo, mediaStore)
 	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey, pushCh)
 
 	// ── Handlers ────────────────────────────────────────────────────────────────

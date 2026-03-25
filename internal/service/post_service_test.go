@@ -9,11 +9,32 @@ import (
 	"github.com/trueconnect/backend/internal/service"
 )
 
+// dummyMediaStore — простая заглушка хранилища для тестов
+type dummyMediaStore struct{}
+
+func (m *dummyMediaStore) UploadPhoto(ctx context.Context, userID uuid.UUID, data []byte) (string, error) {
+	return "mock-media-key", nil
+}
+func (m *dummyMediaStore) DeletePhoto(ctx context.Context, objectKey string) error {
+	return nil
+}
+func (m *dummyMediaStore) PresignedURL(ctx context.Context, objectKey string) (string, error) {
+	if objectKey == "" {
+		return "", nil
+	}
+	return "http://mock-url/" + objectKey, nil
+}
+
+// ИСПРАВЛЕНО: Добавлен недостающий параметр ext string
+func (m *dummyMediaStore) UploadDocument(ctx context.Context, userID uuid.UUID, data []byte, ext string) (string, error) {
+	return "mock-doc-key", nil
+}
+
 func TestCreatePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, err := svc.CreatePost(context.Background(), uuid.New(), "Hello world", "")
+	post, err := svc.CreatePost(context.Background(), uuid.New(), "Hello world", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -27,9 +48,9 @@ func TestCreatePost_Success(t *testing.T) {
 
 func TestCreatePost_EmptyContent(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	_, err := svc.CreatePost(context.Background(), uuid.New(), "", "")
+	_, err := svc.CreatePost(context.Background(), uuid.New(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for empty content")
 	}
@@ -37,10 +58,10 @@ func TestCreatePost_EmptyContent(t *testing.T) {
 
 func TestCreatePost_TooLong(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
 	long := strings.Repeat("a", 2001)
-	_, err := svc.CreatePost(context.Background(), uuid.New(), long, "")
+	_, err := svc.CreatePost(context.Background(), uuid.New(), long, nil)
 	if err == nil {
 		t.Fatal("expected error for content too long")
 	}
@@ -48,9 +69,9 @@ func TestCreatePost_TooLong(t *testing.T) {
 
 func TestCreatePost_StripsHTML(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, err := svc.CreatePost(context.Background(), uuid.New(), "<b>hello</b>", "")
+	post, err := svc.CreatePost(context.Background(), uuid.New(), "<b>hello</b>", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,9 +82,9 @@ func TestCreatePost_StripsHTML(t *testing.T) {
 
 func TestGetPost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	created, _ := svc.CreatePost(context.Background(), uuid.New(), "test post", "")
+	created, _ := svc.CreatePost(context.Background(), uuid.New(), "test post", nil)
 	got, err := svc.GetPost(context.Background(), created.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -75,7 +96,7 @@ func TestGetPost_Success(t *testing.T) {
 
 func TestGetPost_NotFound(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
 	_, err := svc.GetPost(context.Background(), uuid.New())
 	if err == nil {
@@ -85,10 +106,10 @@ func TestGetPost_NotFound(t *testing.T) {
 
 func TestDeletePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
 	authorID := uuid.New()
-	post, _ := svc.CreatePost(context.Background(), authorID, "delete me", "")
+	post, _ := svc.CreatePost(context.Background(), authorID, "delete me", nil)
 
 	if err := svc.DeletePost(context.Background(), post.ID, authorID); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -103,9 +124,9 @@ func TestDeletePost_Success(t *testing.T) {
 
 func TestDeletePost_NotOwner(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "not yours", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "not yours", nil)
 
 	err := svc.DeletePost(context.Background(), post.ID, uuid.New())
 	if err == nil {
@@ -115,11 +136,11 @@ func TestDeletePost_NotOwner(t *testing.T) {
 
 func TestListFeed_Paginated(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
 	authorID := uuid.New()
 	for i := 0; i < 5; i++ {
-		svc.CreatePost(context.Background(), authorID, "post "+string(rune('A'+i)), "")
+		svc.CreatePost(context.Background(), authorID, "post "+string(rune('A'+i)), nil)
 	}
 
 	posts, _, err := svc.ListFeed(context.Background(), "", 3)
@@ -133,9 +154,9 @@ func TestListFeed_Paginated(t *testing.T) {
 
 func TestLikePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "like me", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "like me", nil)
 
 	if err := svc.LikePost(context.Background(), post.ID, uuid.New()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -149,9 +170,9 @@ func TestLikePost_Success(t *testing.T) {
 
 func TestLikePost_Idempotent(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "like me twice", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "like me twice", nil)
 	userID := uuid.New()
 
 	svc.LikePost(context.Background(), post.ID, userID)
@@ -165,9 +186,9 @@ func TestLikePost_Idempotent(t *testing.T) {
 
 func TestUnlikePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "unlike me", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "unlike me", nil)
 	userID := uuid.New()
 	svc.LikePost(context.Background(), post.ID, userID)
 	svc.UnlikePost(context.Background(), post.ID, userID)
@@ -180,9 +201,9 @@ func TestUnlikePost_Success(t *testing.T) {
 
 func TestCreateComment_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "comment here", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "comment here", nil)
 
 	comment, err := svc.CreateComment(context.Background(), post.ID, uuid.New(), "great post!")
 	if err != nil {
@@ -195,9 +216,9 @@ func TestCreateComment_Success(t *testing.T) {
 
 func TestCreateComment_TooLong(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "test", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "test", nil)
 	long := strings.Repeat("a", 501)
 
 	_, err := svc.CreateComment(context.Background(), post.ID, uuid.New(), long)
@@ -208,9 +229,9 @@ func TestCreateComment_TooLong(t *testing.T) {
 
 func TestListComments_Paginated(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo)
+	svc := service.NewPostService(repo, &dummyMediaStore{})
 
-	post, _ := svc.CreatePost(context.Background(), uuid.New(), "comments test", "")
+	post, _ := svc.CreatePost(context.Background(), uuid.New(), "comments test", nil)
 	for i := 0; i < 5; i++ {
 		svc.CreateComment(context.Background(), post.ID, uuid.New(), "comment "+string(rune('A'+i)))
 	}

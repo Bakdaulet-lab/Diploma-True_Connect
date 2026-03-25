@@ -11,9 +11,8 @@ export default function FeedPage() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = usePosts();
   const [showCreatePost, setShowCreatePost] = useState(false);
 
-  const posts = data?.pages.flatMap((p) => p.items) ?? [];
-
-  // Infinite scroll observer
+// Теперь фронтенд найдет посты, где бы они ни прятались в ответе
+const posts = data?.pages?.flatMap((p: any) => Array.isArray(p) ? p : (p.items || p.data || [])) ?? [];  // Infinite scroll observer
   const observer = useRef<IntersectionObserver>();
   const lastPostRef = useCallback(
     (node: HTMLDivElement | null) => {

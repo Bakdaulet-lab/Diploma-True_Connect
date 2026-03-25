@@ -8,7 +8,7 @@ const PUBLIC_ENDPOINTS = ['/v1/auth/login', '/v1/auth/register', '/v1/auth/refre
 export const api = axios.create({
   baseURL: API_BASE,
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
+  //headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
 

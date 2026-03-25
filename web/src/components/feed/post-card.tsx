@@ -9,6 +9,14 @@ import { timeAgo, cn } from '@/lib/utils';
 import type { Post } from '@/types';
 import toast from 'react-hot-toast';
 
+// Формируем полные URL для MinIO
+const getFullUrl = (path?: string) => {
+  if (!path) return undefined;
+  if (path.startsWith('http')) return path;
+  const cleanPath = path.replace(/^\/+/, '');
+  return `http://localhost:9000/trueconnect/${cleanPath}`;
+};
+
 export function PostCard({ post }: { post: Post }) {
   const userId = useAuthStore((s) => s.userId);
   const likeMutation = useLikePost();
@@ -29,20 +37,17 @@ export function PostCard({ post }: { post: Post }) {
     }
   };
 
+  const displayName = post.author_name || post.author?.display_name || 'Anonymous';
+  const avatarUrl = getFullUrl(post.author_avatar || post.author?.avatar_url);
+
   return (
     <div className="card">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Avatar
-            src={post.author?.avatar_url}
-            name={post.author?.display_name || 'User'}
-            size="md"
-          />
+          <Avatar src={avatarUrl} name={displayName} size="md" />
           <div>
-            <p className="text-sm font-semibold text-gray-900">
-              {post.author?.display_name || 'Anonymous'}
-            </p>
+            <p className="text-sm font-semibold text-gray-900">{displayName}</p>
             <p className="text-xs text-gray-400">{timeAgo(post.created_at)}</p>
           </div>
         </div>
@@ -72,10 +77,11 @@ export function PostCard({ post }: { post: Post }) {
       {/* Content */}
       <p className="mt-3 text-sm text-gray-800 whitespace-pre-wrap">{post.content}</p>
 
-      {post.media_url && (
+      {/* Media */}
+      {post.media_url && post.media_url !== "" && (
         <img
-          src={post.media_url}
-          alt=""
+          src={getFullUrl(post.media_url)}
+          alt="Post attachment"
           className="mt-3 w-full rounded-xl object-cover max-h-96"
         />
       )}
@@ -101,16 +107,20 @@ export function PostCard({ post }: { post: Post }) {
         </button>
       </div>
 
-      {/* Comments */}
+      {/* Comments Section */}
       {showComments && <CommentsSection postId={post.id} />}
     </div>
   );
 }
 
 function CommentsSection({ postId }: { postId: string }) {
-  const { data: comments, isLoading } = useComments(postId);
+  const { data, isLoading } = useComments(postId);
   const addComment = useAddComment();
   const [text, setText] = useState('');
+
+  // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Берем данные из поля "items", так как бэкенд отдает именно его
+  const rawData: any = data;
+  const commentsList = rawData?.items || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +128,10 @@ function CommentsSection({ postId }: { postId: string }) {
     addComment.mutate(
       { postId, content: text.trim() },
       {
-        onSuccess: () => setText(''),
+        onSuccess: () => {
+          setText('');
+          toast.success('Comment added');
+        },
         onError: () => toast.error('Failed to add comment'),
       }
     );
@@ -129,23 +142,26 @@ function CommentsSection({ postId }: { postId: string }) {
       {isLoading ? (
         <p className="text-sm text-gray-400">Loading comments...</p>
       ) : (
-        <div className="space-y-3 max-h-60 overflow-y-auto">
-          {comments?.map((comment) => (
-            <div key={comment.id} className="flex gap-2">
-              <Avatar
-                src={comment.author?.avatar_url}
-                name={comment.author?.display_name || 'User'}
-                size="sm"
-              />
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-gray-900">
-                  {comment.author?.display_name || 'User'}
-                </p>
-                <p className="text-sm text-gray-700">{comment.content}</p>
-                <p className="text-xs text-gray-400">{timeAgo(comment.created_at)}</p>
-              </div>
-            </div>
-          ))}
+        <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+          {commentsList.length > 0 ? (
+            commentsList.map((comment: any) => {
+              const commentAuthor = comment.author_name || 'User';
+              const commentAvatar = getFullUrl(comment.author_avatar || comment.author?.avatar_url);
+              
+              return (
+                <div key={comment.id} className="flex gap-2 text-left">
+                  <Avatar src={commentAvatar} name={commentAuthor} size="sm" />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-gray-900">{commentAuthor}</p>
+                    <p className="text-sm text-gray-700 break-words">{comment.content}</p>
+                    <p className="text-xs text-gray-400">{timeAgo(comment.created_at)}</p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-2">No comments yet</p>
+          )}
         </div>
       )}
       <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
@@ -153,14 +169,14 @@ function CommentsSection({ postId }: { postId: string }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add a comment..."
-          className="input-field flex-1 text-sm"
+          className="input-field flex-1 text-sm bg-gray-50 focus:bg-white"
         />
         <button
           type="submit"
           disabled={!text.trim() || addComment.isPending}
-          className="btn-primary px-4 py-2 text-sm"
+          className="btn-primary px-4 py-2 text-sm whitespace-nowrap"
         >
-          Post
+          {addComment.isPending ? '...' : 'Post'}
         </button>
       </form>
     </div>

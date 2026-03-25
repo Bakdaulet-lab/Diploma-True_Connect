@@ -111,6 +111,8 @@ export interface Post {
   like_count: number;
   comment_count: number;
   is_liked: boolean;
+  author_name?: string;     // <-- НОВОЕ ПОЛЕ
+  author_avatar?: string;   // <-- НОВОЕ ПОЛЕ
   author?: Profile;
   created_at: string;
   updated_at?: string;
@@ -121,10 +123,11 @@ export interface PostComment {
   post_id: string;
   author_id: string;
   content: string;
+  author_name?: string;     // <-- НОВОЕ ПОЛЕ
+  author_avatar?: string;   // <-- НОВОЕ ПОЛЕ
   author?: Profile;
   created_at: string;
 }
-
 // --- Interaction / Trust ---
 export interface Interaction {
   id: string;

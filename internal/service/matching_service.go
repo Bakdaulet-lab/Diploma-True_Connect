@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings" // Добавлено
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,18 @@ const (
 	seenSetTTL         = 24 * time.Hour
 	maxDistanceDefault = 50_000.0 // 50 km in metres
 )
+
+// fixAvatarURL преобразует путь из БД в прямую ссылку на MinIO
+func fixAvatarURL(url string) string {
+	if url == "" {
+		return ""
+	}
+	if strings.HasPrefix(url, "http") {
+		return strings.ReplaceAll(url, "minio:9000", "localhost:9000")
+	}
+	// Если в базе лежит просто путь "users/...", превращаем в URL
+	return fmt.Sprintf("http://localhost:9000/trueconnect/%s", strings.TrimPrefix(url, "/"))
+}
 
 // CandidateView is a matching card shown in the swipe feed.
 type CandidateView struct {
@@ -57,13 +70,11 @@ func NewMatchingService(
 
 // GetCandidates returns a batch of profiles for the swipe feed.
 func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) ([]*CandidateView, error) {
-	// Load requester's profile to get their current location.
 	requesterProfile, err := s.profileRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get candidates: loading requester profile: %w", err)
 	}
 
-	// Load preferences for distance and age filters.
 	settings, err := s.settingsRepo.Get(ctx, userID)
 	if err != nil {
 		settings = domain.DefaultSettings(userID.String())
@@ -74,13 +85,11 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		maxDistanceM = maxDistanceDefault
 	}
 
-	// Retrieve already-seen IDs from Redis to exclude them.
 	seenIDs, err := s.matchingCache.GetSeenIDs(ctx, userID)
 	if err != nil {
 		seenIDs = []uuid.UUID{}
 	}
 
-	// Also exclude users the requester has already matched with.
 	matches, err := s.matchRepo.ListMatches(ctx, userID, 200, 0)
 	if err == nil {
 		for _, m := range matches {
@@ -109,7 +118,6 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		return nil, fmt.Errorf("get candidates: querying: %w", err)
 	}
 
-	// Mark all returned candidates as seen so they won't appear again today.
 	newSeenIDs := make([]uuid.UUID, 0, len(rows))
 	views := make([]*CandidateView, 0, len(rows))
 	for _, row := range rows {
@@ -117,7 +125,7 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		views = append(views, &CandidateView{
 			UserID:      row.UserID,
 			DisplayName: row.DisplayName,
-			AvatarURL:   row.AvatarURL,
+			AvatarURL:   fixAvatarURL(row.AvatarURL), // ПРИМЕНЯЕМ ФИКС ТУТ
 			City:        row.City,
 			TrustScore:  row.TrustScore,
 			DistanceKm:  row.DistanceKm,
@@ -142,13 +150,12 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 		return nil, fmt.Errorf("like: %w", err)
 	}
 
-	// Add to seen set regardless of outcome.
 	_ = s.matchingCache.AddSeen(ctx, userID, []uuid.UUID{targetID}, seenSetTTL)
 
 	return &LikeResult{Matched: matched, MatchID: matchID}, nil
 }
 
-// Pass records that userID passes on targetID (adds to seen, no DB row).
+// Pass records that userID passes on targetID.
 func (s *MatchingService) Pass(ctx context.Context, userID, targetID uuid.UUID) error {
 	if userID == targetID {
 		return fmt.Errorf("pass: %w", domain.ErrInvalidInput)
@@ -160,7 +167,7 @@ func (s *MatchingService) Pass(ctx context.Context, userID, targetID uuid.UUID) 
 	return nil
 }
 
-// GetMatchByID returns a match by ID, verifying the user is a participant.
+// Остальные методы (GetMatchByID, ListMatches) остаются без изменений
 func (s *MatchingService) GetMatchByID(ctx context.Context, matchID, userID uuid.UUID) (*domain.Match, error) {
 	match, err := s.matchRepo.GetMatch(ctx, matchID, userID)
 	if err != nil {
@@ -169,7 +176,6 @@ func (s *MatchingService) GetMatchByID(ctx context.Context, matchID, userID uuid
 	return match, nil
 }
 
-// ListMatches returns paginated mutual matches for the authenticated user.
 func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*domain.Match, error) {
 	if page < 1 {
 		page = 1

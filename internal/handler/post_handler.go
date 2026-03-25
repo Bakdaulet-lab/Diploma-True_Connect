@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -24,6 +25,7 @@ func NewPostHandler(postSvc *service.PostService, log *slog.Logger) *PostHandler
 }
 
 // CreatePost handles POST /v1/posts
+// CreatePost handles POST /v1/posts
 func (h *PostHandler) CreatePost(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
@@ -31,21 +33,46 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Content  string `json:"content" binding:"required"`
-		MediaURL string `json:"media_url"`
+	// 1. Пытаемся достать текст (из формы или из JSON)
+	content := c.PostForm("content")
+
+	// 2. Читаем файл
+	var mediaData []byte
+	file, err := c.FormFile("media") // Проверяем ключ "media"
+	if err != nil {
+		// Если по ключу "media" не нашли, попробуем стандартный "file" или "image"
+		file, err = c.FormFile("file")
+		if err != nil {
+			file, _ = c.FormFile("image")
+		}
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		errorResponse(c, http.StatusBadRequest, "INVALID_JSON", "invalid request body", nil)
+
+	if file != nil {
+		f, openErr := file.Open()
+		if openErr == nil {
+			defer f.Close()
+			mediaData, _ = io.ReadAll(f)
+			h.log.Info("file received", slog.Int("size", len(mediaData)))
+		}
+	}
+
+	// 3. Если форма пустая, пробуем прочитать как чистый JSON (для постов без фото)
+	if content == "" && len(mediaData) == 0 {
+		var req struct {
+			Content string `json:"content"`
+		}
+		if err := c.ShouldBindJSON(&req); err == nil {
+			content = req.Content
+		}
+	}
+
+	if content == "" && len(mediaData) == 0 {
+		errorResponse(c, http.StatusBadRequest, "INVALID_INPUT", "content or media is required", nil)
 		return
 	}
 
-	post, err := h.postSvc.CreatePost(c.Request.Context(), userID, req.Content, req.MediaURL)
+	post, err := h.postSvc.CreatePost(c.Request.Context(), userID, content, mediaData)
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidInput) {
-			errorResponse(c, http.StatusBadRequest, "INVALID_INPUT", "content must be 1-2000 characters", nil)
-			return
-		}
 		h.log.Error("create post error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not create post", nil)
 		return

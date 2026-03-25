@@ -120,7 +120,6 @@ export function useUploadPhoto() {
       const form = new FormData();
       form.append('photo', file);
       const res = await api.post<ProfilePhoto>('/v1/profiles/me/photos', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
       });
       return res.data;
     },
@@ -224,9 +223,9 @@ export function useCreatePost() {
         const form = new FormData();
         form.append('content', data.content);
         form.append('media', data.media);
-        const res = await api.post<Post>('/v1/posts', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        
+        // ИСПРАВЛЕНО: Убрали headers, чтобы браузер сам правильно собрал multipart/form-data
+        const res = await api.post<Post>('/v1/posts', form);
         return res.data;
       }
       const res = await api.post<Post>('/v1/posts', { content: data.content });
@@ -235,7 +234,6 @@ export function useCreatePost() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'] }),
   });
 }
-
 export function useDeletePost() {
   const queryClient = useQueryClient();
   return useMutation({
