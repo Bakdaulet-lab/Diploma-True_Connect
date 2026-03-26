@@ -39,6 +39,20 @@ type CandidateView struct {
 	DistanceKm  float64   `json:"distance_km"`
 }
 
+// MatchView is a match card with user profile data for the frontend.
+// Новая структура для вложенного пользователя
+type MatchUserView struct {
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   string    `json:"avatar_url"`
+}
+
+// Обновленная основная структура мэтча
+type MatchView struct {
+	ID        uuid.UUID      `json:"id"`
+	OtherUser *MatchUserView `json:"other_user"` // Тот самый вложенный объект!
+}
+
 // LikeResult tells the caller whether a mutual match occurred.
 type LikeResult struct {
 	Matched bool      `json:"matched"`
@@ -176,19 +190,33 @@ func (s *MatchingService) GetMatchByID(ctx context.Context, matchID, userID uuid
 	return match, nil
 }
 
-func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*domain.Match, error) {
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 50 {
-		perPage = 20
-	}
-
-	offset := (page - 1) * perPage
-	matches, err := s.matchRepo.ListMatches(ctx, userID, perPage, offset)
+func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*MatchView, error) {
+	matches, err := s.matchRepo.ListMatches(ctx, userID, perPage, (page-1)*perPage)
 	if err != nil {
-		return nil, fmt.Errorf("list matches: %w", err)
+		return nil, err
 	}
 
-	return matches, nil
+	views := make([]*MatchView, 0, len(matches))
+	for _, m := range matches {
+		otherID := m.UserAID
+		if otherID == userID {
+			otherID = m.UserBID
+		}
+
+		profile, err := s.profileRepo.GetByUserID(ctx, otherID)
+		if err != nil {
+			continue
+		}
+
+		// Формируем вложенную структуру, которую ждет фронтенд
+		views = append(views, &MatchView{
+			ID: m.ID,
+			OtherUser: &MatchUserView{
+				UserID:      otherID,
+				DisplayName: profile.DisplayName,
+				AvatarURL:   fixAvatarURL(profile.AvatarURL),
+			},
+		})
+	}
+	return views, nil
 }

@@ -15,7 +15,8 @@ export default function DiscoverPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showMatch, setShowMatch] = useState(false);
 
-  const candidates = data?.pages.flatMap((p) => p.items) ?? [];
+  // ИСПРАВЛЕНО: Безопасное извлечение массива из ответа API
+  const candidates = data?.pages.flatMap((p: any) => p.data || p.items || p || []) ?? [];
   const current = candidates[currentIndex] as MatchCandidate | undefined;
 
   const handleLike = () => {

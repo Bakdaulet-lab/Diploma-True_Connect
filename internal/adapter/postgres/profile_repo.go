@@ -80,7 +80,7 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	p := &domain.Profile{}
 	var bio, city, avatarURL *string
 	var gender, lookingFor *string
-	var lat, lon *float64 // ИСПРАВЛЕНО: Защита от NULL координат
+	var lat, lon *float64
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.DisplayName, &bio, &gender, &p.BirthDate,
@@ -110,7 +110,6 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 		p.LookingFor = domain.Gender(*lookingFor)
 	}
 
-	// ИСПРАВЛЕНО: Безопасное присвоение координат
 	if lat != nil {
 		p.Latitude = *lat
 	}
@@ -161,6 +160,21 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			)
 		ORDER BY u.trust_score DESC, u.last_login_at DESC NULLS LAST
 		LIMIT $9`
+
+	// ---------------------------------------------------------
+	// 🔥 НАШ РАДАР ДЛЯ ОТЛОВА БАГОВ (ВЫВОД В КОНСОЛЬ БЭКЕНДА)
+	// ---------------------------------------------------------
+	fmt.Println("==================================================")
+	fmt.Println("🚀 ВЫЗОВ ФУНКЦИИ FindCandidates")
+	fmt.Printf("Lat($1): %v | Lon($2): %v\n", opts.Lat, opts.Lon)
+	fmt.Printf("MaxDistMeters($3): %v\n", opts.MaxDistanceMeters)
+	fmt.Printf("LookingFor($4): '%v'\n", string(opts.LookingFor))
+	fmt.Printf("RequesterID($5): %v\n", opts.RequesterID)
+	fmt.Printf("ExcludeIDs($6): %v\n", excludeStrings)
+	fmt.Printf("AgeRangeMin($7): %v | AgeRangeMax($8): %v\n", opts.AgeRangeMin, opts.AgeRangeMax)
+	fmt.Printf("Limit($9): %v\n", opts.Limit)
+	fmt.Println("==================================================")
+	// ---------------------------------------------------------
 
 	rows, err := runner(ctx, r.pool).Query(ctx, query,
 		opts.Lat,                // $1

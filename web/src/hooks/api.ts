@@ -146,13 +146,14 @@ export function useCandidates() {
       const res = await api.get<PaginatedResponse<MatchCandidate>>('/v1/matching/candidates', {
         params: { page: pageParam, page_size: 10 },
       });
+      // ДОБАВЬ ЭТУ СТРОЧКУ:
+      console.log("🔥 ОТВЕТ ОТ БЭКЕНДА (CANDIDATES):", res.data);
       return res.data;
     },
     getNextPageParam: (last, pages) => (last.has_more ? pages.length + 1 : undefined),
     initialPageParam: 1,
   });
 }
-
 export function useLikeUser() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -176,12 +177,25 @@ export function useMatches() {
   return useQuery({
     queryKey: ['matches'],
     queryFn: async () => {
-      const res = await api.get<Match[]>('/v1/matches');
-      return res.data;
+      // Мы используем тип PaginatedResponse, так как бэкенд присылает 'items'
+      const res = await api.get<PaginatedResponse<Match>>('/v1/matches');
+      
+      console.log("🍏 Тело ответа (body):", res.data);
+      
+      // ВОТ ОНО РЕШЕНИЕ: Достаем массив из поля items
+      const matchesArray = res.data.items; 
+      
+      console.log("🚀 Итоговый массив мэтчей:", matchesArray);
+
+      if (!Array.isArray(matchesArray)) {
+        console.error('❌ ОШИБКА: Поле items не является массивом!', res.data);
+        return [];
+      }
+
+      return matchesArray;
     },
   });
 }
-
 // ─── Chat ───────────────────────────────────────────────
 
 export function useMessages(matchId: string) {
