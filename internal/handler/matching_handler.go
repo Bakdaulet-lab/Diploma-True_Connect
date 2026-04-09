@@ -140,3 +140,21 @@ func (h *MatchingHandler) ListMatches(c *gin.Context) {
 		"meta": gin.H{"page": page, "per_page": perPage},
 	})
 }
+
+// GetGraphCandidates handles GET /v1/matching/graph-candidates
+func (h *MatchingHandler) GetGraphCandidates(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	candidates, err := h.matchingSvc.GetGraphCandidates(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("failed to get graph candidates", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get recommendations", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": candidates})
+}

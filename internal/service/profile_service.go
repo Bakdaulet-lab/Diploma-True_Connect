@@ -25,6 +25,7 @@ type ProfileView struct {
 	AvatarURL         string      `json:"avatar_url,omitempty"`
 	Photos            []PhotoView `json:"photos"`
 	TrustScore        int         `json:"trust_score"`
+	Badge             string      `json:"badge"`
 	VerificationLevel string      `json:"verification_level"`
 }
 
@@ -42,6 +43,8 @@ type UpsertProfileInput struct {
 	Gender      domain.Gender
 	BirthDate   *time.Time
 	City        string
+	Latitude    *float64
+	Longitude   *float64
 	LookingFor  domain.Gender
 }
 
@@ -108,6 +111,8 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		})
 	}
 
+	scoreModel := &domain.TrustScore{Score: trustScore}
+
 	view := &ProfileView{
 		UserID:            profile.UserID,
 		DisplayName:       profile.DisplayName,
@@ -119,6 +124,7 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		AvatarURL:         profile.AvatarURL,
 		Photos:            photoViews,
 		TrustScore:        trustScore,
+		Badge:             scoreModel.GetBadge(),
 		VerificationLevel: string(user.VerificationLevel),
 	}
 
@@ -139,6 +145,8 @@ func (s *ProfileService) UpsertProfile(ctx context.Context, userID uuid.UUID, in
 		Gender:      input.Gender,
 		BirthDate:   input.BirthDate,
 		City:        input.City,
+		Latitude:    input.Latitude,
+		Longitude:   input.Longitude,
 		LookingFor:  input.LookingFor,
 	}
 

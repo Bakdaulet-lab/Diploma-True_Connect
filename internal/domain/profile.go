@@ -21,6 +21,8 @@ type Profile struct {
 	Gender      Gender
 	BirthDate   *time.Time
 	City        string
+	Latitude    *float64 // PostGIS location
+	Longitude   *float64 // PostGIS location
 	LookingFor  Gender
 	AvatarURL   string
 	CreatedAt   time.Time

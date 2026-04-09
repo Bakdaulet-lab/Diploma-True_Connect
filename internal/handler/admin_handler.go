@@ -11,12 +11,13 @@ import (
 )
 
 type AdminHandler struct {
-	userSvc *service.UserService
-	log     *slog.Logger
+	userSvc   *service.UserService
+	reputeSvc *service.ReputationService
+	log       *slog.Logger
 }
 
-func NewAdminHandler(userSvc *service.UserService, log *slog.Logger) *AdminHandler {
-	return &AdminHandler{userSvc: userSvc, log: log}
+func NewAdminHandler(userSvc *service.UserService, reputeSvc *service.ReputationService, log *slog.Logger) *AdminHandler {
+	return &AdminHandler{userSvc: userSvc, reputeSvc: reputeSvc, log: log}
 }
 
 func (h *AdminHandler) ListUnderReview(c *gin.Context) {
@@ -62,4 +63,14 @@ func (h *AdminHandler) ReviewVerdict(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "verdict applied"}})
+}
+
+func (h *AdminHandler) GetSybilClusters(c *gin.Context) {
+	clusters, err := h.reputeSvc.GetSybilClusters(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to detect sybil clusters", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not process graph clusters", nil)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": clusters})
 }

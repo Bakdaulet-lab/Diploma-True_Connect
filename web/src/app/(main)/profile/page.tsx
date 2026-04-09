@@ -63,7 +63,16 @@ export default function ProfilePage() {
             </div>
             {profile.city && <p className="text-sm text-gray-500">{profile.city}</p>}
             <div className="mt-2 flex items-center gap-3">
-              {user && <TrustBadge score={user.trust_score} />}
+              {profile.trust_score !== undefined && (
+                <div className="flex items-center gap-2">
+                  <TrustBadge score={profile.trust_score} />
+                  {profile.badge && (
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                      {profile.badge}
+                    </span>
+                  )}
+                </div>
+              )}
               {user && (
                 <span className="text-xs text-gray-400">
                   {user.verification_level === 'verified' ? '✓ Verified' : 'Not verified'}
@@ -72,7 +81,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-
         {/* Bio */}
         {profile.bio && (
           <div className="mt-6">

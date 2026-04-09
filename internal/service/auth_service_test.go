@@ -554,3 +554,5 @@ func TestRefresh_TokenReuse_RevokesAllTokens(t *testing.T) {
 		t.Errorf("expected ErrUnauthorized, got: %v", err)
 	}
 }
+
+func (m *mockGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) { return nil, nil }

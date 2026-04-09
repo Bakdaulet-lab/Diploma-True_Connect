@@ -3,8 +3,10 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/trueconnect/backend/internal/service"
 )
 
@@ -27,6 +29,11 @@ func NewTrustEngine(eventCh <-chan uuid.UUID, reputeSvc *service.ReputationServi
 // Run processes rating events until the context is cancelled.
 func (e *TrustEngine) Run(ctx context.Context) {
 	e.log.Info("trust engine started")
+
+	// Feature B: Background Recalculation every 24 hours
+	decayTicker := time.NewTicker(24 * time.Hour)
+	defer decayTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -45,6 +52,10 @@ func (e *TrustEngine) Run(ctx context.Context) {
 				slog.String("user_id", userID.String()),
 				slog.Int("new_score", score),
 			)
+		case <-decayTicker.C:
+			e.log.Info("trust engine: running periodic score background recalculation/decay")
+			// Trigger the global recalculation logic via the service
+			e.reputeSvc.RecalculateAllScores(ctx)
 		}
 	}
 }

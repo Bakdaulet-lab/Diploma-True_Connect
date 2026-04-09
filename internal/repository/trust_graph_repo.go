@@ -32,6 +32,9 @@ type TrustGraphRepository interface {
 
 	// DetectSybilClusters runs community detection and returns suspicious clusters.
 	DetectSybilClusters(ctx context.Context) ([]SybilCluster, error)
+
+	// GetRecommendations returns user IDs based on graph properties like mutual connections.
+	GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error)
 }
 
 // SybilCluster represents a group of suspicious accounts detected by graph analysis.

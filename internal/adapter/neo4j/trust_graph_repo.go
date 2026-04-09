@@ -289,3 +289,35 @@ func (r *TrustGraphRepo) DetectSybilClusters(ctx context.Context) ([]repository.
 
 	return clusters, nil
 }
+
+// GetRecommendations returns user IDs based on friends-of-friends connections.
+func (r *TrustGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) {
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
+	defer session.Close(ctx)
+
+	cypher := `MATCH (me:User {uid: $uid})-[:MET_WITH|RATED]-(friend:User)-[:MET_WITH|RATED]-(fof:User)
+	WHERE NOT (me)-[:MET_WITH|RATED]-(fof) AND me <> fof
+	WITH fof, count(friend) AS shared_connections
+	ORDER BY shared_connections DESC, fof.trust_score DESC
+	LIMIT $limit
+	RETURN fof.uid AS recommendedId`
+
+	result, err := session.Run(ctx, cypher, map[string]any{
+		"uid":   uid.String(),
+		"limit": limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("neo4j getting recommendations: %w", err)
+	}
+
+	var recommendedIDs []uuid.UUID
+	for result.Next(ctx) {
+		uidStr, _ := result.Record().Get("recommendedId")
+		parsedUID, err := uuid.Parse(uidStr.(string))
+		if err == nil {
+			recommendedIDs = append(recommendedIDs, parsedUID)
+		}
+	}
+	return recommendedIDs, result.Err()
+}
+

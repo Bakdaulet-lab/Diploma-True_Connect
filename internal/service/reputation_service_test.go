@@ -18,7 +18,8 @@ func setupReputationService(t *testing.T) (
 	graphRepo := newTrackingGraphRepo()
 	userRepo := newMockUserRepoS3()
 	cache := newMockMatchingCache()
-	svc := service.NewReputationService(graphRepo, userRepo, cache)
+	profileRepo := newMockProfileRepo()
+	svc := service.NewReputationService(graphRepo, userRepo, profileRepo, cache)
 	return svc, graphRepo, userRepo, cache
 }
 

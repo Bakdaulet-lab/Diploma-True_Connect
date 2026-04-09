@@ -94,6 +94,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 		// ── Matching ─────────────────────────────────────────────────
 		protected.GET("/matching/candidates", deps.Matching.GetCandidates)
+		protected.GET("/matching/graph-candidates", deps.Matching.GetGraphCandidates)
 		protected.POST("/matching/like", userRL, deps.Matching.Like)
 		protected.POST("/matching/pass", userRL, deps.Matching.Pass)
 		protected.GET("/matches", deps.Matching.ListMatches)
@@ -111,7 +112,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		protected.POST("/interactions", userRL, deps.Interaction.SubmitRating)
 		protected.POST("/interactions/:id/confirm", deps.Interaction.ConfirmInteraction)
 		protected.GET("/users/:id/reputation", deps.Interaction.GetReputation)
-
+		protected.GET("/reputation/leaderboard", deps.Interaction.GetLeaderboard)
 		// ── Social Feed (Posts) ──────────────────────────────────────
 		protected.GET("/posts", deps.Post.ListFeed)
 		protected.POST("/posts", userRL, deps.Post.CreatePost)
@@ -137,6 +138,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 			adminGroup := protected.Group("/admin")
 			adminGroup.GET("/users/under-review", deps.Admin.ListUnderReview)
 			adminGroup.POST("/users/:id/review", deps.Admin.ReviewVerdict)
+			adminGroup.GET("/sybil-clusters", deps.Admin.GetSybilClusters)
 		}
 	}
 

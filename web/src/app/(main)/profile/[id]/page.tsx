@@ -54,9 +54,14 @@ export default function UserProfilePage() {
             )}
             {reputation && (
               <div className="mt-2 flex items-center gap-2">
-                <TrustBadge score={reputation.score} />
+                <TrustBadge score={reputation.trust_score || reputation.score || 0} />
+                {reputation.badge && (
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                    {reputation.badge}
+                  </span>
+                )}
                 <span className="text-xs text-gray-400">
-                  {reputation.rating_count} ratings
+                  {reputation.ratings?.length || reputation.rating_count || 0} ratings
                 </span>
               </div>
             )}

@@ -362,3 +362,5 @@ func (m *mockMediaStore) UploadDocument(_ context.Context, userID uuid.UUID, dat
 	m.objects[key] = cp
 	return key, nil
 }
+
+func (m *mockProfileRepo) GetLeaderboard(_ context.Context, limit int) ([]domain.LeaderboardEntry, error) { return nil, nil }

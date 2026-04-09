@@ -38,9 +38,14 @@ export interface Profile {
   gender?: 'male' | 'female' | 'other';
   birth_date?: string;
   city?: string;
+  latitude?: number;
+  longitude?: number;
   looking_for?: string;
   avatar_url?: string;
   photos?: ProfilePhoto[];
+  trust_score?: number;
+  badge?: string;
+  verification_level?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -61,6 +66,8 @@ export interface ProfileUpsert {
   gender?: string;
   birth_date?: string;
   city?: string;
+  latitude?: number;
+  longitude?: number;
   looking_for?: string;
 }
 
@@ -138,8 +145,11 @@ export interface Interaction {
 
 export interface TrustScore {
   user_id: string;
-  score: number;
-  rating_count: number;
+  score?: number;
+  trust_score?: number;
+  badge?: string;
+  rating_count?: number;
+  ratings?: any[];
 }
 
 // --- Settings ---
@@ -174,3 +184,11 @@ export interface PaginatedResponse<T> {
 
 // --- Match Candidate ---
 export type MatchCandidate = Profile;
+
+// --- Admin ---
+export interface SybilCluster {
+  CommunityID: number;
+  Size: number;
+  ExternalConnections: number;
+  SuspectUIDs: string[];
+}

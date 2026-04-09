@@ -15,22 +15,28 @@ import (
 
 // PostHandler holds HTTP handlers for the social feed.
 type PostHandler struct {
-	postSvc *service.PostService
-	log     *slog.Logger
+	postSvc   *service.PostService
+	reputeSvc *service.ReputationService
+	log       *slog.Logger
 }
 
 // NewPostHandler creates a new post handler.
-func NewPostHandler(postSvc *service.PostService, log *slog.Logger) *PostHandler {
-	return &PostHandler{postSvc: postSvc, log: log}
+func NewPostHandler(postSvc *service.PostService, reputeSvc *service.ReputationService, log *slog.Logger) *PostHandler {
+	return &PostHandler{postSvc: postSvc, reputeSvc: reputeSvc, log: log}
 }
 
-// CreatePost handles POST /v1/posts
 // CreatePost handles POST /v1/posts
 func (h *PostHandler) CreatePost(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
 		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
 		return
+	}
+
+	// Feature A: Reputation Gate
+	score, err := h.reputeSvc.GetScore(c.Request.Context(), userID)
+	if err == nil && score != nil && score.Score < 30 {
+		errorResponse(c, http.StatusForbidden, "LOW_REPUTATION", "You need a Silver badge (30+ trust score) to create public posts", nil)
 	}
 
 	// 1. Пытаемся достать текст (из формы или из JSON)

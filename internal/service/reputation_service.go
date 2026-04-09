@@ -16,6 +16,7 @@ const trustScoreCacheTTL = 10 * time.Minute
 type ReputationService struct {
 	graphRepo     repository.TrustGraphRepository
 	userRepo      repository.UserRepository
+	profileRepo   repository.ProfileRepository
 	matchingCache repository.MatchingCache
 }
 
@@ -23,11 +24,13 @@ type ReputationService struct {
 func NewReputationService(
 	graphRepo repository.TrustGraphRepository,
 	userRepo repository.UserRepository,
+	profileRepo repository.ProfileRepository,
 	matchingCache repository.MatchingCache,
 ) *ReputationService {
 	return &ReputationService{
 		graphRepo:     graphRepo,
 		userRepo:      userRepo,
+		profileRepo:   profileRepo,
 		matchingCache: matchingCache,
 	}
 }
@@ -67,4 +70,49 @@ func (s *ReputationService) GetScore(ctx context.Context, userID uuid.UUID) (*do
 	_ = s.matchingCache.CacheTrustScore(ctx, userID, score, trustScoreCacheTTL)
 
 	return &domain.TrustScore{UserID: userID, Score: score}, nil
+}
+
+// GetLeaderboard returns the top N users with the highest reputation scores.
+func (s *ReputationService) GetLeaderboard(ctx context.Context, limit int) ([]domain.LeaderboardEntry, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 100 // Cap the leaderboard limit
+	}
+	board, err := s.profileRepo.GetLeaderboard(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get leaderboard: %w", err)
+	}
+	return board, nil
+}
+
+// RecalculateAllScores processes all users to decay older scores or promote active ones.
+func (s *ReputationService) RecalculateAllScores(ctx context.Context) {
+	// A naive implementation tracking through pagination
+	// In a massive system, this would be highly optimized or handled directly via DB jobs.
+	limit := 100
+	offset := 0
+
+	for {
+		users, err := s.userRepo.ListByTrustStatus(ctx, domain.TrustStatusNormal, limit, offset)
+		if err != nil {
+			fmt.Printf("RecalculateAllScores error at offset %d: %v\n", offset, err)
+			break
+		}
+		if len(users) == 0 {
+			break
+		}
+
+		for _, u := range users {
+			_, _ = s.RecalculateScore(ctx, u.ID)
+		}
+
+		if len(users) < limit {
+			break
+		}
+		offset += limit
+	}
+}
+
+// GetSybilClusters returns clusters of suspected bot/Sybil accounts.
+func (s *ReputationService) GetSybilClusters(ctx context.Context) ([]repository.SybilCluster, error) {
+	return s.graphRepo.DetectSybilClusters(ctx)
 }

@@ -145,8 +145,22 @@ func (h *InteractionHandler) GetReputation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
 			"trust_score": trustScore.Score,
+			"badge":       trustScore.GetBadge(),
 			"user_id":     trustScore.UserID,
 			"ratings":     ratings,
-		},
-	})
+		}})
+}
+
+// GetLeaderboard handles GET /v1/reputation/leaderboard
+func (h *InteractionHandler) GetLeaderboard(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+
+	board, err := h.reputeSvc.GetLeaderboard(c.Request.Context(), limit)
+	if err != nil {
+		h.log.Error("get leaderboard error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not get leaderboard", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": board})
 }

@@ -11,12 +11,35 @@ import toast from 'react-hot-toast';
 
 export default function EditProfilePage() {
   const router = useRouter();
-  const queryClient = useQueryClient(); // Инициализация queryClient
-  
+  const queryClient = useQueryClient();
+
   const { data: profile, isLoading } = useMyProfile();
   const { mutate: updateProfile, isPending } = useUpdateProfile();
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileUpsert>();
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProfileUpsert>();
+
+  const currentLat = watch('latitude');
+  const currentLon = watch('longitude');
+
+  const handleUpdateLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    toast.loading('Fetching location...', { id: 'loc' });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setValue('latitude', position.coords.latitude);
+        setValue('longitude', position.coords.longitude);
+        toast.success('Location updated!', { id: 'loc' });
+      },
+      (error) => {
+        toast.error('Could not get precise location', { id: 'loc' });
+        console.error(error);
+      }
+    );
+  };
 
   useEffect(() => {
     if (profile) {
@@ -26,7 +49,8 @@ export default function EditProfilePage() {
         gender: profile.gender || '',
         birth_date: profile.birth_date ? profile.birth_date.split('T')[0] : '',
         city: profile.city || '',
-        looking_for: profile.looking_for || 'both',
+        latitude: profile.latitude,
+        longitude: profile.longitude,
       });
     }
   }, [profile, reset]);
@@ -122,9 +146,21 @@ export default function EditProfilePage() {
             <label className="block text-sm font-medium mb-2 text-gray-700">City</label>
             <input
               {...register('city')}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500 mb-2"
               placeholder="Where do you live?"
             />
+            {currentLat && currentLon && (
+              <p className="text-xs text-green-600 mb-2 font-medium">
+                ✓ Precise coordinates captured (GPS)
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleUpdateLocation}
+              className="text-sm px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg font-medium transition-colors"
+            >
+              Update Precise Location
+            </button>
           </div>
         </div>
 

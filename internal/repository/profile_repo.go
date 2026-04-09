@@ -19,16 +19,22 @@ type ProfileRepository interface {
 	// It queries within maxDistanceMeters of the given lat/lon,
 	// filtering by looking_for gender and excluding excludeIDs.
 	FindCandidates(ctx context.Context, opts FindCandidatesOpts) ([]*CandidateRow, error)
+
+	// GetLeaderboard returns the list of users with the highest trust scores.
+	GetLeaderboard(ctx context.Context, limit int) ([]domain.LeaderboardEntry, error)
 }
 
 // FindCandidatesOpts carries all parameters for the candidate search query.
 type FindCandidatesOpts struct {
-	RequesterID uuid.UUID
-	LookingFor  domain.Gender
-	AgeRangeMin int
-	AgeRangeMax int
-	ExcludeIDs  []uuid.UUID // already-seen or already-matched user IDs
-	Limit       int
+	RequesterID       uuid.UUID
+	LookingFor        domain.Gender
+	AgeRangeMin       int
+	AgeRangeMax       int
+	MaxDistanceMeters *int
+	RequesterLat      *float64
+	RequesterLon      *float64
+	ExcludeIDs        []uuid.UUID // already-seen or already-matched user IDs
+	Limit             int
 }
 
 // CandidateRow is the minimal data returned per matching candidate.

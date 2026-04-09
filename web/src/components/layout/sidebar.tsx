@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Compass, MessageCircle, Newspaper, User, Settings, ShieldCheck } from 'lucide-react';
+import { Compass, MessageCircle, Newspaper, User, Settings, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLogout } from '@/hooks/api';
 
@@ -16,6 +16,7 @@ const navItems = [
 const secondaryNavItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
   { href: '/kyc', label: 'Verification', icon: ShieldCheck },
+  { href: '/admin', label: 'Admin', icon: ShieldAlert },
 ];
 
 export function Sidebar() {

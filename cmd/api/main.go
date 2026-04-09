@@ -126,7 +126,7 @@ func run() error {
 
 	// Sprint 2 services
 	profileSvc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache)
-	matchingSvc := service.NewMatchingService(profileRepo, matchRepo, settingsRepo, matchingCache)
+	matchingSvc := service.NewMatchingService(profileRepo, matchRepo, settingsRepo, matchingCache, graphRepo)
 	settingsSvc := service.NewSettingsService(settingsRepo)
 
 	// Sprint 3 repos, services, and trust engine
@@ -140,7 +140,7 @@ func run() error {
 		uow,
 		eventCh,
 	)
-	reputeSvc := service.NewReputationService(graphRepo, userRepo, matchingCache)
+	reputeSvc := service.NewReputationService(graphRepo, userRepo, profileRepo, matchingCache)
 
 	trustEngine := worker.NewTrustEngine(eventCh, reputeSvc, log)
 	go trustEngine.Run(ctx)
@@ -174,7 +174,7 @@ func run() error {
 	authHandler := handler.NewAuthHandler(authSvc, log, cfg.Server.Env == "development")
 
 	// Sprint 2 handlers
-	profileHandler := handler.NewProfileHandler(profileSvc, log)
+	profileHandler := handler.NewProfileHandler(profileSvc, reputeSvc, log)
 	matchingHandler := handler.NewMatchingHandler(matchingSvc, log)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, log)
 
@@ -182,7 +182,7 @@ func run() error {
 	interactionHandler := handler.NewInteractionHandler(interactionSvc, reputeSvc, log)
 
 	// Sprint 4 handlers
-	postHandler := handler.NewPostHandler(postSvc, log)
+	postHandler := handler.NewPostHandler(postSvc, reputeSvc, log)
 	chatHub := handler.NewHub(chatSvc, matchingSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
@@ -197,7 +197,7 @@ func run() error {
 	reportSvc := service.NewReportService(reportRepo, graphRepo)
 	reportHandler := handler.NewReportHandler(reportSvc, log)
 
-	adminHandler := handler.NewAdminHandler(userSvc, log)
+	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, log)
 
 	auditRepo := postgres.NewAuditRepo(pgPool)
 

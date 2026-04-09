@@ -245,3 +245,5 @@ func (m *mockUserRepoS3) SoftDelete(_ context.Context, _ uuid.UUID) error {
 func (m *mockUserRepoS3) ListByTrustStatus(ctx context.Context, status domain.TrustStatus, limit, offset int) ([]*domain.User, error) {
 	return []*domain.User{}, nil
 }
+
+func (m *trackingGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) { return nil, nil }

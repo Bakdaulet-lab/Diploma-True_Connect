@@ -59,10 +59,11 @@ type LikeResult struct {
 
 // MatchingService handles candidate retrieval, likes, and passes.
 type MatchingService struct {
-	profileRepo   repository.ProfileRepository
-	matchRepo     repository.MatchRepository
-	settingsRepo  repository.UserSettingsRepository
-	matchingCache repository.MatchingCache
+	profileRepo    repository.ProfileRepository
+	matchRepo      repository.MatchRepository
+	settingsRepo   repository.UserSettingsRepository
+	matchingCache  repository.MatchingCache
+	trustGraphRepo repository.TrustGraphRepository
 }
 
 // NewMatchingService creates a new matching service.
@@ -71,12 +72,14 @@ func NewMatchingService(
 	matchRepo repository.MatchRepository,
 	settingsRepo repository.UserSettingsRepository,
 	matchingCache repository.MatchingCache,
+	trustGraphRepo repository.TrustGraphRepository,
 ) *MatchingService {
 	return &MatchingService{
-		profileRepo:   profileRepo,
-		matchRepo:     matchRepo,
-		settingsRepo:  settingsRepo,
-		matchingCache: matchingCache,
+		profileRepo:    profileRepo,
+		matchRepo:      matchRepo,
+		settingsRepo:   settingsRepo,
+		matchingCache:  matchingCache,
+		trustGraphRepo: trustGraphRepo,
 	}
 }
 
@@ -108,13 +111,17 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		}
 	}
 
+	maxDistMeters := settings.MaxDistanceKm * 1000
 	opts := repository.FindCandidatesOpts{
-		RequesterID: userID,
-		LookingFor:  requesterProfile.LookingFor,
-		AgeRangeMin: settings.AgeRangeMin,
-		AgeRangeMax: settings.AgeRangeMax,
-		ExcludeIDs:  seenIDs,
-		Limit:       candidateBatchSize,
+		RequesterID:       userID,
+		LookingFor:        requesterProfile.LookingFor,
+		AgeRangeMin:       settings.AgeRangeMin,
+		AgeRangeMax:       settings.AgeRangeMax,
+		MaxDistanceMeters: &maxDistMeters,
+		RequesterLat:      requesterProfile.Latitude,
+		RequesterLon:      requesterProfile.Longitude,
+		ExcludeIDs:        seenIDs,
+		Limit:             candidateBatchSize,
 	}
 
 	rows, err := s.profileRepo.FindCandidates(ctx, opts)
@@ -206,6 +213,34 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, pag
 				AvatarURL:   fixAvatarURL(profile.AvatarURL),
 			},
 		})
+	}
+	return views, nil
+}
+
+// GetGraphCandidates returns a batch of profiles from Neo4j (friends-of-friends).
+func (s *MatchingService) GetGraphCandidates(ctx context.Context, userID uuid.UUID) ([]*CandidateView, error) {
+	recIDs, err := s.trustGraphRepo.GetRecommendations(ctx, userID, candidateBatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("get graph candidates: querying neo4j: %w", err)
+	}
+
+	var views []*CandidateView
+	for _, targetID := range recIDs {
+		prof, err := s.profileRepo.GetByUserID(ctx, targetID)
+		if err != nil {
+			continue
+		}
+		views = append(views, &CandidateView{
+			UserID:      prof.UserID,
+			DisplayName: prof.DisplayName,
+			AvatarURL:   fixAvatarURL(prof.AvatarURL),
+			City:        prof.City,
+			TrustScore:  50, // Default for now
+		})
+	}
+
+	if len(views) == 0 {
+		return []*CandidateView{}, nil
 	}
 	return views, nil
 }
