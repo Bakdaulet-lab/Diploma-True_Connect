@@ -38,8 +38,6 @@ export interface Profile {
   gender?: 'male' | 'female' | 'other';
   birth_date?: string;
   city?: string;
-  latitude?: number;
-  longitude?: number;
   looking_for?: string;
   avatar_url?: string;
   photos?: ProfilePhoto[];
@@ -63,8 +61,6 @@ export interface ProfileUpsert {
   gender?: string;
   birth_date?: string;
   city?: string;
-  latitude?: number;
-  longitude?: number;
   looking_for?: string;
 }
 

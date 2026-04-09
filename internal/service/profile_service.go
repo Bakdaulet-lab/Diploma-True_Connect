@@ -21,8 +21,6 @@ type ProfileView struct {
 	BirthDate         *time.Time  `json:"birth_date,omitempty"` // ИСПРАВЛЕНО: Добавлено
 	Age               *int        `json:"age,omitempty"`
 	City              string      `json:"city,omitempty"`
-	Latitude          float64     `json:"latitude,omitempty"`    // ИСПРАВЛЕНО: Добавлено
-	Longitude         float64     `json:"longitude,omitempty"`   // ИСПРАВЛЕНО: Добавлено
 	LookingFor        string      `json:"looking_for,omitempty"` // ИСПРАВЛЕНО: Добавлено
 	AvatarURL         string      `json:"avatar_url,omitempty"`
 	Photos            []PhotoView `json:"photos"`
@@ -44,8 +42,6 @@ type UpsertProfileInput struct {
 	Gender      domain.Gender
 	BirthDate   *time.Time
 	City        string
-	Latitude    float64
-	Longitude   float64
 	LookingFor  domain.Gender
 }
 
@@ -119,8 +115,6 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		Gender:            string(profile.Gender),
 		BirthDate:         profile.BirthDate, // ИСПРАВЛЕНО
 		City:              profile.City,
-		Latitude:          profile.Latitude,           // ИСПРАВЛЕНО
-		Longitude:         profile.Longitude,          // ИСПРАВЛЕНО
 		LookingFor:        string(profile.LookingFor), // ИСПРАВЛЕНО
 		AvatarURL:         profile.AvatarURL,
 		Photos:            photoViews,
@@ -145,8 +139,6 @@ func (s *ProfileService) UpsertProfile(ctx context.Context, userID uuid.UUID, in
 		Gender:      input.Gender,
 		BirthDate:   input.BirthDate,
 		City:        input.City,
-		Latitude:    input.Latitude,
-		Longitude:   input.Longitude,
 		LookingFor:  input.LookingFor,
 	}
 

@@ -57,7 +57,6 @@ func (m *mockProfileRepo) FindCandidates(_ context.Context, opts repository.Find
 			UserID:      p.UserID,
 			DisplayName: p.DisplayName,
 			TrustScore:  50,
-			DistanceKm:  1.0,
 		})
 		if len(rows) >= opts.Limit {
 			break

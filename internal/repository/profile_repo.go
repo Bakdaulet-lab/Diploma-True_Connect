@@ -23,15 +23,12 @@ type ProfileRepository interface {
 
 // FindCandidatesOpts carries all parameters for the candidate search query.
 type FindCandidatesOpts struct {
-	RequesterID       uuid.UUID
-	Lat               float64
-	Lon               float64
-	MaxDistanceMeters float64
-	LookingFor        domain.Gender
-	AgeRangeMin       int
-	AgeRangeMax       int
-	ExcludeIDs        []uuid.UUID // already-seen or already-matched user IDs
-	Limit             int
+	RequesterID uuid.UUID
+	LookingFor  domain.Gender
+	AgeRangeMin int
+	AgeRangeMax int
+	ExcludeIDs  []uuid.UUID // already-seen or already-matched user IDs
+	Limit       int
 }
 
 // CandidateRow is the minimal data returned per matching candidate.
@@ -41,5 +38,4 @@ type CandidateRow struct {
 	AvatarURL   string
 	City        string
 	TrustScore  int
-	DistanceKm  float64
 }

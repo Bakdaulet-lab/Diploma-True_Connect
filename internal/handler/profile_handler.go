@@ -53,8 +53,6 @@ type upsertProfileRequest struct {
 	Gender      string  `json:"gender"       validate:"omitempty,oneof=male female other"`
 	BirthDate   *string `json:"birth_date"` // ISO 8601 date: "1995-07-21"
 	City        string  `json:"city"         validate:"max=100"`
-	Latitude    float64 `json:"latitude"     validate:"min=-90,max=90"`
-	Longitude   float64 `json:"longitude"    validate:"min=-180,max=180"`
 	LookingFor  string  `json:"looking_for"  validate:"omitempty,oneof=male female other"`
 }
 
@@ -81,9 +79,8 @@ func (h *ProfileHandler) UpsertProfile(c *gin.Context) {
 		Bio:         req.Bio,
 		Gender:      domain.Gender(req.Gender),
 		City:        req.City,
-		Latitude:    req.Latitude,
-		Longitude:   req.Longitude,
-		LookingFor:  domain.Gender(req.LookingFor),
+
+		LookingFor: domain.Gender(req.LookingFor),
 	}
 
 	if req.BirthDate != nil && *req.BirthDate != "" {

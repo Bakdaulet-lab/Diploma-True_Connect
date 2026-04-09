@@ -26,9 +26,7 @@ export default function EditProfilePage() {
         gender: profile.gender || '',
         birth_date: profile.birth_date ? profile.birth_date.split('T')[0] : '',
         city: profile.city || '',
-        looking_for: profile.looking_for || '',
-        latitude: profile.latitude || undefined,
-        longitude: profile.longitude || undefined,
+        looking_for: profile.looking_for || 'both',
       });
     }
   }, [profile, reset]);
@@ -40,7 +38,7 @@ export default function EditProfilePage() {
     const cleanData = {
       ...data,
       gender: data.gender === '' ? undefined : data.gender,
-      looking_for: data.looking_for === '' ? undefined : data.looking_for,
+      looking_for: (data.looking_for === '' || data.looking_for === 'both') ? undefined : data.looking_for,
       birth_date: data.birth_date === '' ? undefined : data.birth_date,
     };
 
@@ -119,7 +117,7 @@ export default function EditProfilePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2 text-gray-700">City</label>
             <input
@@ -127,28 +125,6 @@ export default function EditProfilePage() {
               className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
               placeholder="Where do you live?"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700">Latitude</label>
-            <input
-              type="number"
-              step="any"
-              {...register('latitude', { valueAsNumber: true, min: { value: -90, message: 'Invalid latitude' }, max: { value: 90, message: 'Invalid latitude' } })}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
-              placeholder="e.g. 51.5074"
-            />
-            {errors.latitude && <p className="text-red-500 text-sm mt-1">{errors.latitude.message}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700">Longitude</label>
-            <input
-              type="number"
-              step="any"
-              {...register('longitude', { valueAsNumber: true, min: { value: -180, message: 'Invalid longitude' }, max: { value: 180, message: 'Invalid longitude' } })}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-primary-500 focus:ring-primary-500"
-              placeholder="e.g. -0.1278"
-            />
-            {errors.longitude && <p className="text-red-500 text-sm mt-1">{errors.longitude.message}</p>}
           </div>
         </div>
 

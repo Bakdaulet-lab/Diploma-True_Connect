@@ -28,12 +28,10 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 	query := `
 		INSERT INTO social.profiles (
 			user_id, display_name, bio, gender, birth_date,
-			city, location, looking_for, avatar_url
+			city, looking_for, avatar_url
 		) VALUES (
 			$1, $2, $3, $4, $5,
-			$6, 
-			CASE WHEN $7::numeric = 0 AND $8::numeric = 0 THEN NULL ELSE ST_SetSRID(ST_MakePoint($8, $7), 4326)::geography END, 
-			$9, $10
+			$6, $7, $8
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
@@ -41,7 +39,6 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 			gender       = EXCLUDED.gender,
 			birth_date   = EXCLUDED.birth_date,
 			city         = EXCLUDED.city,
-			location     = COALESCE(EXCLUDED.location, social.profiles.location),
 			looking_for  = EXCLUDED.looking_for,
 			avatar_url   = COALESCE(EXCLUDED.avatar_url, social.profiles.avatar_url),
 			updated_at   = NOW()
@@ -54,10 +51,8 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 		nullableGender(p.Gender),
 		p.BirthDate,
 		nullableString(p.City),
-		p.Latitude,  // $7
-		p.Longitude, // $8
-		nullableGender(p.LookingFor),
-		nullableString(p.AvatarURL),
+		nullableGender(p.LookingFor), // $7
+		nullableString(p.AvatarURL),  // $8
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upserting profile: %w", err)
@@ -71,8 +66,6 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 		SELECT
 			p.user_id, p.display_name, p.bio, p.gender, p.birth_date,
 			p.city,
-			ST_Y(p.location::geometry) AS latitude,
-			ST_X(p.location::geometry) AS longitude,
 			p.looking_for, p.avatar_url, p.created_at, p.updated_at
 		FROM social.profiles p
 		WHERE p.user_id = $1`
@@ -80,11 +73,10 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	p := &domain.Profile{}
 	var bio, city, avatarURL *string
 	var gender, lookingFor *string
-	var lat, lon *float64
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.DisplayName, &bio, &gender, &p.BirthDate,
-		&city, &lat, &lon,
+		&city,
 		&lookingFor, &avatarURL, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
@@ -110,13 +102,6 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 		p.LookingFor = domain.Gender(*lookingFor)
 	}
 
-	if lat != nil {
-		p.Latitude = *lat
-	}
-	if lon != nil {
-		p.Longitude = *lon
-	}
-
 	return p, nil
 }
 
@@ -133,59 +118,42 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			p.display_name,
 			COALESCE(p.avatar_url, '')   AS avatar_url,
 			COALESCE(p.city, '')          AS city,
-			u.trust_score,
-			ROUND(
-				(ST_Distance(
-					p.location,
-					ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
-				) / 1000.0)::numeric, 1
-			) AS distance_km
+			u.trust_score
 		FROM social.profiles p
 		JOIN social.users u ON u.id = p.user_id
 		WHERE
 			u.is_active   = true
 			AND u.trust_status = 'normal'
-			AND p.location IS NOT NULL
-			AND ST_DWithin(
-				p.location,
-				ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
-				$3
-			)
-			AND ($4::text = '' OR p.gender::text = $4)
-			AND p.user_id != $5
-			AND NOT (p.user_id::text = ANY($6))
+			AND ($1::text = '' OR p.gender::text = $1)
+			AND p.user_id != $2
+			AND NOT (p.user_id::text = ANY($3))
 			AND (
 				p.birth_date IS NULL
-				OR EXTRACT(year FROM AGE(p.birth_date)) BETWEEN $7 AND $8
+				OR EXTRACT(year FROM AGE(p.birth_date)) BETWEEN $4 AND $5
 			)
 		ORDER BY u.trust_score DESC, u.last_login_at DESC NULLS LAST
-		LIMIT $9`
+		LIMIT $6`
 
 	// ---------------------------------------------------------
 	// 🔥 НАШ РАДАР ДЛЯ ОТЛОВА БАГОВ (ВЫВОД В КОНСОЛЬ БЭКЕНДА)
 	// ---------------------------------------------------------
 	fmt.Println("==================================================")
 	fmt.Println("🚀 ВЫЗОВ ФУНКЦИИ FindCandidates")
-	fmt.Printf("Lat($1): %v | Lon($2): %v\n", opts.Lat, opts.Lon)
-	fmt.Printf("MaxDistMeters($3): %v\n", opts.MaxDistanceMeters)
-	fmt.Printf("LookingFor($4): '%v'\n", string(opts.LookingFor))
-	fmt.Printf("RequesterID($5): %v\n", opts.RequesterID)
-	fmt.Printf("ExcludeIDs($6): %v\n", excludeStrings)
-	fmt.Printf("AgeRangeMin($7): %v | AgeRangeMax($8): %v\n", opts.AgeRangeMin, opts.AgeRangeMax)
-	fmt.Printf("Limit($9): %v\n", opts.Limit)
+	fmt.Printf("LookingFor($1): '%v'\n", string(opts.LookingFor))
+	fmt.Printf("RequesterID($2): %v\n", opts.RequesterID)
+	fmt.Printf("ExcludeIDs($3): %v\n", excludeStrings)
+	fmt.Printf("AgeRangeMin($4): %v | AgeRangeMax($5): %v\n", opts.AgeRangeMin, opts.AgeRangeMax)
+	fmt.Printf("Limit($6): %v\n", opts.Limit)
 	fmt.Println("==================================================")
 	// ---------------------------------------------------------
 
 	rows, err := runner(ctx, r.pool).Query(ctx, query,
-		opts.Lat,                // $1
-		opts.Lon,                // $2
-		opts.MaxDistanceMeters,  // $3
-		string(opts.LookingFor), // $4  ('' means any gender)
-		opts.RequesterID,        // $5
-		excludeStrings,          // $6
-		opts.AgeRangeMin,        // $7
-		opts.AgeRangeMax,        // $8
-		opts.Limit,              // $9
+		string(opts.LookingFor), // $1  ('' means any gender)
+		opts.RequesterID,        // $2
+		excludeStrings,          // $3
+		opts.AgeRangeMin,        // $4
+		opts.AgeRangeMax,        // $5
+		opts.Limit,              // $6
 	)
 	if err != nil {
 		return nil, fmt.Errorf("finding candidates: %w", err)
@@ -197,7 +165,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 		c := &repository.CandidateRow{}
 		if err := rows.Scan(
 			&c.UserID, &c.DisplayName, &c.AvatarURL,
-			&c.City, &c.TrustScore, &c.DistanceKm,
+			&c.City, &c.TrustScore,
 		); err != nil {
 			return nil, fmt.Errorf("scanning candidate: %w", err)
 		}

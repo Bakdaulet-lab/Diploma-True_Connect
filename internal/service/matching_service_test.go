@@ -178,11 +178,9 @@ func TestGetCandidates_ExcludesRequester(t *testing.T) {
 
 	profileRepo.Upsert(context.Background(), &domain.Profile{
 		UserID: userID, DisplayName: "Requester",
-		Latitude: 43.2, Longitude: 76.9,
 	})
 	profileRepo.Upsert(context.Background(), &domain.Profile{
 		UserID: otherID, DisplayName: "Other",
-		Latitude: 43.2, Longitude: 76.9,
 	})
 
 	candidates, err := svc.GetCandidates(context.Background(), userID)

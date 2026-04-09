@@ -14,7 +14,6 @@ import (
 const (
 	candidateBatchSize = 20
 	seenSetTTL         = 24 * time.Hour
-	maxDistanceDefault = 50_000.0 // 50 km in metres
 )
 
 // fixAvatarURL преобразует путь из БД в прямую ссылку на MinIO
@@ -36,7 +35,6 @@ type CandidateView struct {
 	AvatarURL   string    `json:"avatar_url,omitempty"`
 	City        string    `json:"city,omitempty"`
 	TrustScore  int       `json:"trust_score"`
-	DistanceKm  float64   `json:"distance_km"`
 }
 
 // MatchView is a match card with user profile data for the frontend.
@@ -94,11 +92,6 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		settings = domain.DefaultSettings(userID.String())
 	}
 
-	maxDistanceM := float64(settings.MaxDistanceKm) * 1000.0
-	if maxDistanceM <= 0 {
-		maxDistanceM = maxDistanceDefault
-	}
-
 	seenIDs, err := s.matchingCache.GetSeenIDs(ctx, userID)
 	if err != nil {
 		seenIDs = []uuid.UUID{}
@@ -116,15 +109,12 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 	}
 
 	opts := repository.FindCandidatesOpts{
-		RequesterID:       userID,
-		Lat:               requesterProfile.Latitude,
-		Lon:               requesterProfile.Longitude,
-		MaxDistanceMeters: maxDistanceM,
-		LookingFor:        requesterProfile.LookingFor,
-		AgeRangeMin:       settings.AgeRangeMin,
-		AgeRangeMax:       settings.AgeRangeMax,
-		ExcludeIDs:        seenIDs,
-		Limit:             candidateBatchSize,
+		RequesterID: userID,
+		LookingFor:  requesterProfile.LookingFor,
+		AgeRangeMin: settings.AgeRangeMin,
+		AgeRangeMax: settings.AgeRangeMax,
+		ExcludeIDs:  seenIDs,
+		Limit:       candidateBatchSize,
 	}
 
 	rows, err := s.profileRepo.FindCandidates(ctx, opts)
@@ -142,7 +132,6 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 			AvatarURL:   fixAvatarURL(row.AvatarURL), // ПРИМЕНЯЕМ ФИКС ТУТ
 			City:        row.City,
 			TrustScore:  row.TrustScore,
-			DistanceKm:  row.DistanceKm,
 		})
 	}
 
