@@ -30,6 +30,7 @@ type User struct {
 	PhoneEncrypted    []byte
 	EmailEncrypted    []byte
 	PasswordHash      string
+	PublicKey         *string // X25519 Public Key for E2E encryption
 	VerificationLevel VerificationLevel
 	TrustStatus       TrustStatus
 	TrustScore        int

@@ -18,7 +18,8 @@ type MatchRepository interface {
 	RecordPass(ctx context.Context, userID, targetID uuid.UUID) error
 
 	// ListMatches returns all mutual matches for a user, newest first.
-	ListMatches(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*domain.Match, error)
+	// Uses cursor-based pagination (matched_at or created_at).
+	ListMatches(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*domain.Match, string, error)
 
 	// GetMatch returns a specific match only if userID is a participant.
 	GetMatch(ctx context.Context, matchID uuid.UUID, userID uuid.UUID) (*domain.Match, error)

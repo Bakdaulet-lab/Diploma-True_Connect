@@ -55,6 +55,34 @@ func (s *ReputationService) RecalculateScore(ctx context.Context, userID uuid.UU
 	return score, nil
 }
 
+// UpdateTrustScore manually adjusts a user's trust score by a given delta.
+// Ideally, the graph algorithm should recompute it, but this allows direct penalties.
+func (s *ReputationService) UpdateTrustScore(ctx context.Context, userID uuid.UUID, delta int, reason string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	newScore := user.TrustScore + delta
+	if newScore < 0 {
+		newScore = 0
+	} else if newScore > 100 {
+		newScore = 100
+	}
+
+	if err := s.userRepo.UpdateTrustScore(ctx, userID, newScore); err != nil {
+		return err
+	}
+
+	if err := s.graphRepo.UpdateTrustScore(ctx, userID, newScore); err != nil {
+		return err
+	}
+
+	_ = s.matchingCache.CacheTrustScore(ctx, userID, newScore, trustScoreCacheTTL)
+
+	return nil
+}
+
 // GetScore returns a user's trust score, reading from Redis cache first.
 func (s *ReputationService) GetScore(ctx context.Context, userID uuid.UUID) (*domain.TrustScore, error) {
 	cached, err := s.matchingCache.GetCachedTrustScore(ctx, userID)

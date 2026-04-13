@@ -24,12 +24,12 @@ func NewMessageRepo(pool *pgxpool.Pool) *MessageRepo {
 
 func (r *MessageRepo) Create(ctx context.Context, msg *domain.Message) error {
 	query := `
-		INSERT INTO social.messages (match_id, sender_id, content_encrypted)
-		VALUES ($1, $2, $3)
+		INSERT INTO social.messages (match_id, sender_id, content_encrypted, is_toxic)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at`
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query,
-		msg.MatchID, msg.SenderID, msg.ContentEncrypted,
+		msg.MatchID, msg.SenderID, msg.ContentEncrypted, msg.IsToxic,
 	).Scan(&msg.ID, &msg.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("creating message: %w", err)
@@ -40,7 +40,7 @@ func (r *MessageRepo) Create(ctx context.Context, msg *domain.Message) error {
 
 func (r *MessageRepo) ListByMatch(ctx context.Context, matchID uuid.UUID, cursor string, limit int) ([]domain.Message, string, error) {
 	query := `
-                SELECT id, match_id, sender_id, content_encrypted, read_at, created_at
+                SELECT id, match_id, sender_id, content_encrypted, is_toxic, read_at, created_at
                 FROM social.messages
                 WHERE match_id = $1 AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
                 ORDER BY created_at DESC
@@ -64,7 +64,7 @@ func (r *MessageRepo) ListByMatch(ctx context.Context, matchID uuid.UUID, cursor
 		var m domain.Message
 		if err := rows.Scan(
 			&m.ID, &m.MatchID, &m.SenderID,
-			&m.ContentEncrypted, &m.ReadAt, &m.CreatedAt,
+			&m.ContentEncrypted, &m.IsToxic, &m.ReadAt, &m.CreatedAt,
 		); err != nil {
 			return nil, "", fmt.Errorf("scanning message row: %w", err)
 		}

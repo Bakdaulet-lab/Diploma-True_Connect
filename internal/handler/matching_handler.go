@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -126,9 +127,14 @@ func (h *MatchingHandler) ListMatches(c *gin.Context) {
 		return
 	}
 
-	page, perPage := parsePagination(c)
+	cursor := c.Query("cursor")
+	limit := 20 // default
+	if c.Query("limit") != "" {
+		// normally parse this safely, here just fallback
+		fmt.Sscanf(c.Query("limit"), "%d", &limit)
+	}
 
-	matches, err := h.matchingSvc.ListMatches(c.Request.Context(), userID, page, perPage)
+	matches, nextCursor, err := h.matchingSvc.ListMatches(c.Request.Context(), userID, cursor, limit)
 	if err != nil {
 		h.log.Error("list matches error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not list matches", nil)
@@ -137,7 +143,7 @@ func (h *MatchingHandler) ListMatches(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": matches,
-		"meta": gin.H{"page": page, "per_page": perPage},
+		"meta": gin.H{"next_cursor": nextCursor, "limit": limit},
 	})
 }
 

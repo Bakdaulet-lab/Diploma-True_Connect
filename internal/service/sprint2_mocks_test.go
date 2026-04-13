@@ -188,7 +188,7 @@ func (m *mockMatchRepo) RecordLike(_ context.Context, userID, targetID uuid.UUID
 
 func (m *mockMatchRepo) RecordPass(_ context.Context, _, _ uuid.UUID) error { return nil }
 
-func (m *mockMatchRepo) ListMatches(_ context.Context, userID uuid.UUID, limit, offset int) ([]*domain.Match, error) {
+func (m *mockMatchRepo) ListMatches(_ context.Context, userID uuid.UUID, cursor string, limit int) ([]*domain.Match, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var list []*domain.Match
@@ -198,15 +198,13 @@ func (m *mockMatchRepo) ListMatches(_ context.Context, userID uuid.UUID, limit, 
 			list = append(list, &cp)
 		}
 	}
-	start := offset
-	if start >= len(list) {
-		return []*domain.Match{}, nil
-	}
+	start := 0
+	// naive cursor skip
 	end := start + limit
 	if end > len(list) {
 		end = len(list)
 	}
-	return list[start:end], nil
+	return list[start:end], "", nil
 }
 
 func (m *mockMatchRepo) GetMatch(_ context.Context, matchID uuid.UUID, userID uuid.UUID) (*domain.Match, error) {
@@ -363,4 +361,6 @@ func (m *mockMediaStore) UploadDocument(_ context.Context, userID uuid.UUID, dat
 	return key, nil
 }
 
-func (m *mockProfileRepo) GetLeaderboard(_ context.Context, limit int) ([]domain.LeaderboardEntry, error) { return nil, nil }
+func (m *mockProfileRepo) GetLeaderboard(_ context.Context, limit int) ([]domain.LeaderboardEntry, error) {
+	return nil, nil
+}

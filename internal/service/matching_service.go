@@ -43,6 +43,7 @@ type MatchUserView struct {
 	UserID      uuid.UUID `json:"user_id"`
 	DisplayName string    `json:"display_name"`
 	AvatarURL   string    `json:"avatar_url"`
+	PublicKey   *string   `json:"public_key,omitempty"`
 }
 
 // Обновленная основная структура мэтча
@@ -60,6 +61,7 @@ type LikeResult struct {
 // MatchingService handles candidate retrieval, likes, and passes.
 type MatchingService struct {
 	profileRepo    repository.ProfileRepository
+	userRepo       repository.UserRepository
 	matchRepo      repository.MatchRepository
 	settingsRepo   repository.UserSettingsRepository
 	matchingCache  repository.MatchingCache
@@ -69,6 +71,7 @@ type MatchingService struct {
 // NewMatchingService creates a new matching service.
 func NewMatchingService(
 	profileRepo repository.ProfileRepository,
+	userRepo repository.UserRepository,
 	matchRepo repository.MatchRepository,
 	settingsRepo repository.UserSettingsRepository,
 	matchingCache repository.MatchingCache,
@@ -76,6 +79,7 @@ func NewMatchingService(
 ) *MatchingService {
 	return &MatchingService{
 		profileRepo:    profileRepo,
+		userRepo:       userRepo,
 		matchRepo:      matchRepo,
 		settingsRepo:   settingsRepo,
 		matchingCache:  matchingCache,
@@ -100,7 +104,7 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		seenIDs = []uuid.UUID{}
 	}
 
-	matches, err := s.matchRepo.ListMatches(ctx, userID, 200, 0)
+	matches, _, err := s.matchRepo.ListMatches(ctx, userID, "", 200)
 	if err == nil {
 		for _, m := range matches {
 			other := m.UserAID
@@ -186,10 +190,10 @@ func (s *MatchingService) GetMatchByID(ctx context.Context, matchID, userID uuid
 	return match, nil
 }
 
-func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*MatchView, error) {
-	matches, err := s.matchRepo.ListMatches(ctx, userID, perPage, (page-1)*perPage)
+func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*MatchView, string, error) {
+	matches, nextCursor, err := s.matchRepo.ListMatches(ctx, userID, cursor, limit)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	views := make([]*MatchView, 0, len(matches))
@@ -204,6 +208,11 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, pag
 			continue
 		}
 
+		user, err := s.userRepo.GetByID(ctx, otherID)
+		if err != nil {
+			continue
+		}
+
 		// Формируем вложенную структуру, которую ждет фронтенд
 		views = append(views, &MatchView{
 			ID: m.ID,
@@ -211,10 +220,11 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, pag
 				UserID:      otherID,
 				DisplayName: profile.DisplayName,
 				AvatarURL:   fixAvatarURL(profile.AvatarURL),
+				PublicKey:   user.PublicKey,
 			},
 		})
 	}
-	return views, nil
+	return views, nextCursor, nil
 }
 
 // GetGraphCandidates returns a batch of profiles from Neo4j (friends-of-friends).

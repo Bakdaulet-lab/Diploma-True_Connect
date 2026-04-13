@@ -14,19 +14,20 @@ const maxPhotosPerUser = 8
 
 // ProfileView is the full public view of a profile returned to API consumers.
 type ProfileView struct {
-	UserID            uuid.UUID   `json:"user_id"`
-	DisplayName       string      `json:"display_name"`
-	Bio               string      `json:"bio,omitempty"`
-	Gender            string      `json:"gender,omitempty"`
-	BirthDate         *time.Time  `json:"birth_date,omitempty"` // ИСПРАВЛЕНО: Добавлено
-	Age               *int        `json:"age,omitempty"`
-	City              string      `json:"city,omitempty"`
-	LookingFor        string      `json:"looking_for,omitempty"` // ИСПРАВЛЕНО: Добавлено
-	AvatarURL         string      `json:"avatar_url,omitempty"`
-	Photos            []PhotoView `json:"photos"`
-	TrustScore        int         `json:"trust_score"`
-	Badge             string      `json:"badge"`
-	VerificationLevel string      `json:"verification_level"`
+	UserID            uuid.UUID             `json:"user_id"`
+	DisplayName       string                `json:"display_name"`
+	Bio               string                `json:"bio,omitempty"`
+	Gender            string                `json:"gender,omitempty"`
+	BirthDate         *time.Time            `json:"birth_date,omitempty"` // ИСПРАВЛЕНО: Добавлено
+	Age               *int                  `json:"age,omitempty"`
+	City              string                `json:"city,omitempty"`
+	LookingFor        string                `json:"looking_for,omitempty"` // ИСПРАВЛЕНО: Добавлено
+	AvatarURL         string                `json:"avatar_url,omitempty"`
+	Photos            []PhotoView           `json:"photos"`
+	TrustScore        int                   `json:"trust_score"`
+	Badge             string                `json:"badge"`
+	VerificationLevel string                `json:"verification_level"`
+	Prompts           []domain.PromptAnswer `json:"prompts,omitempty"`
 }
 
 // PhotoView is a single photo with a time-limited presigned URL.
@@ -41,6 +42,7 @@ type UpsertProfileInput struct {
 	DisplayName string
 	Bio         string
 	Gender      domain.Gender
+	Prompts     []domain.PromptAnswer
 	BirthDate   *time.Time
 	City        string
 	Latitude    *float64
@@ -126,6 +128,7 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		TrustScore:        trustScore,
 		Badge:             scoreModel.GetBadge(),
 		VerificationLevel: string(user.VerificationLevel),
+		Prompts:           profile.Prompts,
 	}
 
 	if profile.BirthDate != nil {
@@ -143,6 +146,7 @@ func (s *ProfileService) UpsertProfile(ctx context.Context, userID uuid.UUID, in
 		DisplayName: input.DisplayName,
 		Bio:         input.Bio,
 		Gender:      input.Gender,
+		Prompts:     input.Prompts,
 		BirthDate:   input.BirthDate,
 		City:        input.City,
 		Latitude:    input.Latitude,

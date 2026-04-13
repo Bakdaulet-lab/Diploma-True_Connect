@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/gin-gonic/gin"
@@ -55,6 +57,7 @@ type Hub struct {
 	connections    map[uuid.UUID]*websocket.Conn
 	chatSvc        *service.ChatService
 	matchSvc       *service.MatchingService
+	reputationSvc  *service.ReputationService
 	rdb            *redis.Client
 	jwtManager     *tcjwt.Manager
 	log            *slog.Logger
@@ -66,6 +69,7 @@ type Hub struct {
 func NewHub(
 	chatSvc *service.ChatService,
 	matchSvc *service.MatchingService,
+	reputationSvc *service.ReputationService,
 	rdb *redis.Client,
 	jwtManager *tcjwt.Manager,
 	log *slog.Logger,
@@ -76,6 +80,7 @@ func NewHub(
 		connections:    make(map[uuid.UUID]*websocket.Conn),
 		chatSvc:        chatSvc,
 		matchSvc:       matchSvc,
+		reputationSvc:  reputationSvc,
 		rdb:            rdb,
 		jwtManager:     jwtManager,
 		log:            log,
@@ -286,6 +291,8 @@ func (h *Hub) readLoop(ctx context.Context, conn *websocket.Conn, userID uuid.UU
 			h.handleTyping(ctx, userID, msg.Payload)
 		case "read":
 			h.handleRead(ctx, userID, msg.Payload)
+		case "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate":
+			h.handleWebRTC(ctx, userID, msg.Type, msg.Payload)
 		case "pong":
 			h.setPresence(ctx, userID)
 		default:
@@ -307,7 +314,21 @@ func (h *Hub) handleChatMsg(ctx context.Context, senderID uuid.UUID, payload jso
 		return
 	}
 
-	dm, err := h.chatSvc.SendMessage(ctx, senderID, matchID, p.Content)
+	// ────► TOXIC CONTENT DETECTION ◄────
+	// Example filter logic: detect bad words in base64/plaintext payload
+	// Since E2E encryption makes this technically impossible on backend, we simulate
+	// detection by checking if the payload contains known simulated offensive bytes
+	isToxic := false
+	offensivePatterns := []string{"badword", "abuse", "scam"}
+	lowerContent := strings.ToLower(p.Content)
+	for _, word := range offensivePatterns {
+		if strings.Contains(lowerContent, word) {
+			isToxic = true
+			break
+		}
+	}
+
+	dm, err := h.chatSvc.SendMessage(ctx, senderID, matchID, p.Content, isToxic)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) || errors.Is(err, domain.ErrForbidden) {
 			h.sendTo(senderID, wsOutgoing{Type: "error", Error: err.Error()})
@@ -316,6 +337,16 @@ func (h *Hub) handleChatMsg(ctx context.Context, senderID uuid.UUID, payload jso
 			h.sendTo(senderID, wsOutgoing{Type: "error", Error: "could not send message"})
 		}
 		return
+	}
+
+	if isToxic {
+		h.log.Warn("Toxic message detected", slog.String("sender_id", senderID.String()))
+		if h.reputationSvc != nil {
+			err := h.reputationSvc.UpdateTrustScore(ctx, senderID, -10, "toxic_message")
+			if err != nil {
+				h.log.Error("Failed to deduct trust score", slog.String("error", err.Error()))
+			}
+		}
 	}
 
 	outMsg := wsOutgoing{Type: "chat_msg", Payload: dm}
@@ -380,6 +411,35 @@ func (h *Hub) handleRead(ctx context.Context, readerID uuid.UUID, payload json.R
 	h.publish(ctx, partnerID, wsOutgoing{
 		Type:    "read",
 		Payload: gin.H{"match_id": matchID.String(), "reader_id": readerID.String()},
+	})
+}
+
+// handleWebRTC routes standard WebRTC signaling payloads to the matched user's connection.
+func (h *Hub) handleWebRTC(ctx context.Context, senderID uuid.UUID, msgType string, payload json.RawMessage) {
+	// The frontend should specify the match_id inside any webrtc payload
+	var p struct {
+		MatchID string `json:"match_id"`
+	}
+	// We do a partial unmarshal to figure out who to route the SDP/Ice event to
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return
+	}
+
+	matchID, err := uuid.Parse(p.MatchID)
+	if err != nil {
+		return
+	}
+
+	match, err := h.matchSvc.GetMatchByID(ctx, matchID, senderID)
+	if err != nil {
+		return
+	}
+
+	// Just forward the raw payload directly to the recipient over Redis pub/sub
+	recipientID := service.RecipientID(match, senderID)
+	h.publish(ctx, recipientID, wsOutgoing{
+		Type:    msgType, // webrtc_offer, webrtc_answer, webrtc_ice_candidate
+		Payload: payload,
 	})
 }
 

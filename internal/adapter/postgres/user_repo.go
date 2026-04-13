@@ -28,8 +28,8 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO social.users (
 			id, phone_hash, phone_encrypted, email_encrypted,
-			password_hash, verification_level, trust_status, trust_score, is_active, fcm_token
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			password_hash, public_key, verification_level, trust_status, trust_score, is_active, fcm_token
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING created_at, updated_at`
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query,
@@ -38,6 +38,7 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 		user.PhoneEncrypted,
 		user.EmailEncrypted,
 		user.PasswordHash,
+		user.PublicKey,
 		user.VerificationLevel,
 		user.TrustStatus,
 		user.TrustScore,
@@ -57,7 +58,7 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted,
-			   password_hash, verification_level, trust_status, trust_score,
+			   password_hash, public_key, verification_level, trust_status, trust_score,
 			   is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE id = $1 AND is_active = true`
@@ -69,6 +70,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 		&user.PhoneEncrypted,
 		&user.EmailEncrypted,
 		&user.PasswordHash,
+		&user.PublicKey,
 		&user.VerificationLevel,
 		&user.TrustStatus,
 		&user.TrustScore,
@@ -91,7 +93,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 func (r *UserRepo) GetByPhoneHash(ctx context.Context, phoneHash []byte) (*domain.User, error) {
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted,
-			   password_hash, verification_level, trust_status, trust_score,
+			   password_hash, public_key, verification_level, trust_status, trust_score,
 			   is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE phone_hash = $1 AND is_active = true`
@@ -103,6 +105,7 @@ func (r *UserRepo) GetByPhoneHash(ctx context.Context, phoneHash []byte) (*domai
 		&user.PhoneEncrypted,
 		&user.EmailEncrypted,
 		&user.PasswordHash,
+		&user.PublicKey,
 		&user.VerificationLevel,
 		&user.TrustStatus,
 		&user.TrustScore,

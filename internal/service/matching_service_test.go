@@ -16,7 +16,7 @@ func newTestMatchingService() (*service.MatchingService, *mockProfileRepo, *mock
 	settingsRepo := newMockSettingsRepo()
 	cache := newMockMatchingCache()
 	graphRepo := newTrackingGraphRepo()
-	svc := service.NewMatchingService(profileRepo, matchRepo, settingsRepo, cache, graphRepo)
+	svc := service.NewMatchingService(profileRepo, nil, matchRepo, settingsRepo, cache, graphRepo)
 	return svc, profileRepo, matchRepo, settingsRepo, cache
 }
 
@@ -136,7 +136,7 @@ func TestListMatches_PaginationClampsPerPage(t *testing.T) {
 	userID := uuid.New()
 
 	// page=1 with perPage=100 should be silently clamped to 20 (no error).
-	matches, err := svc.ListMatches(context.Background(), userID, 1, 100)
+	matches, _, err := svc.ListMatches(context.Background(), userID, "", 100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestListMatches_ReturnsOnlyOwnMatches(t *testing.T) {
 	matchRepo.RecordLike(context.Background(), carolID, bobID)
 
 	// Alice has no matches.
-	matches, err := svc.ListMatches(context.Background(), aliceID, 1, 20)
+	matches, _, err := svc.ListMatches(context.Background(), aliceID, "", 20)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -50,19 +50,19 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
                             END
                 RETURNING id, %[2]s, matched_at`, setCol, checkCol)
 
-        var matchID uuid.UUID
-        var otherLiked bool
-        var matchedAt interface{} // may be null
+	var matchID uuid.UUID
+	var otherLiked bool
+	var matchedAt interface{} // may be null
 
-        err := runner(ctx, r.pool).QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
-        if err != nil {
-                return false, uuid.Nil, fmt.Errorf("recording like: %w", err)
-        }
+	err := runner(ctx, r.pool).QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
+	if err != nil {
+		return false, uuid.Nil, fmt.Errorf("recording like: %w", err)
+	}
 
-        // The query atomically updates matched_at if both have liked.
-        // We consider it a "new mutual match" if both have liked and matchedAt is NOT nil.
-        isMatch := otherLiked && matchedAt != nil
-        return isMatch, matchID, nil
+	// The query atomically updates matched_at if both have liked.
+	// We consider it a "new mutual match" if both have liked and matchedAt is NOT nil.
+	isMatch := otherLiked && matchedAt != nil
+	return isMatch, matchID, nil
 }
 
 // RecordPass is a no-op in PostgreSQL (the seen-set lives in Redis).
@@ -70,18 +70,26 @@ func (r *MatchRepo) RecordPass(_ context.Context, _, _ uuid.UUID) error {
 	return nil
 }
 
-func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*domain.Match, error) {
+func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*domain.Match, string, error) {
 	query := `
 		SELECT id, user_a_id, user_b_id, user_a_liked, user_b_liked, matched_at, created_at
 		FROM social.matches
 		WHERE (user_a_id = $1 OR user_b_id = $1)
 		  AND matched_at IS NOT NULL
+		  AND ($3::timestamptz IS NULL OR matched_at < $3::timestamptz)
 		ORDER BY matched_at DESC
-		LIMIT $2 OFFSET $3`
+		LIMIT $2`
 
-	rows, err := runner(ctx, r.pool).Query(ctx, query, userID, limit, offset)
+	var cursorArg interface{}
+	if cursor == "" {
+		cursorArg = nil
+	} else {
+		cursorArg = cursor
+	}
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, userID, limit, cursorArg)
 	if err != nil {
-		return nil, fmt.Errorf("listing matches: %w", err)
+		return nil, "", fmt.Errorf("listing matches: %w", err)
 	}
 	defer rows.Close()
 
@@ -93,15 +101,20 @@ func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, limit, of
 			&m.UserALiked, &m.UserBLiked,
 			&m.MatchedAt, &m.CreatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scanning match row: %w", err)
+			return nil, "", fmt.Errorf("scanning match row: %w", err)
 		}
 		matches = append(matches, m)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating matches: %w", err)
+		return nil, "", fmt.Errorf("iterating matches: %w", err)
 	}
 
-	return matches, nil
+	nextCursor := ""
+	if len(matches) == limit {
+		nextCursor = matches[len(matches)-1].MatchedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+
+	return matches, nextCursor, nil
 }
 
 func (r *MatchRepo) GetMatch(ctx context.Context, matchID uuid.UUID, userID uuid.UUID) (*domain.Match, error) {

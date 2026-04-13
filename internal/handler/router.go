@@ -55,6 +55,11 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 	// ── Health check (public) ─────────────────────────────────────────
 	v1.GET("/health", HealthHandler(deps.Health))
 
+	// ── KYC Webhook (public) ──────────────────────────────────────────
+	if deps.KYC != nil {
+		v1.POST("/kyc/webhook", deps.KYC.HandleWebhook)
+	}
+
 	// ── Auth (public, tighter rate limit: 20 req/min per IP) ─────────
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(deps.Redis, middleware.RateLimitConfig{
@@ -139,6 +144,8 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 			adminGroup.GET("/users/under-review", deps.Admin.ListUnderReview)
 			adminGroup.POST("/users/:id/review", deps.Admin.ReviewVerdict)
 			adminGroup.GET("/sybil-clusters", deps.Admin.GetSybilClusters)
+			adminGroup.GET("/analytics", deps.Admin.GetAnalytics)
+			adminGroup.GET("/users", deps.Admin.SearchUsers)
 		}
 	}
 

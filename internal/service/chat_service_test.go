@@ -37,18 +37,18 @@ func TestSendMessage_Success(t *testing.T) {
 	msgRepo := newMockMessageRepo()
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
-	dm, err := svc.SendMessage(context.Background(), userA, matchID, "hello!")
+	msg, err := svc.SendMessage(context.Background(), userA, matchID, "hello!", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if dm.Content != "hello!" {
-		t.Errorf("expected content %q, got %q", "hello!", dm.Content)
+	if msg.Content != "hello!" {
+		t.Errorf("expected content %q, got %q", "hello!", msg.Content)
 	}
-	if dm.SenderID != userA {
-		t.Errorf("expected sender %s, got %s", userA, dm.SenderID)
+	if msg.SenderID != userA {
+		t.Errorf("expected sender %s, got %s", userA, msg.SenderID)
 	}
-	if dm.MatchID != matchID {
-		t.Errorf("expected match %s, got %s", matchID, dm.MatchID)
+	if msg.MatchID != matchID {
+		t.Errorf("expected match %s, got %s", matchID, msg.MatchID)
 	}
 }
 
@@ -57,7 +57,7 @@ func TestSendMessage_EmptyContent(t *testing.T) {
 	msgRepo := newMockMessageRepo()
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
-	_, err := svc.SendMessage(context.Background(), userA, matchID, "")
+	_, err := svc.SendMessage(context.Background(), userA, matchID, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty message")
 	}
@@ -69,7 +69,7 @@ func TestSendMessage_NotInMatch(t *testing.T) {
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	outsider := uuid.New()
-	_, err := svc.SendMessage(context.Background(), outsider, matchID, "sneaky")
+	_, err := svc.SendMessage(context.Background(), outsider, matchID, "sneaky", false)
 	if err == nil {
 		t.Fatal("expected error for sender not in match")
 	}
@@ -92,7 +92,7 @@ func TestSendMessage_MatchNotFinalized(t *testing.T) {
 	msgRepo := newMockMessageRepo()
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
-	_, err := svc.SendMessage(context.Background(), userA, matchID, "hi")
+	_, err := svc.SendMessage(context.Background(), userA, matchID, "hi", false)
 	if err == nil {
 		t.Fatal("expected error for non-finalized match")
 	}
@@ -104,8 +104,8 @@ func TestGetMessages_Success(t *testing.T) {
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	// Send some messages.
-	svc.SendMessage(context.Background(), userA, matchID, "msg one")
-	svc.SendMessage(context.Background(), userA, matchID, "msg two")
+	svc.SendMessage(context.Background(), userA, matchID, "msg one", false)
+	svc.SendMessage(context.Background(), userA, matchID, "msg two", false)
 
 	msgs, _, err := svc.GetMessages(context.Background(), matchID, userA, "", 50)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestMarkRead_Success(t *testing.T) {
 	svc := service.NewChatService(msgRepo, matchRepo, testEncKey, make(chan domain.PushEvent, 10))
 
 	// User A sends a message.
-	svc.SendMessage(context.Background(), userA, matchID, "read me")
+	svc.SendMessage(context.Background(), userA, matchID, "read me", false)
 
 	// User B marks read.
 	if err := svc.MarkRead(context.Background(), matchID, userB); err != nil {

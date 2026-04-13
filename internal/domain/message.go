@@ -21,6 +21,7 @@ type Message struct {
 	MatchID          uuid.UUID
 	SenderID         uuid.UUID
 	ContentEncrypted []byte
+	IsToxic          bool
 	ReadAt           *time.Time
 	CreatedAt        time.Time
 }

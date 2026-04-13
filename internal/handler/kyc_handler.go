@@ -92,10 +92,14 @@ func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 			return
 		}
 
-		if updateErr := h.userRepo.UpdateVerificationLevel(ctx, uid, level); updateErr != nil {
-			h.log.Error("failed to update user verification level", slog.String("error", updateErr.Error()))
+		if level != domain.VerificationNone {
+			if updateErr := h.userRepo.UpdateVerificationLevel(ctx, uid, level); updateErr != nil {
+				h.log.Error("failed to update user verification level", slog.String("error", updateErr.Error()))
+			} else {
+				h.log.Info("kyc verified synchronously", slog.String("user_id", uid.String()), slog.Any("level", level))
+			}
 		} else {
-			h.log.Info("kyc verified successfully", slog.String("user_id", uid.String()), slog.Any("level", level))
+			h.log.Info("kyc verification async tracking started via provider", slog.String("user_id", uid.String()))
 		}
 	}(userID, objectKey, data, mimeType)
 
@@ -128,4 +132,51 @@ func (h *KYCHandler) GetStatus(c *gin.Context) {
 			"is_verified":        user.VerificationLevel != domain.VerificationNone,
 		},
 	})
+}
+
+// HandleWebhook handles POST /v1/kyc/webhook from Sumsub.
+func (h *KYCHandler) HandleWebhook(c *gin.Context) {
+	// In production, validate X-Payload-Signature with crypto/hmac and sumsub webhook secret
+
+	var payload struct {
+		ApplicantId    string `json:"applicantId"`
+		ExternalUserId string `json:"externalUserId"`
+		ReviewStatus   string `json:"reviewStatus"`
+		ReviewResult   struct {
+			ReviewAnswer string `json:"reviewAnswer"`
+		} `json:"reviewResult"`
+	}
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		h.log.Error("kyc webhook invalid payload", slog.String("error", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+
+	if payload.ReviewStatus != "completed" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	userID, err := uuid.Parse(payload.ExternalUserId)
+	if err != nil {
+		h.log.Error("kyc webhook invalid externalUserId", slog.String("id", payload.ExternalUserId))
+		c.Status(http.StatusOK)
+		return
+	}
+
+	ctx := c.Request.Context()
+	newLevel := domain.VerificationNone
+	if payload.ReviewResult.ReviewAnswer == "GREEN" {
+		newLevel = domain.VerificationIDVerified
+	}
+
+	if updateErr := h.userRepo.UpdateVerificationLevel(ctx, userID, newLevel); updateErr != nil {
+		h.log.Error("kyc webhook failed to update local user level", slog.String("error", updateErr.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	h.log.Info("kyc webhook verified, updated user db explicitly", slog.String("user_id", userID.String()), slog.Any("level", newLevel))
+	c.Status(http.StatusOK)
 }

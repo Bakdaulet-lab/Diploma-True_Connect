@@ -53,8 +53,9 @@ func NewAuthService(
 
 // RegisterInput represents the data needed to register a new user.
 type RegisterInput struct {
-	Phone    string
-	Password string
+	Phone     string
+	Password  string
+	PublicKey *string
 }
 
 // AuthResult contains the tokens returned after successful authentication.
@@ -83,6 +84,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 		PhoneHash:         phoneHash,
 		PhoneEncrypted:    phoneEncrypted,
 		PasswordHash:      passwordHash,
+		PublicKey:         input.PublicKey,
 		VerificationLevel: domain.VerificationNone,
 		TrustStatus:       domain.TrustStatusNormal,
 		TrustScore:        50,

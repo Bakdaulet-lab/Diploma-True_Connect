@@ -47,14 +47,15 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 // ── PUT /v1/profiles/me ───────────────────────────────────────────────────────
 
 type upsertProfileRequest struct {
-	DisplayName string   `json:"display_name" validate:"required,min=1,max=60"`
-	Bio         string   `json:"bio"          validate:"max=500"`
-	Gender      string   `json:"gender"       validate:"omitempty,oneof=male female other"`
-	BirthDate   *string  `json:"birth_date"` // ISO 8601 date: "1995-07-21"
-	City        string   `json:"city"         validate:"max=100"`
-	Latitude    *float64 `json:"latitude"     validate:"omitempty,min=-90,max=90"`
-	Longitude   *float64 `json:"longitude"    validate:"omitempty,min=-180,max=180"`
-	LookingFor  string   `json:"looking_for"  validate:"omitempty,oneof=male female other"`
+	DisplayName string                `json:"display_name" validate:"required,min=1,max=60"`
+	Bio         string                `json:"bio"          validate:"max=500"`
+	Gender      string                `json:"gender"       validate:"omitempty,oneof=male female other"`
+	BirthDate   *string               `json:"birth_date"` // ISO 8601 date: "1995-07-21"
+	City        string                `json:"city"         validate:"max=100"`
+	Latitude    *float64              `json:"latitude"     validate:"omitempty,min=-90,max=90"`
+	Longitude   *float64              `json:"longitude"    validate:"omitempty,min=-180,max=180"`
+	LookingFor  string                `json:"looking_for"  validate:"omitempty,oneof=male female other"`
+	Prompts     []domain.PromptAnswer `json:"prompts"      validate:"omitempty"`
 }
 
 // UpsertProfile handles PUT /v1/profiles/me.
@@ -83,6 +84,7 @@ func (h *ProfileHandler) UpsertProfile(c *gin.Context) {
 		Latitude:    req.Latitude,
 		Longitude:   req.Longitude,
 		LookingFor:  domain.Gender(req.LookingFor),
+		Prompts:     req.Prompts,
 	}
 
 	if req.BirthDate != nil && *req.BirthDate != "" {

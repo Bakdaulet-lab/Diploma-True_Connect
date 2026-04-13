@@ -126,7 +126,7 @@ func run() error {
 
 	// Sprint 2 services
 	profileSvc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache)
-	matchingSvc := service.NewMatchingService(profileRepo, matchRepo, settingsRepo, matchingCache, graphRepo)
+	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo)
 	settingsSvc := service.NewSettingsService(settingsRepo)
 
 	// Sprint 3 repos, services, and trust engine
@@ -183,7 +183,7 @@ func run() error {
 
 	// Sprint 4 handlers
 	postHandler := handler.NewPostHandler(postSvc, reputeSvc, log)
-	chatHub := handler.NewHub(chatSvc, matchingSvc, redisClient, jwtManager, log,
+	chatHub := handler.NewHub(chatSvc, matchingSvc, reputeSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
 	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)
@@ -197,7 +197,8 @@ func run() error {
 	reportSvc := service.NewReportService(reportRepo, graphRepo)
 	reportHandler := handler.NewReportHandler(reportSvc, log)
 
-	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, log)
+	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), encryptionKey)
+	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, log)
 
 	auditRepo := postgres.NewAuditRepo(pgPool)
 

@@ -39,9 +39,10 @@ type FindCandidatesOpts struct {
 
 // CandidateRow is the minimal data returned per matching candidate.
 type CandidateRow struct {
-	UserID      uuid.UUID
-	DisplayName string
-	AvatarURL   string
-	City        string
-	TrustScore  int
+	UserID      uuid.UUID             `json:"user_id"`
+	DisplayName string                `json:"display_name"`
+	AvatarURL   string                `json:"avatar_url"`
+	City        string                `json:"city"`
+	Prompts     []domain.PromptAnswer `json:"prompts"`
+	TrustScore  int                   `json:"trust_score"`
 }

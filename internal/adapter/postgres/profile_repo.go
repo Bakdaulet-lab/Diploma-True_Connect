@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -33,13 +34,18 @@ func locationPoint(lat, lon *float64) *string {
 }
 
 func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
+	promptsJSON, _ := json.Marshal(p.Prompts)
+	if p.Prompts == nil {
+		promptsJSON = []byte("[]")
+	}
+
 	query := `
 		INSERT INTO social.profiles (
 			user_id, display_name, bio, gender, birth_date,
-			city, location, looking_for, avatar_url
+			city, location, looking_for, avatar_url, prompts
 		) VALUES (
 			$1, $2, $3, $4, $5,
-			$6, ST_GeographyFromText($7), $8, $9
+			$6, ST_GeographyFromText($7), $8, $9, $10
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
@@ -50,6 +56,7 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 			location     = EXCLUDED.location,
 			looking_for  = EXCLUDED.looking_for,
 			avatar_url   = COALESCE(EXCLUDED.avatar_url, social.profiles.avatar_url),
+			prompts      = EXCLUDED.prompts,
 			updated_at   = NOW()
 		RETURNING created_at, updated_at`
 
@@ -63,6 +70,7 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 		locationPoint(p.Latitude, p.Longitude), // $7
 		nullableGender(p.LookingFor),           // $8
 		nullableString(p.AvatarURL),            // $9
+		promptsJSON,                            // $10
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upserting profile: %w", err)
@@ -75,7 +83,7 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 		SELECT
 			p.user_id, p.display_name, p.bio, p.gender, p.birth_date,
 			p.city, ST_X(p.location::geometry) AS lon, ST_Y(p.location::geometry) AS lat,
-			p.looking_for, p.avatar_url, p.created_at, p.updated_at
+			p.looking_for, p.avatar_url, p.prompts, p.created_at, p.updated_at
 		FROM social.profiles p
 		WHERE p.user_id = $1`
 
@@ -83,11 +91,12 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	var bio, city, avatarURL *string
 	var gender, lookingFor *string
 	var lon, lat *float64
+	var promptsJSON []byte
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.DisplayName, &bio, &gender, &p.BirthDate,
 		&city, &lon, &lat,
-		&lookingFor, &avatarURL, &p.CreatedAt, &p.UpdatedAt,
+		&lookingFor, &avatarURL, &promptsJSON, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -111,6 +120,11 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	if lookingFor != nil {
 		p.LookingFor = domain.Gender(*lookingFor)
 	}
+	if len(promptsJSON) > 0 {
+		var prompts []domain.PromptAnswer
+		_ = json.Unmarshal(promptsJSON, &prompts)
+		p.Prompts = prompts
+	}
 	p.Longitude = lon
 	p.Latitude = lat
 
@@ -130,6 +144,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			p.display_name,
 			COALESCE(p.avatar_url, '')   AS avatar_url,
 			COALESCE(p.city, '')          AS city,
+			p.prompts,
 			u.trust_score
 		FROM social.profiles p
 		JOIN social.users u ON u.id = p.user_id
@@ -194,11 +209,17 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 	var candidates []*repository.CandidateRow
 	for rows.Next() {
 		c := &repository.CandidateRow{}
+		var promptsJSON []byte
 		if err := rows.Scan(
 			&c.UserID, &c.DisplayName, &c.AvatarURL,
-			&c.City, &c.TrustScore,
+			&c.City, &promptsJSON, &c.TrustScore,
 		); err != nil {
 			return nil, fmt.Errorf("scanning candidate: %w", err)
+		}
+		if len(promptsJSON) > 0 {
+			var prompts []domain.PromptAnswer
+			_ = json.Unmarshal(promptsJSON, &prompts)
+			c.Prompts = prompts
 		}
 		candidates = append(candidates, c)
 	}

@@ -119,28 +119,65 @@ func (r *TrustGraphRepo) AddReport(ctx context.Context, reporterUID, reportedUID
 	return nil
 }
 
-// ComputeTrustScore runs the weighted Bayesian trust score calculation. Implemented in Sprint 3.
+// ComputeTrustScore runs the weighted Bayesian trust score calculation.
+// It incorporates Neo4j trust graph interactions (RATED) and platform behavior (KYC, REPORTED).
 func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (int, error) {
 	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
 	// Weighted average with Bayesian smoothing toward 50 (neutral).
 	// Verified interactions from high-trust, identity-verified raters count more.
+	// Platform behavior: bonuses for own KYC, penalties for being reported.
 	cypher := `
-		MATCH (u:User {uid: $uid})<-[r:RATED]-(rater:User)
+		MATCH (u:User {uid: $uid})
+		
+		// 1. Base KYC Platform Bonus
+		WITH u,
+		     CASE u.verification_level
+		       WHEN 'id_verified' THEN 10.0
+		       WHEN 'photo_verified' THEN 5.0
+		       ELSE 0.0
+		     END AS kyc_bonus
+
+		// 2. Aggregate Verified Ratings
+		OPTIONAL MATCH (u)<-[r:RATED]-(rater:User)
 		WHERE r.verified = true
-		WITH u, rater, r,
+		WITH u, kyc_bonus, rater, r,
 		     CASE
 		       WHEN rater.verification_level IN ['id_verified', 'photo_verified'] THEN 1.5
 		       ELSE 1.0
 		     END AS id_weight,
-		     rater.trust_score / 100.0 AS trust_weight
-		WITH u,
-		     AVG(r.score * id_weight * trust_weight) AS weighted_avg,
-		     COUNT(r) AS rating_count
-		WITH u,
-		     (weighted_avg * rating_count + 2.5 * 5) / (rating_count + 5) AS smoothed
-		RETURN toInteger(smoothed * 20) AS trust_score`
+		     (COALESCE(rater.trust_score, 50) / 100.0) AS trust_weight
+		
+		WITH u, kyc_bonus,
+		     CASE WHEN r IS NOT NULL THEN (r.score * id_weight * trust_weight) ELSE null END as effective_rating
+		
+		WITH u, kyc_bonus,
+		     SUM(effective_rating) AS sum_effective,
+		     COUNT(effective_rating) AS rating_count
+		
+		// Bayesian Smoothing (default = 2.5 score over 5 virtual ratings)
+		WITH u, kyc_bonus,
+		     (sum_effective + (2.5 * 5.0)) / (rating_count + 5.0) AS smoothed
+
+		// 3. Aggregate Reports (Platform Behavior Penalty)
+		OPTIONAL MATCH (u)<-[rep:REPORTED]-(reporter:User)
+		WITH u, kyc_bonus, smoothed, COUNT(DISTINCT reporter) AS report_count
+
+		// 4. Final Calculation
+		WITH (smoothed * 20.0) AS base_score,
+		     kyc_bonus,
+		     (report_count * 15.0) AS report_penalty
+
+		WITH (base_score + kyc_bonus - report_penalty) AS raw_score
+		
+		RETURN toInteger(
+		    CASE 
+		      WHEN raw_score > 100.0 THEN 100.0
+		      WHEN raw_score < 0.0 THEN 0.0 
+		      ELSE raw_score 
+		    END
+		) AS trust_score`
 
 	result, err := session.Run(ctx, cypher, map[string]any{"uid": uid.String()})
 	if err != nil {
@@ -149,7 +186,7 @@ func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (
 
 	record, err := result.Single(ctx)
 	if err != nil {
-		// No verified ratings yet — return neutral score.
+		// No node or error in calculation — return neutral score.
 		return 50, nil
 	}
 
@@ -161,14 +198,6 @@ func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (
 	score, ok := scoreRaw.(int64)
 	if !ok {
 		return 50, nil
-	}
-
-	// Clamp to 0-100.
-	if score < 0 {
-		score = 0
-	}
-	if score > 100 {
-		score = 100
 	}
 
 	return int(score), nil
@@ -320,4 +349,3 @@ func (r *TrustGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, 
 	}
 	return recommendedIDs, result.Err()
 }
-

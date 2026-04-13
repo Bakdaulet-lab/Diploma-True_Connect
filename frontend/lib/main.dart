@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trueconnect/screens/discovery/discovery_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,11 +16,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text('TrueConnect - Coming Soon'),
-        ),
-      ),
+      home: const DiscoveryScreen(),
     );
   }
 }

@@ -13,11 +13,36 @@ import (
 type AdminHandler struct {
 	userSvc   *service.UserService
 	reputeSvc *service.ReputationService
+	adminSvc  *service.AdminService
 	log       *slog.Logger
 }
 
-func NewAdminHandler(userSvc *service.UserService, reputeSvc *service.ReputationService, log *slog.Logger) *AdminHandler {
-	return &AdminHandler{userSvc: userSvc, reputeSvc: reputeSvc, log: log}
+func NewAdminHandler(userSvc *service.UserService, reputeSvc *service.ReputationService, adminSvc *service.AdminService, log *slog.Logger) *AdminHandler {
+	return &AdminHandler{userSvc: userSvc, reputeSvc: reputeSvc, adminSvc: adminSvc, log: log}
+}
+
+func (h *AdminHandler) GetAnalytics(c *gin.Context) {
+	stats, err := h.adminSvc.GetDashboardStats(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to get analytics", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not fetch analytics", nil)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": stats})
+}
+
+func (h *AdminHandler) SearchUsers(c *gin.Context) {
+	query := c.Query("q")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	users, err := h.adminSvc.SearchUsers(c.Request.Context(), query, limit, offset)
+	if err != nil {
+		h.log.Error("failed to search users", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not search users", nil)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 
 func (h *AdminHandler) ListUnderReview(c *gin.Context) {

@@ -17,6 +17,7 @@ type DecryptedMessage struct {
 	MatchID   uuid.UUID `json:"match_id"`
 	SenderID  uuid.UUID `json:"sender_id"`
 	Content   string    `json:"content"`
+	IsToxic   bool      `json:"is_toxic"`
 	ReadAt    *string   `json:"read_at,omitempty"`
 	CreatedAt string    `json:"created_at"`
 }
@@ -45,7 +46,7 @@ func NewChatService(
 }
 
 // SendMessage encrypts and stores a chat message.
-func (s *ChatService) SendMessage(ctx context.Context, senderID, matchID uuid.UUID, plaintext string) (*DecryptedMessage, error) {
+func (s *ChatService) SendMessage(ctx context.Context, senderID, matchID uuid.UUID, plaintext string, isToxic bool) (*DecryptedMessage, error) {
 	plaintext = sanitize.StripHTML(plaintext)
 	if len(plaintext) == 0 {
 		return nil, fmt.Errorf("send message: content cannot be empty: %w", domain.ErrInvalidInput)
@@ -69,6 +70,7 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, matchID uuid.UU
 		MatchID:          matchID,
 		SenderID:         senderID,
 		ContentEncrypted: encrypted,
+		IsToxic:          isToxic,
 	}
 
 	if err := s.messageRepo.Create(ctx, msg); err != nil {
@@ -95,6 +97,7 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, matchID uuid.UU
 		MatchID:   msg.MatchID,
 		SenderID:  msg.SenderID,
 		Content:   plaintext,
+		IsToxic:   isToxic,
 		CreatedAt: msg.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}, nil
 }
@@ -123,6 +126,7 @@ func (s *ChatService) GetMessages(ctx context.Context, matchID, userID uuid.UUID
 			MatchID:   m.MatchID,
 			SenderID:  m.SenderID,
 			Content:   string(plaintext),
+			IsToxic:   m.IsToxic,
 			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 		if m.ReadAt != nil {
