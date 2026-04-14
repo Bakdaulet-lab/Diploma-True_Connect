@@ -31,13 +31,15 @@ func fixMediaURL(mediaKey string) string {
 type PostService struct {
 	postRepo   repository.PostRepository
 	mediaStore repository.MediaStore
+	notifSvc   *NotificationService
 }
 
 // NewPostService creates a new post service.
-func NewPostService(postRepo repository.PostRepository, mediaStore repository.MediaStore) *PostService {
+func NewPostService(postRepo repository.PostRepository, mediaStore repository.MediaStore, notifSvc *NotificationService) *PostService {
 	return &PostService{
 		postRepo:   postRepo,
 		mediaStore: mediaStore,
+		notifSvc:   notifSvc,
 	}
 }
 
@@ -108,12 +110,12 @@ func (s *PostService) DeletePost(ctx context.Context, postID, authorID uuid.UUID
 }
 
 // ListFeed returns a paginated feed of posts sorted by recency using cursor.
-func (s *PostService) ListFeed(ctx context.Context, cursor string, limit int) ([]domain.Post, string, error) {
+func (s *PostService) ListFeed(ctx context.Context, cursor string, limit int, filter domain.PostFilter) ([]domain.Post, string, error) {
 	if limit < 1 || limit > 50 {
 		limit = 20
 	}
 
-	posts, nextCursor, err := s.postRepo.ListFeed(ctx, cursor, limit)
+	posts, nextCursor, err := s.postRepo.ListFeed(ctx, cursor, limit, filter)
 	if err != nil {
 		return nil, "", fmt.Errorf("list feed: %w", err)
 	}
@@ -130,6 +132,17 @@ func (s *PostService) LikePost(ctx context.Context, postID, userID uuid.UUID) er
 	if err := s.postRepo.LikePost(ctx, postID, userID); err != nil {
 		return fmt.Errorf("like post: %w", err)
 	}
+
+	post, err := s.postRepo.GetByID(ctx, postID)
+	if err == nil && post.AuthorID != userID && s.notifSvc != nil {
+		s.notifSvc.Create(ctx, &domain.Notification{
+			UserID:   post.AuthorID,
+			ActorID:  &userID,
+			Type:     domain.NotificationTypeLike,
+			EntityID: &postID,
+		})
+	}
+
 	return nil
 }
 
@@ -148,7 +161,8 @@ func (s *PostService) CreateComment(ctx context.Context, postID, authorID uuid.U
 		return nil, fmt.Errorf("create comment: content must be 1-500 chars: %w", domain.ErrInvalidInput)
 	}
 
-	if _, err := s.postRepo.GetByID(ctx, postID); err != nil {
+	post, err := s.postRepo.GetByID(ctx, postID)
+	if err != nil {
 		return nil, fmt.Errorf("create comment: %w", err)
 	}
 
@@ -160,6 +174,15 @@ func (s *PostService) CreateComment(ctx context.Context, postID, authorID uuid.U
 
 	if err := s.postRepo.CreateComment(ctx, comment); err != nil {
 		return nil, fmt.Errorf("create comment: %w", err)
+	}
+
+	if post.AuthorID != authorID && s.notifSvc != nil {
+		s.notifSvc.Create(ctx, &domain.Notification{
+			UserID:   post.AuthorID,
+			ActorID:  &authorID,
+			Type:     domain.NotificationTypeComment,
+			EntityID: &postID,
+		})
 	}
 
 	return comment, nil

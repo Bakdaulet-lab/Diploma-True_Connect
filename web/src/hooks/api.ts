@@ -16,6 +16,7 @@ import type {
   TrustScore,
   KycStatus,
   PaginatedResponse,
+  AppNotification,
 } from '@/types';
 
 // ─── Auth ───────────────────────────────────────────────
@@ -215,12 +216,17 @@ export function useMessages(matchId: string) {
 
 // ─── Feed ───────────────────────────────────────────────
 
-export function usePosts() {
+export function usePosts(filters?: { query?: string; sort?: string; timeframe?: string }) {
   return useInfiniteQuery({
-    queryKey: ['posts'],
+    queryKey: ['posts', filters],
     queryFn: async ({ pageParam = '' }) => {
+      const params: any = { cursor: pageParam, limit: 20 };
+      if (filters?.query) params.q = filters.query;
+      if (filters?.sort) params.sort = filters.sort;
+      if (filters?.timeframe) params.timeframe = filters.timeframe;
+
       const res = await api.get<PaginatedResponse<Post>>('/v1/posts', {
-        params: { cursor: pageParam, limit: 20 },
+        params,
       });
       return res.data;
     },
@@ -367,6 +373,58 @@ export function useReportUser() {
   return useMutation({
     mutationFn: async (data: { reported_id: string; reason: string }) => {
       await api.post('/v1/reports', data);
+    },
+  });
+}
+
+export function useNotifications() {
+  return useInfiniteQuery({
+    queryKey: ['notifications'],
+    queryFn: async ({ pageParam = '' }) => {
+      const res = await api.get<PaginatedResponse<AppNotification>>('/v1/notifications', {
+        params: { cursor: pageParam, limit: 20 },
+      });
+      return res.data;
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length < 20) return undefined;
+      return lastPage.items[lastPage.items.length - 1].id;
+    },
+    initialPageParam: '',
+  });
+}
+
+export function useUnreadNotificationsCount() {
+  return useQuery({
+    queryKey: ['notifications', 'unreadCount'],
+    queryFn: async () => {
+      const res = await api.get<{ unread_count: number }>('/v1/notifications/unread-count');
+      return res.data.unread_count;
+    },
+    refetchInterval: 30000, 
+  });
+}
+
+export function useMarkNotificationAsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.patch(/v1/notifications/\/read);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsAsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.post('/v1/notifications/mark-all-read');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }

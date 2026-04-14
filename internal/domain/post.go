@@ -32,3 +32,10 @@ type PostComment struct {
 	AuthorName   string `json:"author_name"`   // Для отображения имени из профиля
 	AuthorAvatar string `json:"author_avatar"` // Для отображения аватарки из профиля
 }
+
+
+type PostFilter struct {
+    SearchQuery string
+    SortBy      string
+    Timeframe   string
+}

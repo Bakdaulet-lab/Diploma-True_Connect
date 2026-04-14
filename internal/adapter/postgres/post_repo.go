@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -78,32 +79,57 @@ func (r *PostRepo) Delete(ctx context.Context, id uuid.UUID, authorID uuid.UUID)
 	return nil
 }
 
-func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int) ([]domain.Post, string, error) {
-	var query string
-	var rows pgx.Rows
-	var err error
+func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int, filter domain.PostFilter) ([]domain.Post, string, error) {
+	var args []interface{}
+	
+	baseQuery := `
+		SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
+		       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
+		FROM social.posts p
+		LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
+		WHERE 1=1
+	`
+	argIdx := 1
 
-	if cursor == "" {
-		query = `
-			SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
-			       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
-			FROM social.posts p
-			LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
-			ORDER BY p.created_at DESC
-			LIMIT $1`
-		rows, err = runner(ctx, r.pool).Query(ctx, query, limit)
-	} else {
-		query = `
-			SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
-			       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')
-			FROM social.posts p
-			LEFT JOIN social.profiles pr ON p.author_id = pr.user_id
-			WHERE p.created_at < $2::timestamptz
-			ORDER BY p.created_at DESC
-			LIMIT $1`
-		rows, err = runner(ctx, r.pool).Query(ctx, query, limit, cursor)
+	if filter.SearchQuery != "" {
+		baseQuery += fmt.Sprintf(" AND p.search_vector @@ plainto_tsquery('english', $%d) ", argIdx)
+		args = append(args, filter.SearchQuery)
+		argIdx++
 	}
 
+	if filter.Timeframe != "" && filter.Timeframe != "all" {
+		switch filter.Timeframe {
+		case "24h":
+			baseQuery += " AND p.created_at > (NOW() - interval '24 hours') "
+		case "7d":
+			baseQuery += " AND p.created_at > (NOW() - interval '7 days') "
+		case "30d":
+			baseQuery += " AND p.created_at > (NOW() - interval '30 days') "
+		}
+	}
+
+	if cursor != "" && filter.SortBy != "popular" {
+		baseQuery += fmt.Sprintf(" AND p.created_at < $%d::timestamptz ", argIdx)
+		args = append(args, cursor)
+		argIdx++
+	}
+
+	if filter.SortBy == "popular" {
+		baseQuery += " ORDER BY p.like_count DESC, p.created_at DESC "
+		if cursor != "" {
+			offset, _ := strconv.Atoi(cursor)
+			baseQuery += fmt.Sprintf(" OFFSET $%d ", argIdx)
+			args = append(args, offset)
+			argIdx++
+		}
+	} else {
+		baseQuery += " ORDER BY p.created_at DESC "
+	}
+
+	baseQuery += fmt.Sprintf(" LIMIT $%d", argIdx)
+	args = append(args, limit)
+
+	rows, err := runner(ctx, r.pool).Query(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("listing feed: %w", err)
 	}
@@ -127,7 +153,16 @@ func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int) ([]do
 
 	var nextCursor string
 	if len(posts) == limit {
-		nextCursor = posts[len(posts)-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+		if filter.SortBy == "popular" {
+			offset := 0
+			if cursor != "" {
+				offset, _ = strconv.Atoi(cursor)
+			}
+			offset += limit
+			nextCursor = strconv.Itoa(offset)
+		} else {
+			nextCursor = posts[len(posts)-1].CreatedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+		}
 	}
 
 	return posts, nextCursor, nil

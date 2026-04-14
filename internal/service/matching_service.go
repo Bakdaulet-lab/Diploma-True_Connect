@@ -66,6 +66,7 @@ type MatchingService struct {
 	settingsRepo   repository.UserSettingsRepository
 	matchingCache  repository.MatchingCache
 	trustGraphRepo repository.TrustGraphRepository
+	notifSvc       *NotificationService
 }
 
 // NewMatchingService creates a new matching service.
@@ -76,6 +77,7 @@ func NewMatchingService(
 	settingsRepo repository.UserSettingsRepository,
 	matchingCache repository.MatchingCache,
 	trustGraphRepo repository.TrustGraphRepository,
+	notifSvc *NotificationService,
 ) *MatchingService {
 	return &MatchingService{
 		profileRepo:    profileRepo,
@@ -84,6 +86,7 @@ func NewMatchingService(
 		settingsRepo:   settingsRepo,
 		matchingCache:  matchingCache,
 		trustGraphRepo: trustGraphRepo,
+		notifSvc:       notifSvc,
 	}
 }
 
@@ -165,6 +168,17 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 	}
 
 	_ = s.matchingCache.AddSeen(ctx, userID, []uuid.UUID{targetID}, seenSetTTL)
+
+	if matched {
+		// New match! Notify the target user
+		_ = s.notifSvc.Create(ctx, &domain.Notification{
+			UserID:   targetID,
+			ActorID:  &userID,
+			Type:     domain.NotificationTypeMatch,
+			EntityID: &matchID,
+		})
+		// We could optionally notify the current user too, but usually the current user knows since they just swiped "Like"
+	}
 
 	return &LikeResult{Matched: matched, MatchID: matchID}, nil
 }

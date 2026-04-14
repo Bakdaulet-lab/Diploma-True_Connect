@@ -13,23 +13,24 @@ import (
 
 // RouterDeps holds all handler and middleware dependencies needed to build the router.
 type RouterDeps struct {
-	Health      *HealthDeps
-	Auth        *AuthHandler
-	Profile     *ProfileHandler
-	Matching    *MatchingHandler
-	Settings    *SettingsHandler
-	Interaction *InteractionHandler
-	Post        *PostHandler
-	Chat        *Hub
-	KYC         *KYCHandler
-	User        *UserHandler
-	Report      *ReportHandler
-	Admin       *AdminHandler
-	AuditRepo   repository.AuditRepository
-	JWT         *tcjwt.Manager
-	Redis       *redis.Client
-	CORSOrigins []string
-	Log         *slog.Logger
+	Health       *HealthDeps
+	Auth         *AuthHandler
+	Profile      *ProfileHandler
+	Matching     *MatchingHandler
+	Settings     *SettingsHandler
+	Interaction  *InteractionHandler
+	Post         *PostHandler
+	Chat         *Hub
+	KYC          *KYCHandler
+	Notification *NotificationHandler
+	User         *UserHandler
+	Report       *ReportHandler
+	Admin        *AdminHandler
+	AuditRepo    repository.AuditRepository
+	JWT          *tcjwt.Manager
+	Redis        *redis.Client
+	CORSOrigins  []string
+	Log          *slog.Logger
 }
 
 // NewRouter creates the Gin engine with all routes and middleware registered.
@@ -130,6 +131,12 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 		// ── Chat (message history) ───────────────────────────────────
 		protected.GET("/matches/:id/messages", deps.Chat.GetMessages)
+
+		// ── Notifications ───────────────────────────────────────────
+		protected.GET("/notifications", deps.Notification.List)
+		protected.PATCH("/notifications/:id/read", deps.Notification.MarkAsRead)
+		protected.POST("/notifications/read-all", deps.Notification.MarkAllAsRead)
+		protected.GET("/notifications/unread-count", deps.Notification.GetUnreadCount)
 
 		// ── KYC ──────────────────────────────────────────────────────
 		protected.POST("/kyc/submit", userRL, deps.KYC.SubmitKYC)

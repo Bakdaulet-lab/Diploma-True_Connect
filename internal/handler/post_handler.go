@@ -140,7 +140,13 @@ func (h *PostHandler) DeletePost(c *gin.Context) {
 func (h *PostHandler) ListFeed(c *gin.Context) {
 	cursor, limit := parseCursorPagination(c)
 
-	posts, nextCursor, err := h.postSvc.ListFeed(c.Request.Context(), cursor, limit)
+	filter := domain.PostFilter{
+		SearchQuery: c.Query("q"),
+		SortBy:      c.Query("sort"),
+		Timeframe:   c.Query("timeframe"),
+	}
+
+	posts, nextCursor, err := h.postSvc.ListFeed(c.Request.Context(), cursor, limit, filter)
 	if err != nil {
 		h.log.Error("list feed error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not list feed", nil)

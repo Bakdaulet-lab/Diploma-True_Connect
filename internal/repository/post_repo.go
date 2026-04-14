@@ -11,7 +11,7 @@ type PostRepository interface {
 	Create(ctx context.Context, post *domain.Post) error
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Post, error)
 	Delete(ctx context.Context, id uuid.UUID, authorID uuid.UUID) error
-	ListFeed(ctx context.Context, cursor string, limit int) ([]domain.Post, string, error)
+	ListFeed(ctx context.Context, cursor string, limit int, filter domain.PostFilter) ([]domain.Post, string, error)
 	ListByAuthor(ctx context.Context, authorID uuid.UUID, cursor string, limit int) ([]domain.Post, string, error)
 	IncrementLikeCount(ctx context.Context, id uuid.UUID, delta int) error
 	IncrementCommentCount(ctx context.Context, id uuid.UUID, delta int) error

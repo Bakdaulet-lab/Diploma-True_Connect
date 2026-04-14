@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Compass, MessageCircle, Newspaper, User, Settings, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Compass, MessageCircle, Newspaper, User, Settings, ShieldCheck, ShieldAlert, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useLogout } from '@/hooks/api';
+import { useLogout, useUnreadNotificationsCount } from '@/hooks/api';
 
 const navItems = [
   { href: '/discover', label: 'Discover', icon: Compass },
   { href: '/matches', label: 'Matches', icon: MessageCircle },
   { href: '/feed', label: 'Feed', icon: Newspaper },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/profile', label: 'Profile', icon: User },
 ];
 
@@ -22,6 +23,7 @@ const secondaryNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const logout = useLogout();
+  const { data: unreadCount } = useUnreadNotificationsCount();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-gray-200 bg-white">
@@ -42,14 +44,19 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors relative',
                 isActive
                   ? 'bg-primary-50 text-primary-600'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               )}
             >
               <item.icon className="h-5 w-5" />
-              {item.label}
+              <span>{item.label}</span>
+              {item.href === '/notifications' && unreadCount != null && unreadCount > 0 && (
+                <span className="absolute right-4 inline-flex h-5 items-center justify-center rounded-full bg-red-500 px-2 text-xs font-bold text-white">
+                  {unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}

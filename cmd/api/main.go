@@ -126,7 +126,11 @@ func run() error {
 
 	// Sprint 2 services
 	profileSvc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache)
-	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo)
+
+	notifRepo := postgres.NewNotificationRepo(pgPool)
+	notifSvc := service.NewNotificationService(notifRepo, redisClient, log)
+
+	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo, notifSvc)
 	settingsSvc := service.NewSettingsService(settingsRepo)
 
 	// Sprint 3 repos, services, and trust engine
@@ -166,7 +170,7 @@ func run() error {
 	postRepo := postgres.NewPostRepo(pgPool)
 	messageRepo := postgres.NewMessageRepo(pgPool)
 
-	postSvc := service.NewPostService(postRepo, mediaStore)
+	postSvc := service.NewPostService(postRepo, mediaStore, notifSvc)
 	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey, pushCh)
 
 	// ── Handlers ────────────────────────────────────────────────────────────────
@@ -211,23 +215,24 @@ func run() error {
 	// ── Router ───────────────────────────────────────────────────────
 
 	router := handler.NewRouter(&handler.RouterDeps{
-		Health:      healthDeps,
-		Auth:        authHandler,
-		Profile:     profileHandler,
-		Matching:    matchingHandler,
-		Settings:    settingsHandler,
-		Interaction: interactionHandler,
-		Post:        postHandler,
-		Chat:        chatHub,
-		KYC:         kycHandler,
-		User:        userHandler,
-		Report:      reportHandler,
-		Admin:       adminHandler,
-		AuditRepo:   auditRepo,
-		JWT:         jwtManager,
-		Redis:       redisClient,
-		CORSOrigins: cfg.Server.CORSOrigins,
-		Log:         log,
+		Health:       healthDeps,
+		Auth:         authHandler,
+		Profile:      profileHandler,
+		Matching:     matchingHandler,
+		Settings:     settingsHandler,
+		Interaction:  interactionHandler,
+		Post:         postHandler,
+		Chat:         chatHub,
+		KYC:          kycHandler,
+		Notification: handler.NewNotificationHandler(notifSvc, log),
+		User:         userHandler,
+		Report:       reportHandler,
+		Admin:        adminHandler,
+		AuditRepo:    auditRepo,
+		JWT:          jwtManager,
+		Redis:        redisClient,
+		CORSOrigins:  cfg.Server.CORSOrigins,
+		Log:          log,
 	})
 
 	// ── HTTP server ───────────────────────────────────────────────────
