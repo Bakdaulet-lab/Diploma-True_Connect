@@ -84,18 +84,18 @@ func (s *InteractionService) SubmitRating(
 		if err := s.interactionRepo.Create(txCtx, interaction); err != nil {
 			return fmt.Errorf("creating interaction: %w", err)
 		}
-                return nil
-        })
-        if err != nil {
-                return nil, fmt.Errorf("submit rating: %w", err)
-        }
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("submit rating: %w", err)
+	}
 
-        // Run Neo4j updates ONLY after successful PG commit (avoids split-brain).
-        // A better approach would be the Outbox pattern, but this is a solid mitigation here.
-        if err := s.graphRepo.AddRating(ctx, raterID, ratedID, rating, interactionContext, false); err != nil {
-                // Log the error but don't fail the request since primary DB succeeded
-                // In a production system, this could go into a retry queue
-                fmt.Printf("warning: failed to update neo4j graph rating: %v\n", err)
+	// Run Neo4j updates ONLY after successful PG commit (avoids split-brain).
+	// A better approach would be the Outbox pattern, but this is a solid mitigation here.
+	if err := s.graphRepo.AddRating(ctx, raterID, ratedID, rating, interactionContext, false); err != nil {
+		// Log the error but don't fail the request since primary DB succeeded
+		// In a production system, this could go into a retry queue
+		fmt.Printf("warning: failed to update neo4j graph rating: %v\n", err)
 	}
 	select {
 	case s.eventCh <- ratedID:
@@ -124,20 +124,20 @@ func (s *InteractionService) ConfirmInteraction(ctx context.Context, interaction
 		if err := s.interactionRepo.ConfirmInteraction(txCtx, interactionID); err != nil {
 			return fmt.Errorf("updating PG: %w", err)
 		}
-                return nil
-        })
-        if err != nil {
-                return fmt.Errorf("confirm interaction: %w", err)
-        }
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("confirm interaction: %w", err)
+	}
 
-        // Add a verified rating edge in Neo4j (after PG commit).
-        if err := s.graphRepo.AddRating(ctx, interaction.RaterID, interaction.RatedID, interaction.Rating, interaction.Context, true); err != nil {
-                fmt.Printf("warning: failed to add verified graph rating: %v\n", err)
-        }
+	// Add a verified rating edge in Neo4j (after PG commit).
+	if err := s.graphRepo.AddRating(ctx, interaction.RaterID, interaction.RatedID, interaction.Rating, interaction.Context, true); err != nil {
+		fmt.Printf("warning: failed to add verified graph rating: %v\n", err)
+	}
 
-        // Record the confirmed meeting in Neo4j.
-        if err := s.graphRepo.AddMeeting(ctx, interaction.RaterID, interaction.RatedID, true); err != nil {
-                fmt.Printf("warning: failed to add meeting edge: %v\n", err)
+	// Record the confirmed meeting in Neo4j.
+	if err := s.graphRepo.AddMeeting(ctx, interaction.RaterID, interaction.RatedID, true); err != nil {
+		fmt.Printf("warning: failed to add meeting edge: %v\n", err)
 	}
 	select {
 	case s.eventCh <- interaction.RatedID:

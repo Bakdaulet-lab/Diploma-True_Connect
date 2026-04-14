@@ -2,19 +2,24 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"github.com/trueconnect/backend/internal/domain"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/pkg/crypto"
 	"github.com/trueconnect/backend/internal/repository"
 )
 
 type AdminService struct {
 	adminRepo     repository.AdminRepository
+	userRepo      repository.UserRepository
+	reputeSvc     *ReputationService
 	encryptionKey []byte
 }
 
-func NewAdminService(adminRepo repository.AdminRepository, encryptionKey []byte) *AdminService {
-	return &AdminService{adminRepo: adminRepo, encryptionKey: encryptionKey}
+func NewAdminService(adminRepo repository.AdminRepository, userRepo repository.UserRepository, reputeSvc *ReputationService, encryptionKey []byte) *AdminService {
+	return &AdminService{adminRepo: adminRepo, userRepo: userRepo, reputeSvc: reputeSvc, encryptionKey: encryptionKey}
 }
 
 func (s *AdminService) GetDashboardStats(ctx context.Context) (*repository.AdminDashboardStats, error) {
@@ -50,4 +55,52 @@ func (s *AdminService) SearchUsers(ctx context.Context, searchQuery string, limi
 	}
 
 	return users, nil
+}
+
+func (s *AdminService) GetPendingKYC(ctx context.Context, limit, offset int) ([]*repository.PendingKYC, error) {
+	return s.adminRepo.GetPendingKYC(ctx, limit, offset)
+}
+
+func (s *AdminService) GetKYCDocument(ctx context.Context, kycID uuid.UUID) (string, error) {
+	return s.adminRepo.GetKYCDocument(ctx, kycID)
+}
+
+func (s *AdminService) UpdateKYCStatus(ctx context.Context, kycID uuid.UUID, status string) (uuid.UUID, error) {
+	return s.adminRepo.UpdateKYCStatus(ctx, kycID, status)
+}
+
+func (s *AdminService) GetPendingSybilClusters(ctx context.Context, limit, offset int) ([]*repository.SybilClusterRow, error) {
+	return s.adminRepo.GetPendingSybilClusters(ctx, limit, offset)
+}
+
+func (s *AdminService) ResolveSybilCluster(ctx context.Context, clusterID uuid.UUID, action string) error {
+	var status string
+	if action == "ban" {
+		status = "banned"
+	} else if action == "dismiss" {
+		status = "dismissed"
+	} else {
+		return fmt.Errorf("invalid action: %s", action)
+	}
+
+	suspects, err := s.adminRepo.ResolveSybilCluster(ctx, clusterID, status)
+	if err != nil {
+		return err
+	}
+
+	// Based on the action, update the suspect users
+	for _, uid := range suspects {
+		if action == "ban" {
+			// Update status to banned
+			_ = s.userRepo.UpdateTrustStatus(ctx, uid, domain.TrustStatusBanned)
+
+			// Hard-delete their Graph influence, forces depth-1 recalculation
+			_ = s.reputeSvc.PurgeUserGraphInfluence(ctx, uid)
+		} else {
+			// Revert back to normal
+			_ = s.userRepo.UpdateTrustStatus(ctx, uid, domain.TrustStatusNormal)
+		}
+	}
+
+	return nil
 }

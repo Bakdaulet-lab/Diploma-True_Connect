@@ -45,7 +45,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 	r.Use(middleware.Recovery(deps.Log))
 	r.Use(middleware.CORS(deps.CORSOrigins))
 
-	// Global IP rate limit: 120 req/min — basic flood protection.
+	// Global IP rate limit: 120 req/min вЂ” basic flood protection.
 	r.Use(middleware.RateLimit(deps.Redis, middleware.RateLimitConfig{
 		Requests: 120,
 		Window:   time.Minute,
@@ -53,15 +53,15 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 	v1 := r.Group("/v1")
 
-	// ── Health check (public) ─────────────────────────────────────────
+	// в”Ђв”Ђ Health check (public) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 	v1.GET("/health", HealthHandler(deps.Health))
 
-	// ── KYC Webhook (public) ──────────────────────────────────────────
+	// в”Ђв”Ђ KYC Webhook (public) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 	if deps.KYC != nil {
 		v1.POST("/kyc/webhook", deps.KYC.HandleWebhook)
 	}
 
-	// ── Auth (public, tighter rate limit: 20 req/min per IP) ─────────
+	// в”Ђв”Ђ Auth (public, tighter rate limit: 20 req/min per IP) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(deps.Redis, middleware.RateLimitConfig{
 		Requests: 20,
@@ -75,7 +75,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		auth.POST("/verify-phone", deps.Auth.VerifyPhone)
 	}
 
-	// ── Protected routes (JWT required) ──────────────────────────────
+	// в”Ђв”Ђ Protected routes (JWT required) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 	protected := v1.Group("")
 	protected.Use(middleware.Auth(deps.JWT))
 	protected.Use(middleware.AuditLogMiddleware(deps.Log, deps.AuditRepo))
@@ -87,39 +87,39 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 	})
 
 	{
-		// ── Profiles ─────────────────────────────────────────────────
-		// СНАЧАЛА статические маршруты (me)
-		protected.GET("/profiles/me", deps.Profile.GetMyProfile) // <-- ДОБАВИТЬ ЭТУ СТРОКУ
+		// в”Ђв”Ђ Profiles в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+		// РЎРќРђР§РђР›Рђ СЃС‚Р°С‚РёС‡РµСЃРєРёРµ РјР°СЂС€СЂСѓС‚С‹ (me)
+		protected.GET("/profiles/me", deps.Profile.GetMyProfile) // <-- Р”РћР‘РђР’РРўР¬ Р­РўРЈ РЎРўР РћРљРЈ
 		protected.PUT("/profiles/me", deps.Profile.UpsertProfile)
 		protected.GET("/profiles/me/photos", deps.Profile.ListPhotos)
 		protected.POST("/profiles/me/photos", deps.Profile.UploadPhoto)
 		protected.DELETE("/profiles/me/photos/:photoID", deps.Profile.DeletePhoto)
 
-		// ПОТОМ динамические маршруты с ID
+		// РџРћРўРћРњ РґРёРЅР°РјРёС‡РµСЃРєРёРµ РјР°СЂС€СЂСѓС‚С‹ СЃ ID
 		protected.GET("/profiles/:id", deps.Profile.GetProfile)
 
-		// ── Matching ─────────────────────────────────────────────────
+		// в”Ђв”Ђ Matching в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.GET("/matching/candidates", deps.Matching.GetCandidates)
 		protected.GET("/matching/graph-candidates", deps.Matching.GetGraphCandidates)
 		protected.POST("/matching/like", userRL, deps.Matching.Like)
 		protected.POST("/matching/pass", userRL, deps.Matching.Pass)
 		protected.GET("/matches", deps.Matching.ListMatches)
 
-		// ── Settings ─────────────────────────────────────────────────
+		// в”Ђв”Ђ Settings в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.GET("/settings", deps.Settings.GetSettings)
 		protected.PATCH("/settings", deps.Settings.UpdateSettings)
 
-		// ── User Account ─────────────────────────────────────────────
+		// в”Ђв”Ђ User Account в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.GET("/users/me", deps.User.GetMe)
 		protected.POST("/users/me/fcm-token", deps.User.UpdateFCMToken)
 		protected.DELETE("/users/me", deps.User.DeleteMe)
 
-		// ── Interactions & Reputation ────────────────────────────────
+		// в”Ђв”Ђ Interactions & Reputation в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.POST("/interactions", userRL, deps.Interaction.SubmitRating)
 		protected.POST("/interactions/:id/confirm", deps.Interaction.ConfirmInteraction)
 		protected.GET("/users/:id/reputation", deps.Interaction.GetReputation)
 		protected.GET("/reputation/leaderboard", deps.Interaction.GetLeaderboard)
-		// ── Social Feed (Posts) ──────────────────────────────────────
+		// в”Ђв”Ђ Social Feed (Posts) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.GET("/posts", deps.Post.ListFeed)
 		protected.POST("/posts", userRL, deps.Post.CreatePost)
 		protected.GET("/posts/:id", deps.Post.GetPost)
@@ -129,23 +129,23 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		protected.POST("/posts/:id/comments", userRL, deps.Post.CreateComment)
 		protected.GET("/posts/:id/comments", deps.Post.ListComments)
 
-		// ── Chat (message history) ───────────────────────────────────
+		// в”Ђв”Ђ Chat (message history) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.GET("/matches/:id/messages", deps.Chat.GetMessages)
 
-		// ── Notifications ───────────────────────────────────────────
+		// в”Ђв”Ђ Notifications в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.GET("/notifications", deps.Notification.List)
 		protected.PATCH("/notifications/:id/read", deps.Notification.MarkAsRead)
 		protected.POST("/notifications/read-all", deps.Notification.MarkAllAsRead)
 		protected.GET("/notifications/unread-count", deps.Notification.GetUnreadCount)
 
-		// ── KYC ──────────────────────────────────────────────────────
+		// в”Ђв”Ђ KYC в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.POST("/kyc/submit", userRL, deps.KYC.SubmitKYC)
 		protected.GET("/kyc/status", deps.KYC.GetStatus)
 
-		// ── Reports ──────────────────────────────────────────────────
+		// в”Ђв”Ђ Reports в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		protected.POST("/reports", userRL, deps.Report.CreateReport)
 
-		// ────── Admin / Review Workflow ──────────────────────────────────────────
+		// в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ Admin / Review Workflow в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		if deps.Admin != nil {
 			adminGroup := protected.Group("/admin")
 			adminGroup.GET("/users/under-review", deps.Admin.ListUnderReview)
@@ -153,10 +153,13 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 			adminGroup.GET("/sybil-clusters", deps.Admin.GetSybilClusters)
 			adminGroup.GET("/analytics", deps.Admin.GetAnalytics)
 			adminGroup.GET("/users", deps.Admin.SearchUsers)
+			adminGroup.GET("/kyc/pending", deps.Admin.GetPendingKYC)
+			adminGroup.GET("/kyc/:id/document", deps.Admin.GetKYCDocument)
+			adminGroup.POST("/kyc/:id/review", deps.Admin.ReviewKYC)
 		}
 	}
 
-	// ── WebSocket (public route, auth via first message) ────────────
+	// ── WebSocket (public route, auth via first message) ──────────
 	v1.GET("/ws", deps.Chat.HandleWS)
 
 	return r

@@ -1,4 +1,5 @@
 'use client';
+import { SybilCluster } from '@/types';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -27,12 +28,7 @@ interface AdminUserRow {
   created_at: string;
 }
 
-interface SybilCluster {
-  CommunityID: number;
-  Size: number;
-  ExternalConnections: number;
-  SuspectUIDs: string[];
-}
+
 
 // Generate dummy historical data for charts
 const generateDummyHistoricalData = () => {
@@ -309,17 +305,17 @@ export default function AdminDashboardPage() {
             {clusters && clusters.length > 0 ? (
               <ul className="divide-y divide-gray-100">
                 {clusters.map((cluster: SybilCluster) => (
-                  <li key={cluster.CommunityID} className="p-6 hover:bg-gray-50 transition-colors">
+                  <li key={cluster.community_id} className="p-6 hover:bg-gray-50 transition-colors">
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 mb-2">
-                          Cluster #{cluster.CommunityID}
+                          Cluster #{cluster.community_id}
                         </span>
                         <h3 className="text-lg font-bold text-gray-900 mb-1">
-                          {cluster.Size} Suspect Accounts
+                          {cluster.size} Suspect Accounts
                         </h3>
                         <p className="text-sm text-gray-500">
-                          External Connections: <b>{cluster.ExternalConnections}</b> (Low ratio typical of bot nets)
+                          External Connections: <b>{cluster.external_connections}</b> (Low ratio typical of bot nets)
                         </p>
                       </div>
                       <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors text-sm">
@@ -329,7 +325,7 @@ export default function AdminDashboardPage() {
                     <div className="bg-gray-100 rounded-lg p-4">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Account UUIDs in Cluster</p>
                       <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {cluster.SuspectUIDs.map((uid: string) => (
+                        {cluster.suspect_uids.map((uid: string) => (
                           <div key={uid} className="text-xs font-mono text-gray-700">{uid}</div>
                         ))}
                       </div>

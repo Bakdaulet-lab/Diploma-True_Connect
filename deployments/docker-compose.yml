@@ -73,12 +73,13 @@ services:
       - "7687:7687"
     volumes:
       - neo4j_data:/data
+      - neo4j_plugins:/var/lib/neo4j/plugins
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:7474 || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 30m
 
   redis:
     image: redis:7-alpine
@@ -119,3 +120,4 @@ volumes:
   neo4j_data:
   redis_data:
   minio_data:
+  neo4j_plugins:

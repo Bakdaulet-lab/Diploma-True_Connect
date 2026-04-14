@@ -81,7 +81,7 @@ func (r *PostRepo) Delete(ctx context.Context, id uuid.UUID, authorID uuid.UUID)
 
 func (r *PostRepo) ListFeed(ctx context.Context, cursor string, limit int, filter domain.PostFilter) ([]domain.Post, string, error) {
 	var args []interface{}
-	
+
 	baseQuery := `
 		SELECT p.id, p.author_id, COALESCE(p.content, ''), COALESCE(p.media_url, ''), p.like_count, p.comment_count, p.created_at, p.updated_at,
 		       COALESCE(pr.display_name, 'Unknown User'), COALESCE(pr.avatar_url, '')

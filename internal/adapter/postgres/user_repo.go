@@ -291,3 +291,12 @@ func (r *UserRepo) UpdateFCMToken(ctx context.Context, id uuid.UUID, token strin
 	}
 	return nil
 }
+
+func (r *UserRepo) SubmitKYCRequest(ctx context.Context, userID uuid.UUID, documentURL string) error {
+	query := "INSERT INTO identity_vault.verifications (id, user_id, status, document_url, created_at) VALUES (gen_random_uuid(), $1, $2, $3, NOW()) ON CONFLICT (user_id) DO UPDATE SET status = $2, document_url = $3, updated_at = NOW()"
+	_, err := runner(ctx, r.pool).Exec(ctx, query, userID, "pending", documentURL)
+	if err != nil {
+		return fmt.Errorf("inserting pending kyc request: %w", err)
+	}
+	return nil
+}

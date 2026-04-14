@@ -555,4 +555,6 @@ func TestRefresh_TokenReuse_RevokesAllTokens(t *testing.T) {
 	}
 }
 
-func (m *mockGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) { return nil, nil }
+func (m *mockGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) {
+	return nil, nil
+}

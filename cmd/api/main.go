@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -52,7 +52,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// ── Data connections ──────────────────────────────────────────────
+	// в”Ђв”Ђ Data connections в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	pgPool, err := postgres.New(ctx, cfg.Postgres.DSN())
 	if err != nil {
@@ -85,14 +85,14 @@ func run() error {
 	}
 	log.Info("connected to MinIO")
 
-	// ── Decode encryption key ─────────────────────────────────────────
+	// в”Ђв”Ђ Decode encryption key в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	encryptionKey, err := hex.DecodeString(cfg.Auth.EncryptionKey)
 	if err != nil {
 		return fmt.Errorf("decoding encryption key: %w", err)
 	}
 
-	// ── Repositories ─────────────────────────────────────────────────
+	// в”Ђв”Ђ Repositories в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	userRepo := postgres.NewUserRepo(pgPool)
 	tokenRepo := postgres.NewRefreshTokenRepo(pgPool)
@@ -107,11 +107,11 @@ func run() error {
 	matchingCache := redisadapter.NewMatchingCache(redisClient)
 	mediaStore := minioadapter.NewMediaStore(minioClient, cfg.MinIO.Bucket)
 
-	// ── JWT manager ───────────────────────────────────────────────────
+	// в”Ђв”Ђ JWT manager в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	jwtManager := tcjwt.NewManager(cfg.Auth.JWTSecret, cfg.Auth.AccessTokenExpiry)
 
-	// ── Services ─────────────────────────────────────────────────────
+	// в”Ђв”Ђ Services в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	authSvc := service.NewAuthService(
 		userRepo,
@@ -173,7 +173,7 @@ func run() error {
 	postSvc := service.NewPostService(postRepo, mediaStore, notifSvc)
 	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey, pushCh)
 
-	// ── Handlers ────────────────────────────────────────────────────────────────
+	// в”Ђв”Ђ Handlers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	authHandler := handler.NewAuthHandler(authSvc, log, cfg.Server.Env == "development")
 
@@ -201,8 +201,8 @@ func run() error {
 	reportSvc := service.NewReportService(reportRepo, graphRepo)
 	reportHandler := handler.NewReportHandler(reportSvc, log)
 
-	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), encryptionKey)
-	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, log)
+	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), userRepo, reputeSvc, encryptionKey)
+	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, mediaStore, log)
 
 	auditRepo := postgres.NewAuditRepo(pgPool)
 
@@ -212,7 +212,7 @@ func run() error {
 		Redis: redisClient,
 	}
 
-	// ── Router ───────────────────────────────────────────────────────
+	// в”Ђв”Ђ Router в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	router := handler.NewRouter(&handler.RouterDeps{
 		Health:       healthDeps,
@@ -235,7 +235,7 @@ func run() error {
 		Log:          log,
 	})
 
-	// ── HTTP server ───────────────────────────────────────────────────
+	// в”Ђв”Ђ HTTP server в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
@@ -271,3 +271,4 @@ func run() error {
 	log.Info("server stopped gracefully")
 	return nil
 }
+

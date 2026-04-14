@@ -349,3 +349,35 @@ func (r *TrustGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, 
 	}
 	return recommendedIDs, result.Err()
 }
+
+// GetDirectInteractions returns user IDs based on RATED, MET_WITH, or REPORTED edges.
+func (r *TrustGraphRepo) GetDirectInteractions(ctx context.Context, uid uuid.UUID) ([]uuid.UUID, error) {
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
+	defer session.Close(ctx)
+
+	// We want anyone who rated this user or who was rated by this user.
+	cypher := `
+MATCH (u:User {uid: $uid})-[]-(other:User)
+RETURN DISTINCT other.uid AS targetUid
+`
+
+	res, err := session.Run(ctx, cypher, map[string]any{"uid": uid.String()})
+	if err != nil {
+		return nil, fmt.Errorf("neo4j GetDirectInteractions: %w", err)
+	}
+
+	var targets []uuid.UUID
+	for res.Next(ctx) {
+		record := res.Record()
+		targetStr, _ := record.Get("targetUid")
+		if t, err := uuid.Parse(targetStr.(string)); err == nil {
+			targets = append(targets, t)
+		}
+	}
+
+	if err = res.Err(); err != nil {
+		return nil, fmt.Errorf("reading direct interactions: %w", err)
+	}
+
+	return targets, nil
+}

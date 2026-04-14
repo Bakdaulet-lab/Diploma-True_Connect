@@ -409,7 +409,7 @@ export function useMarkNotificationAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.patch(/v1/notifications/\/read);
+      await api.patch(`/v1/notifications/${id}/read`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });

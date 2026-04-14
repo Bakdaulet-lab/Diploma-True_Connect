@@ -77,6 +77,12 @@ func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 		return
 	}
 
+	// Insert into verifications table as pending
+	if err := h.userRepo.SubmitKYCRequest(c.Request.Context(), userID, objectKey); err != nil {
+		h.log.Error("failed to insert pending kyc request", slog.String("error", err.Error()))
+		// don't fail the whole user response if they successfully uploaded
+	}
+
 	h.log.Info("kyc document submitted",
 		slog.String("user_id", userID.String()),
 		slog.String("object_key", objectKey),

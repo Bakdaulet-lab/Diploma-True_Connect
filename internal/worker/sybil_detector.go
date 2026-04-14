@@ -15,6 +15,7 @@ type SybilDetector struct {
 	graphRepo repository.TrustGraphRepository
 	userRepo  repository.UserRepository
 	userSvc   *service.UserService
+	adminRepo repository.AdminRepository
 	log       *slog.Logger
 	interval  time.Duration
 }
@@ -24,6 +25,7 @@ func NewSybilDetector(
 	graphRepo repository.TrustGraphRepository,
 	userRepo repository.UserRepository,
 	userSvc *service.UserService,
+	adminRepo repository.AdminRepository,
 	log *slog.Logger,
 	interval time.Duration,
 ) *SybilDetector {
@@ -31,6 +33,7 @@ func NewSybilDetector(
 		graphRepo: graphRepo,
 		userRepo:  userRepo,
 		userSvc:   userSvc,
+		adminRepo: adminRepo,
 		log:       log,
 		interval:  interval,
 	}

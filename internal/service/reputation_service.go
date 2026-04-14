@@ -144,3 +144,47 @@ func (s *ReputationService) RecalculateAllScores(ctx context.Context) {
 func (s *ReputationService) GetSybilClusters(ctx context.Context) ([]repository.SybilCluster, error) {
 	return s.graphRepo.DetectSybilClusters(ctx)
 }
+
+func (s *ReputationService) RecalculateDepth1Targets(ctx context.Context, userID uuid.UUID) error {
+	// 1. Recalculate for the user
+	_, err := s.RecalculateScore(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 2. Fetch interacting users via graph
+	interacting, err := s.graphRepo.GetDirectInteractions(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Recalculate for depth 1 targets
+	for _, target := range interacting {
+		_, _ = s.RecalculateScore(ctx, target)
+	}
+
+	return nil
+}
+
+// PurgeUserGraphInfluence hard-deletes the user's Neo4j node and forces recalculation of affected peers.
+// Used when banning Sybil actors, so their spam ratings vanish from others' averages.
+func (s *ReputationService) PurgeUserGraphInfluence(ctx context.Context, userID uuid.UUID) error {
+	// 1. Get targets influenced by this user before deleting their connections
+	interacting, err := s.graphRepo.GetDirectInteractions(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 2. Hard delete the user from Neo4j graph (removes all their edges)
+	err = s.graphRepo.DeleteUserNode(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Recalculate trust scores for all the remaining targets
+	for _, target := range interacting {
+		_, _ = s.RecalculateScore(ctx, target)
+	}
+
+	return nil
+}

@@ -21,7 +21,8 @@ export default function SybilReviewDashboard() {
       setLoading(true);
       const res = await api.get('/v1/admin/users/under-review');
       // Axios interceptor extracts data, but depending on how it's written it could be res.data or res
-      setUsers(res?.data || res || []);
+      const payload = res?.data || res;
+      setUsers(Array.isArray(payload) ? payload : []);
       setError(null);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to loaded suspected users');
