@@ -249,3 +249,4 @@ func (m *mockUserRepoS3) ListByTrustStatus(ctx context.Context, status domain.Tr
 func (m *trackingGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) {
 	return nil, nil
 }
+func (m *mockUserRepoS3) SubmitKYCRequest(ctx context.Context, userID uuid.UUID, documentURL string) error { return nil }

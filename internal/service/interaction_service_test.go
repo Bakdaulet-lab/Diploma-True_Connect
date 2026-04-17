@@ -44,7 +44,7 @@ func createMatchedPair(t *testing.T, matchRepo *mockMatchRepo) (uuid.UUID, uuid.
 	return userA, userB
 }
 
-// ── SubmitRating tests ─────────────────────────────────────────────────────
+// ?? SubmitRating tests ?????????????????????????????????????????????????????
 
 func TestSubmitRating_Success(t *testing.T) {
 	svc, _, matchRepo, graphRepo, eventCh := setupInteractionService(t)
@@ -158,7 +158,7 @@ func TestSubmitRating_GraphEdgeCreated(t *testing.T) {
 	}
 }
 
-// ── ConfirmInteraction tests ───────────────────────────────────────────────
+// ?? ConfirmInteraction tests ???????????????????????????????????????????????
 
 func TestConfirmInteraction_Success(t *testing.T) {
 	svc, interactionRepo, matchRepo, graphRepo, eventCh := setupInteractionService(t)
@@ -216,7 +216,7 @@ func TestConfirmInteraction_WrongUser(t *testing.T) {
 	}
 	<-eventCh
 
-	// Rater (not the rated user) tries to confirm — should fail.
+	// Rater (not the rated user) tries to confirm ? should fail.
 	err = svc.ConfirmInteraction(context.Background(), interaction.ID, rater)
 	if !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("expected ErrForbidden, got: %v", err)
@@ -245,14 +245,14 @@ func TestConfirmInteraction_AlreadyConfirmed(t *testing.T) {
 	}
 	<-eventCh
 
-	// Second confirm is idempotent — no error.
+	// Second confirm is idempotent ? no error.
 	err = svc.ConfirmInteraction(context.Background(), interaction.ID, rated)
 	if err != nil {
 		t.Fatalf("second confirm should be idempotent: %v", err)
 	}
 }
 
-// ── GetByRatedUser tests ───────────────────────────────────────────────────
+// ?? GetByRatedUser tests ???????????????????????????????????????????????????
 
 func TestGetByRatedUser_Success(t *testing.T) {
 	svc, _, matchRepo, _, eventCh := setupInteractionService(t)
@@ -272,3 +272,7 @@ func TestGetByRatedUser_Success(t *testing.T) {
 		t.Errorf("expected rating 4, got %d", results[0].Rating)
 	}
 }
+func (m *trackingGraphRepo) GetDirectInteractions(ctx context.Context, uid uuid.UUID) ([]uuid.UUID, error) { return nil, nil }
+
+
+

@@ -16,7 +16,7 @@ func newTestMatchingService() (*service.MatchingService, *mockProfileRepo, *mock
 	settingsRepo := newMockSettingsRepo()
 	cache := newMockMatchingCache()
 	graphRepo := newTrackingGraphRepo()
-	svc := service.NewMatchingService(profileRepo, nil, matchRepo, settingsRepo, cache, graphRepo)
+	svc := service.NewMatchingService(profileRepo, nil, matchRepo, settingsRepo, cache, graphRepo, nil)
 	return svc, profileRepo, matchRepo, settingsRepo, cache
 }
 

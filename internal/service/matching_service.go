@@ -171,12 +171,12 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 
 	if matched {
 		// New match! Notify the target user
-		_ = s.notifSvc.Create(ctx, &domain.Notification{
+                if s.notifSvc != nil { _ = s.notifSvc.Create(ctx, &domain.Notification{
 			UserID:   targetID,
 			ActorID:  &userID,
 			Type:     domain.NotificationTypeMatch,
 			EntityID: &matchID,
-		})
+                }) }
 		// We could optionally notify the current user too, but usually the current user knows since they just swiped "Like"
 	}
 

@@ -63,7 +63,7 @@ func (m *mockPostRepo) Delete(_ context.Context, id uuid.UUID, authorID uuid.UUI
 	return nil
 }
 
-func (m *mockPostRepo) ListFeed(_ context.Context, cursor string, limit int) ([]domain.Post, string, error) {
+func (m *mockPostRepo) ListFeed(_ context.Context, cursor string, limit int, filter domain.PostFilter) ([]domain.Post, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var all []domain.Post

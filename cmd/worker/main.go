@@ -71,6 +71,7 @@ func run() error {
 	graphRepo := neo4jadapter.NewTrustGraphRepo(neo4jDriver)
 	tokenRepo := postgres.NewRefreshTokenRepo(pgPool)
 	sessionStore := redisadapter.NewSessionStore(redisClient)
+	adminRepo := postgres.NewAdminRepo(pgPool)
 
 	// Decode encryption key
 	encryptionKey, err := hex.DecodeString(cfg.Auth.EncryptionKey)
@@ -85,7 +86,7 @@ func run() error {
 	// It consumes events from InteractionService which only exist in the API.
 	// This worker binary runs scheduled background jobs only.
 
-	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, adminRepo, userSvc, log, 6*time.Hour)
+	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, userSvc, adminRepo, log, 6*time.Hour)
 	go sybilDetector.Run(ctx)
 
 	log.Info("worker running, waiting for shutdown signal")
