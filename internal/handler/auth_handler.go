@@ -68,7 +68,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	setRefreshTokenCookie(c, result.RefreshToken)
+	h.setRefreshTokenCookie(c, result.RefreshToken)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data": authResponse{
@@ -99,7 +99,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	setRefreshTokenCookie(c, result.RefreshToken)
+	h.setRefreshTokenCookie(c, result.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": authResponse{
@@ -124,7 +124,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	setRefreshTokenCookie(c, result.RefreshToken)
+	h.setRefreshTokenCookie(c, result.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": authResponse{
@@ -140,7 +140,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	refreshToken, err := c.Cookie("refresh_token")
 	if err != nil || refreshToken == "" {
 		// Already logged out or no cookie — just clear and return success
-		clearRefreshTokenCookie(c)
+		h.clearRefreshTokenCookie(c)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "logged out"}})
 		return
 	}
@@ -149,7 +149,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.log.Warn("logout error", slog.String("error", err.Error()))
 	}
 
-	clearRefreshTokenCookie(c)
+	h.clearRefreshTokenCookie(c)
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "logged out"}})
 }
@@ -201,7 +201,7 @@ func (h *AuthHandler) handleAuthError(c *gin.Context, err error, op string) {
 }
 
 // setRefreshTokenCookie sets the HttpOnly refresh token cookie.
-func setRefreshTokenCookie(c *gin.Context, token string) {
+func (h *AuthHandler) setRefreshTokenCookie(c *gin.Context, token string) {
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		"refresh_token",
@@ -209,13 +209,13 @@ func setRefreshTokenCookie(c *gin.Context, token string) {
 		7*24*3600,  // 7 days in seconds
 		"/v1/auth", // only sent to auth endpoints
 		"",         // domain (empty = current)
-		true,       // secure (HTTPS only)
+		!h.devMode, // secure=false in dev (http://localhost), true in production
 		true,       // httpOnly
 	)
 }
 
 // clearRefreshTokenCookie removes the refresh token cookie.
-func clearRefreshTokenCookie(c *gin.Context) {
+func (h *AuthHandler) clearRefreshTokenCookie(c *gin.Context) {
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		"refresh_token",
@@ -223,7 +223,7 @@ func clearRefreshTokenCookie(c *gin.Context) {
 		-1,
 		"/v1/auth",
 		"",
-		true,
+		!h.devMode,
 		true,
 	)
 }
