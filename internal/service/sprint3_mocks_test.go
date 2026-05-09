@@ -123,6 +123,14 @@ func (m *trackingGraphRepo) CreateUserNode(_ context.Context, uid uuid.UUID, _ d
 func (m *trackingGraphRepo) AddRating(_ context.Context, raterUID, ratedUID uuid.UUID, score int, interactionContext string, verified bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// Upsert by (from, to) pair — mirrors Neo4j MERGE semantics.
+	// ON MATCH: update only verified; score/context kept from first write.
+	for i := range m.ratings {
+		if m.ratings[i].from == raterUID && m.ratings[i].to == ratedUID {
+			m.ratings[i].verified = verified
+			return nil
+		}
+	}
 	m.ratings = append(m.ratings, graphEdge{
 		from: raterUID, to: ratedUID,
 		score: score, context: interactionContext, verified: verified,

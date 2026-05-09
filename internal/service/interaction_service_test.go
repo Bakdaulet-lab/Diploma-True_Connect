@@ -187,8 +187,8 @@ func TestConfirmInteraction_Success(t *testing.T) {
 
 	// Verify Neo4j got a verified rating + meeting edge.
 	graphRepo.mu.Lock()
-	if len(graphRepo.ratings) != 2 {
-		t.Errorf("expected 2 graph ratings (initial + verified), got %d", len(graphRepo.ratings))
+	if len(graphRepo.ratings) != 1 {
+		t.Errorf("expected 1 graph rating (single edge updated to verified=true), got %d", len(graphRepo.ratings))
 	}
 	if len(graphRepo.meetings) != 1 {
 		t.Errorf("expected 1 meeting edge, got %d", len(graphRepo.meetings))

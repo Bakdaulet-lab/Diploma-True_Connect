@@ -54,12 +54,15 @@ func (r *TrustGraphRepo) AddRating(ctx context.Context, raterUID, ratedUID uuid.
 
 	cypher := `
 		MATCH (a:User {uid: $rater_uid}), (b:User {uid: $rated_uid})
-		CREATE (a)-[:RATED {
-			score:    $score,
-			context:  $context,
-			verified: $verified,
-			created_at: datetime()
-		}]->(b)`
+		MERGE (a)-[r:RATED]->(b)
+		ON CREATE SET
+			r.score      = $score,
+			r.context    = $context,
+			r.verified   = $verified,
+			r.created_at = datetime()
+		ON MATCH SET
+			r.verified   = $verified,
+			r.updated_at = datetime()`
 
 	_, err := session.Run(ctx, cypher, map[string]any{
 		"rater_uid": raterUID.String(),
