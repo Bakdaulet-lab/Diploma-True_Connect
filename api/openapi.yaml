@@ -1,0 +1,1225 @@
+openapi: 3.1.0
+info:
+  title: TrueConnect API
+  version: 1.0.0
+  description: Trust-based social networking and dating platform API
+  contact:
+    name: TrueConnect Team
+
+servers:
+  - url: http://localhost:8080/v1
+    description: Local development
+  - url: https://api.trueconnect.kz/v1
+    description: Production
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: User
+    description: User account management
+  - name: Profile
+    description: User profile management
+  - name: Matching
+    description: Matching and discovery
+  - name: Settings
+    description: User preferences
+  - name: Interaction
+    description: Interactions and trust scoring
+  - name: Post
+    description: Social feed
+  - name: Chat
+    description: Real-time messaging
+  - name: KYC
+    description: Identity verification
+  - name: Report
+    description: User reports
+  - name: Health
+    description: Service health
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      postgres:
+                        type: string
+                        example: ok
+                      neo4j:
+                        type: string
+                        example: ok
+                      redis:
+                        type: string
+                        example: ok
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      description: Requires refresh_token cookie
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout user
+      security: []
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: logged out
+
+  /users/me:
+    get:
+      tags: [User]
+      summary: Get current user
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [User]
+      summary: Delete account
+      description: Soft deletes the user account and revokes all sessions
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: account deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /profiles/{id}:
+    get:
+      tags: [Profile]
+      summary: Get user profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Profile data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Profile'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /profiles/me:
+    put:
+      tags: [Profile]
+      summary: Create or update own profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpsert'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Profile'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /profiles/me/photos:
+    get:
+      tags: [Profile]
+      summary: List profile photos
+      responses:
+        '200':
+          description: List of photos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Photo'
+    post:
+      tags: [Profile]
+      summary: Upload profile photo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Photo uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Photo'
+        '400':
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /profiles/me/photos/{photoID}:
+    delete:
+      tags: [Profile]
+      summary: Delete profile photo
+      parameters:
+        - name: photoID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Photo deleted
+        '404':
+          description: Photo not found
+
+  /matching/candidates:
+    get:
+      tags: [Matching]
+      summary: Get matching candidates
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MatchCandidate'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+  /matching/like:
+    post:
+      tags: [Matching]
+      summary: Like a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_id]
+              properties:
+                target_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Like recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      matched:
+                        type: boolean
+                      match_id:
+                        type: string
+                        format: uuid
+
+  /matching/pass:
+    post:
+      tags: [Matching]
+      summary: Pass on a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_id]
+              properties:
+                target_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Pass recorded
+
+  /matches:
+    get:
+      tags: [Matching]
+      summary: List mutual matches
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of matches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Match'
+
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get user settings
+      responses:
+        '200':
+          description: User settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Settings'
+    patch:
+      tags: [Settings]
+      summary: Update user settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsPatch'
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Settings'
+
+  /interactions:
+    post:
+      tags: [Interaction]
+      summary: Submit rating after meeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InteractionCreate'
+      responses:
+        '201':
+          description: Interaction created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Interaction'
+
+  /interactions/{id}/confirm:
+    post:
+      tags: [Interaction]
+      summary: Confirm an interaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Interaction confirmed
+
+  /users/{id}/reputation:
+    get:
+      tags: [Interaction]
+      summary: Get user's trust score
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User reputation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Reputation'
+
+  /posts:
+    get:
+      tags: [Post]
+      summary: List feed posts
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+    post:
+      tags: [Post]
+      summary: Create post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostCreate'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Post'
+
+  /posts/{id}:
+    get:
+      tags: [Post]
+      summary: Get single post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Post'
+    delete:
+      tags: [Post]
+      summary: Delete post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post deleted
+
+  /posts/{id}/like:
+    post:
+      tags: [Post]
+      summary: Like post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post liked
+    delete:
+      tags: [Post]
+      summary: Unlike post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post unliked
+
+  /posts/{id}/comments:
+    get:
+      tags: [Post]
+      summary: List comments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+    post:
+      tags: [Post]
+      summary: Add comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Comment'
+
+  /matches/{id}/messages:
+    get:
+      tags: [Chat]
+      summary: Get message history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Message history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+
+  /ws:
+    get:
+      tags: [Chat]
+      summary: WebSocket endpoint
+      description: |
+        WebSocket connection for real-time messaging.
+        First message must be `{"type":"auth","token":"<jwt>"}`
+      responses:
+        '101':
+          description: Switching Protocols
+
+  /kyc/submit:
+    post:
+      tags: [KYC]
+      summary: Submit KYC document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG, or PDF (max 10MB)
+      responses:
+        '202':
+          description: Document accepted for review
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: pending
+                      message:
+                        type: string
+
+  /kyc/status:
+    get:
+      tags: [KYC]
+      summary: Get verification status
+      responses:
+        '200':
+          description: KYC status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      verification_level:
+                        type: string
+                        enum: [none, basic, verified]
+                      is_verified:
+                        type: boolean
+
+  /reports:
+    post:
+      tags: [Report]
+      summary: Report a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: pending
+        '400':
+          description: Self-report not allowed
+        '409':
+          description: Already reported this user
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+
+    RegisterRequest:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+          pattern: '^\+7[0-9]{10}$'
+          example: '+77001234567'
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+    LoginRequest:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+          pattern: '^\+7[0-9]{10}$'
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+            expires_in:
+              type: integer
+              description: Token lifetime in seconds
+            user_id:
+              type: string
+              format: uuid
+
+    UserView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone:
+          type: string
+        verification_level:
+          type: string
+          enum: [none, basic, verified]
+        trust_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        created_at:
+          type: string
+          format: date-time
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        bio:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other]
+        looking_for:
+          type: string
+          enum: [male, female, any]
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+        last_active:
+          type: string
+          format: date-time
+
+    ProfileUpsert:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 50
+        bio:
+          type: string
+          maxLength: 500
+        birth_date:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other]
+        looking_for:
+          type: string
+          enum: [male, female, any]
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    Photo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        position:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    MatchCandidate:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        bio:
+          type: string
+        age:
+          type: integer
+        distance_km:
+          type: number
+        trust_score:
+          type: integer
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+
+    Match:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/MatchCandidate'
+        matched_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+
+    Settings:
+      type: object
+      properties:
+        push_notifications:
+          type: boolean
+        show_online_status:
+          type: boolean
+        distance_unit:
+          type: string
+          enum: [km, mi]
+        max_distance_km:
+          type: integer
+        age_range_min:
+          type: integer
+        age_range_max:
+          type: integer
+
+    SettingsPatch:
+      type: object
+      properties:
+        push_notifications:
+          type: boolean
+        show_online_status:
+          type: boolean
+        distance_unit:
+          type: string
+          enum: [km, mi]
+        max_distance_km:
+          type: integer
+          minimum: 1
+          maximum: 500
+        age_range_min:
+          type: integer
+          minimum: 18
+        age_range_max:
+          type: integer
+          maximum: 100
+
+    InteractionCreate:
+      type: object
+      required: [target_id, rating, met_in_person]
+      properties:
+        target_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          maxLength: 500
+        met_in_person:
+          type: boolean
+
+    Interaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        initiator_id:
+          type: string
+          format: uuid
+        target_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+        comment:
+          type: string
+        met_in_person:
+          type: boolean
+        confirmed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Reputation:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        trust_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        verification_level:
+          type: string
+          enum: [none, basic, verified]
+        total_interactions:
+          type: integer
+        average_rating:
+          type: number
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        author_id:
+          type: string
+          format: uuid
+        author_name:
+          type: string
+        content:
+          type: string
+        like_count:
+          type: integer
+        comment_count:
+          type: integer
+        liked_by_me:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    PostCreate:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 1000
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        author_id:
+          type: string
+          format: uuid
+        author_name:
+          type: string
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        match_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ReportCreate:
+      type: object
+      required: [reported_id, reason]
+      properties:
+        reported_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 50
+          enum: [spam, harassment, fake_profile, inappropriate_content, other]
+        description:
+          type: string
+          maxLength: 500
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer

@@ -1,0 +1,57 @@
+name: trueconnect
+description: TrueConnect - Trust-based social networking and dating platform
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: '>=3.16.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.4.9
+
+  # Navigation
+  go_router: ^13.0.0
+
+  # HTTP & Networking
+  dio: ^5.4.0
+  web_socket_channel: ^2.4.0
+
+  # Storage
+  flutter_secure_storage: ^10.0.0
+  shared_preferences: ^2.2.2
+
+  # UI Components
+  cached_network_image: ^3.3.1
+  flutter_card_swiper: ^6.1.0
+  image_picker: ^1.0.7
+  shimmer: ^3.0.0
+
+  # Utilities
+  intl: ^0.19.0
+  json_annotation: ^4.8.1
+  equatable: ^2.0.5
+  timeago: ^3.6.1
+
+  # Icons
+  cupertino_icons: ^1.0.6
+  firebase_messaging: ^16.1.2
+  firebase_core: ^4.5.0
+  vibration: ^3.1.8
+  haptic_feedback: ^0.6.4+3
+  cryptography: ^2.9.0
+  flutter_webrtc: ^1.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.8
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true
