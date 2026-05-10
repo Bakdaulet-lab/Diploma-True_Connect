@@ -105,6 +105,7 @@ func run() error {
 	matchRepo := postgres.NewMatchRepo(pgPool)
 	settingsRepo := postgres.NewSettingsRepo(pgPool)
 	matchingCache := redisadapter.NewMatchingCache(redisClient)
+	trustStatusCache := redisadapter.NewTrustStatusCache(redisClient)
 	mediaStore := minioadapter.NewMediaStore(minioClient, cfg.MinIO.Bucket)
 
 	// в”Ђв”Ђ JWT manager в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
@@ -201,8 +202,8 @@ func run() error {
 	reportSvc := service.NewReportService(reportRepo, graphRepo)
 	reportHandler := handler.NewReportHandler(reportSvc, log)
 
-	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), userRepo, reputeSvc, encryptionKey)
-	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, mediaStore, log)
+	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), userRepo, reputeSvc, trustStatusCache, encryptionKey)
+	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, mediaStore, trustStatusCache, log)
 
 	auditRepo := postgres.NewAuditRepo(pgPool)
 
@@ -213,8 +214,6 @@ func run() error {
 	}
 
 	// в”Ђв”Ђ Router в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-
-	trustStatusCache := redisadapter.NewTrustStatusCache(redisClient)
 
 	router := handler.NewRouter(&handler.RouterDeps{
 		Health:       healthDeps,

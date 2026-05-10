@@ -80,13 +80,14 @@ func run() error {
 	}
 
 	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, graphRepo, encryptionKey)
+	trustStatusCache := redisadapter.NewTrustStatusCache(redisClient)
 
 	// ─── Workers ───────────────────────────────────────────────────────────────
 	// NOTE: TrustEngine runs inside the API process (cmd/api), not here.
 	// It consumes events from InteractionService which only exist in the API.
 	// This worker binary runs scheduled background jobs only.
 
-	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, userSvc, adminRepo, log, 6*time.Hour)
+	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, userSvc, adminRepo, trustStatusCache, log, 6*time.Hour)
 	go sybilDetector.Run(ctx)
 
 	log.Info("worker running, waiting for shutdown signal")

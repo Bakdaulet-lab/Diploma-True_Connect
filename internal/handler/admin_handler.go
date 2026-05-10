@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
 	"github.com/trueconnect/backend/internal/repository"
 	"github.com/trueconnect/backend/internal/service"
 )
@@ -16,11 +17,12 @@ type AdminHandler struct {
 	reputeSvc  *service.ReputationService
 	adminSvc   *service.AdminService
 	mediaStore repository.MediaStore
+	tsCache    *redisadapter.TrustStatusCache
 	log        *slog.Logger
 }
 
-func NewAdminHandler(userSvc *service.UserService, reputeSvc *service.ReputationService, adminSvc *service.AdminService, mediaStore repository.MediaStore, log *slog.Logger) *AdminHandler {
-	return &AdminHandler{userSvc: userSvc, reputeSvc: reputeSvc, adminSvc: adminSvc, mediaStore: mediaStore, log: log}
+func NewAdminHandler(userSvc *service.UserService, reputeSvc *service.ReputationService, adminSvc *service.AdminService, mediaStore repository.MediaStore, tsCache *redisadapter.TrustStatusCache, log *slog.Logger) *AdminHandler {
+	return &AdminHandler{userSvc: userSvc, reputeSvc: reputeSvc, adminSvc: adminSvc, mediaStore: mediaStore, tsCache: tsCache, log: log}
 }
 
 func (h *AdminHandler) GetAnalytics(c *gin.Context) {
@@ -87,6 +89,15 @@ func (h *AdminHandler) ReviewVerdict(c *gin.Context) {
 		h.log.Error("review verdict error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not apply verdict", nil)
 		return
+	}
+
+	if h.tsCache != nil {
+		if err := h.tsCache.Delete(c.Request.Context(), targetID); err != nil {
+			h.log.Warn("trust_status cache delete failed after verdict",
+				slog.String("user_id", targetID.String()),
+				slog.String("error", err.Error()),
+			)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "verdict applied"}})

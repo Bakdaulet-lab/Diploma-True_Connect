@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
 	"github.com/trueconnect/backend/internal/domain"
 	"github.com/trueconnect/backend/internal/repository"
 	"github.com/trueconnect/backend/internal/service"
@@ -16,6 +17,7 @@ type SybilDetector struct {
 	userRepo  repository.UserRepository
 	userSvc   *service.UserService
 	adminRepo repository.AdminRepository
+	tsCache   *redisadapter.TrustStatusCache
 	log       *slog.Logger
 	interval  time.Duration
 }
@@ -26,6 +28,7 @@ func NewSybilDetector(
 	userRepo repository.UserRepository,
 	userSvc *service.UserService,
 	adminRepo repository.AdminRepository,
+	tsCache *redisadapter.TrustStatusCache,
 	log *slog.Logger,
 	interval time.Duration,
 ) *SybilDetector {
@@ -34,6 +37,7 @@ func NewSybilDetector(
 		userRepo:  userRepo,
 		userSvc:   userSvc,
 		adminRepo: adminRepo,
+		tsCache:   tsCache,
 		log:       log,
 		interval:  interval,
 	}
@@ -81,14 +85,21 @@ func (d *SybilDetector) detect(ctx context.Context) {
 		)
 
 		for _, uid := range cluster.SuspectUIDs {
-			// Issue 9: Sybil detection flags users and we now have a review workflow.
 			if err := d.userRepo.UpdateTrustStatus(ctx, uid, domain.TrustStatusUnderReview); err != nil {
 				d.log.Error("sybil detector: failed to flag user",
 					slog.String("user_id", uid.String()),
 					slog.String("error", err.Error()),
 				)
-			} else {
-				d.log.Info("sybil detector: flagged user for review", slog.String("user_id", uid.String()))
+				continue
+			}
+			d.log.Info("sybil detector: flagged user for review", slog.String("user_id", uid.String()))
+			if d.tsCache != nil {
+				if err := d.tsCache.Delete(ctx, uid); err != nil {
+					d.log.Warn("sybil detector: cache delete failed",
+						slog.String("user_id", uid.String()),
+						slog.String("error", err.Error()),
+					)
+				}
 			}
 		}
 	}
