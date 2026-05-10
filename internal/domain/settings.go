@@ -10,6 +10,9 @@ type UserSettings struct {
 	MaxDistanceKm     int
 	AgeRangeMin       int
 	AgeRangeMax       int
+	ModestyLevel      int
+	NiyyahFilter      *string
+	MadhabFilter      *string
 	UpdatedAt         time.Time
 }
 

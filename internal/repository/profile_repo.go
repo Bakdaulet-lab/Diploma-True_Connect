@@ -35,6 +35,9 @@ type FindCandidatesOpts struct {
 	RequesterLon      *float64
 	ExcludeIDs        []uuid.UUID // already-seen or already-matched user IDs
 	Limit             int
+	AllowedNiyyahs    []string // niyyah-compatibility filter; nil = no filter
+	MadhabFilter      *string  // nil = no filter
+	LanguageFilter    []string // nil = no filter; requires overlap with candidate
 }
 
 // CandidateRow is the minimal data returned per matching candidate.
@@ -45,4 +48,8 @@ type CandidateRow struct {
 	City        string                `json:"city"`
 	Prompts     []domain.PromptAnswer `json:"prompts"`
 	TrustScore  int                   `json:"trust_score"`
+	Niyyah      string                `json:"niyyah"`
+	Madhab      string                `json:"madhab"`
+	Languages   []string              `json:"languages"`
+	NoPhotoMode bool                  `json:"no_photo_mode"`
 }
