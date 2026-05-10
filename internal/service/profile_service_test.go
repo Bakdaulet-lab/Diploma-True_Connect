@@ -239,3 +239,85 @@ func TestListPhotos_ReturnsPresignedURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestUpsertProfile_ValidNiyyah_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _, _ := newTestProfileService()
+	userID := uuid.New()
+
+	validCases := []domain.Niyyah{
+		domain.NiyyahNikahYear,
+		domain.NiyyahSeriousMarriage,
+		domain.NiyyahFriendship,
+	}
+	for _, n := range validCases {
+		_, err := svc.UpsertProfile(context.Background(), userID, service.UpsertProfileInput{
+			DisplayName: "Test",
+			Niyyah:      n,
+		})
+		if err != nil {
+			t.Errorf("niyyah %q: unexpected error: %v", n, err)
+		}
+	}
+}
+
+func TestUpsertProfile_InvalidNiyyah_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _, _ := newTestProfileService()
+	userID := uuid.New()
+
+	_, err := svc.UpsertProfile(context.Background(), userID, service.UpsertProfileInput{
+		DisplayName: "Test",
+		Niyyah:      domain.Niyyah("invalid_niyyah"),
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid niyyah, got nil")
+	}
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+func TestUpsertProfile_ValidMadhab_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _, _ := newTestProfileService()
+	userID := uuid.New()
+
+	validCases := []domain.Madhab{
+		domain.MadhabHanafi,
+		domain.MadhabShafii,
+		domain.MadhabMaliki,
+		domain.MadhabHanbali,
+		domain.MadhabNone,
+	}
+	for _, m := range validCases {
+		_, err := svc.UpsertProfile(context.Background(), userID, service.UpsertProfileInput{
+			DisplayName: "Test",
+			Madhab:      m,
+		})
+		if err != nil {
+			t.Errorf("madhab %q: unexpected error: %v", m, err)
+		}
+	}
+}
+
+func TestUpsertProfile_InvalidMadhab_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, _, _, _ := newTestProfileService()
+	userID := uuid.New()
+
+	_, err := svc.UpsertProfile(context.Background(), userID, service.UpsertProfileInput{
+		DisplayName: "Test",
+		Madhab:      domain.Madhab("not_a_madhab"),
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid madhab, got nil")
+	}
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("expected ErrInvalidInput, got %v", err)
+	}
+}

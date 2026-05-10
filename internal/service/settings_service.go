@@ -18,6 +18,9 @@ type UpdateSettingsInput struct {
 	MaxDistanceKm     *int
 	AgeRangeMin       *int
 	AgeRangeMax       *int
+	ModestyLevel      *int
+	NiyyahFilter      *string // empty string clears the filter
+	MadhabFilter      *string // empty string clears the filter
 }
 
 // SettingsService manages user notification and matching preferences.
@@ -82,6 +85,27 @@ func (s *SettingsService) Update(ctx context.Context, userID uuid.UUID, input Up
 	// Validate range order after applying both ends.
 	if existing.AgeRangeMin > existing.AgeRangeMax {
 		return nil, fmt.Errorf("update settings: age_range_min cannot exceed age_range_max: %w", domain.ErrInvalidInput)
+	}
+
+	if input.ModestyLevel != nil {
+		if *input.ModestyLevel < 0 || *input.ModestyLevel > 5 {
+			return nil, fmt.Errorf("update settings: modesty_level must be between 0 and 5: %w", domain.ErrInvalidInput)
+		}
+		existing.ModestyLevel = *input.ModestyLevel
+	}
+	if input.NiyyahFilter != nil {
+		if *input.NiyyahFilter == "" {
+			existing.NiyyahFilter = nil
+		} else {
+			existing.NiyyahFilter = input.NiyyahFilter
+		}
+	}
+	if input.MadhabFilter != nil {
+		if *input.MadhabFilter == "" {
+			existing.MadhabFilter = nil
+		} else {
+			existing.MadhabFilter = input.MadhabFilter
+		}
 	}
 
 	if err := s.repo.Upsert(ctx, existing); err != nil {

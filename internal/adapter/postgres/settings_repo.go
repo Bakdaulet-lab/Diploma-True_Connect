@@ -34,6 +34,9 @@ func (r *SettingsRepo) Get(ctx context.Context, userID uuid.UUID) (*domain.UserS
 			max_distance_km,
 			age_range_min,
 			age_range_max,
+			modesty_level,
+			niyyah_filter,
+			madhab_filter,
 			updated_at
 		FROM social.user_settings
 		WHERE user_id = $1`
@@ -47,11 +50,13 @@ func (r *SettingsRepo) Get(ctx context.Context, userID uuid.UUID) (*domain.UserS
 		&s.MaxDistanceKm,
 		&s.AgeRangeMin,
 		&s.AgeRangeMax,
+		&s.ModestyLevel,
+		&s.NiyyahFilter,
+		&s.MadhabFilter,
 		&s.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Return defaults when no row exists yet.
 			return domain.DefaultSettings(userID.String()), nil
 		}
 		return nil, fmt.Errorf("getting settings: %w", err)
@@ -64,8 +69,9 @@ func (r *SettingsRepo) Upsert(ctx context.Context, s *domain.UserSettings) error
 	query := `
 		INSERT INTO social.user_settings (
 			user_id, push_notifications, show_online_status,
-			distance_unit, max_distance_km, age_range_min, age_range_max
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			distance_unit, max_distance_km, age_range_min, age_range_max,
+			modesty_level, niyyah_filter, madhab_filter
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (user_id) DO UPDATE SET
 			push_notifications = EXCLUDED.push_notifications,
 			show_online_status = EXCLUDED.show_online_status,
@@ -73,6 +79,9 @@ func (r *SettingsRepo) Upsert(ctx context.Context, s *domain.UserSettings) error
 			max_distance_km    = EXCLUDED.max_distance_km,
 			age_range_min      = EXCLUDED.age_range_min,
 			age_range_max      = EXCLUDED.age_range_max,
+			modesty_level      = EXCLUDED.modesty_level,
+			niyyah_filter      = EXCLUDED.niyyah_filter,
+			madhab_filter      = EXCLUDED.madhab_filter,
 			updated_at         = NOW()
 		RETURNING updated_at`
 
@@ -89,5 +98,8 @@ func (r *SettingsRepo) Upsert(ctx context.Context, s *domain.UserSettings) error
 		s.MaxDistanceKm,
 		s.AgeRangeMin,
 		s.AgeRangeMax,
+		s.ModestyLevel,
+		s.NiyyahFilter,
+		s.MadhabFilter,
 	).Scan(&s.UpdatedAt)
 }

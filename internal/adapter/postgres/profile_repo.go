@@ -39,25 +39,43 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 		promptsJSON = []byte("[]")
 	}
 
+	niyyah := nullableString(string(p.Niyyah))
+	madhab := nullableString(string(p.Madhab))
+	languages := p.Languages
+	if languages == nil {
+		languages = []string{}
+	}
+	maritalStatus := p.MaritalStatus
+	if maritalStatus == "" {
+		maritalStatus = domain.MaritalSingle
+	}
+
 	query := `
 		INSERT INTO social.profiles (
 			user_id, display_name, bio, gender, birth_date,
-			city, location, looking_for, avatar_url, prompts
+			city, location, looking_for, avatar_url, prompts,
+			niyyah, madhab, languages, no_photo_mode, marital_status
 		) VALUES (
 			$1, $2, $3, $4, $5,
-			$6, ST_GeographyFromText($7), $8, $9, $10
+			$6, ST_GeographyFromText($7), $8, $9, $10,
+			$11, $12, $13, $14, $15
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
-			display_name = EXCLUDED.display_name,
-			bio          = EXCLUDED.bio,
-			gender       = EXCLUDED.gender,
-			birth_date   = EXCLUDED.birth_date,
-			city         = EXCLUDED.city,
-			location     = EXCLUDED.location,
-			looking_for  = EXCLUDED.looking_for,
-			avatar_url   = COALESCE(EXCLUDED.avatar_url, social.profiles.avatar_url),
-			prompts      = EXCLUDED.prompts,
-			updated_at   = NOW()
+			display_name   = EXCLUDED.display_name,
+			bio            = EXCLUDED.bio,
+			gender         = EXCLUDED.gender,
+			birth_date     = EXCLUDED.birth_date,
+			city           = EXCLUDED.city,
+			location       = EXCLUDED.location,
+			looking_for    = EXCLUDED.looking_for,
+			avatar_url     = COALESCE(EXCLUDED.avatar_url, social.profiles.avatar_url),
+			prompts        = EXCLUDED.prompts,
+			niyyah         = EXCLUDED.niyyah,
+			madhab         = EXCLUDED.madhab,
+			languages      = EXCLUDED.languages,
+			no_photo_mode  = EXCLUDED.no_photo_mode,
+			marital_status = EXCLUDED.marital_status,
+			updated_at     = NOW()
 		RETURNING created_at, updated_at`
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query,
@@ -71,6 +89,11 @@ func (r *ProfileRepo) Upsert(ctx context.Context, p *domain.Profile) error {
 		nullableGender(p.LookingFor),           // $8
 		nullableString(p.AvatarURL),            // $9
 		promptsJSON,                            // $10
+		niyyah,                                 // $11
+		madhab,                                 // $12
+		languages,                              // $13
+		p.NoPhotoMode,                          // $14
+		maritalStatus,                          // $15
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upserting profile: %w", err)
@@ -132,10 +155,18 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 }
 
 func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCandidatesOpts) ([]*repository.CandidateRow, error) {
-	// Convert exclude list to a string slice for ANY($n).
 	excludeStrings := make([]string, len(opts.ExcludeIDs))
 	for i, id := range opts.ExcludeIDs {
 		excludeStrings[i] = id.String()
+	}
+
+	allowedNiyyahs := opts.AllowedNiyyahs
+	if len(allowedNiyyahs) == 0 {
+		allowedNiyyahs = nil // NULL in SQL → skip niyyah filter
+	}
+	languageFilter := opts.LanguageFilter
+	if len(languageFilter) == 0 {
+		languageFilter = nil
 	}
 
 	query := `
@@ -145,12 +176,17 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			COALESCE(p.avatar_url, '')   AS avatar_url,
 			COALESCE(p.city, '')          AS city,
 			p.prompts,
-			u.trust_score
+			u.trust_score,
+			COALESCE(p.niyyah::text, '')  AS niyyah,
+			COALESCE(p.madhab::text, '')  AS madhab,
+			COALESCE(p.languages, '{}')   AS languages,
+			p.no_photo_mode
 		FROM social.profiles p
 		JOIN social.users u ON u.id = p.user_id
 		WHERE
-			u.is_active   = true
-			AND u.trust_status = 'normal'
+			u.is_active    = true
+			AND u.trust_status  = 'normal'
+			AND p.marital_status = 'single'
 			AND ($1::text = '' OR p.gender::text = $1)
 			AND p.user_id != $2
 			AND NOT (p.user_id::text = ANY($3))
@@ -159,9 +195,12 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 				OR EXTRACT(year FROM AGE(p.birth_date)) BETWEEN $4 AND $5
 			)
 			AND (
-				$7::boolean = false OR 
+				$7::boolean = false OR
 				(p.location IS NULL OR ST_DWithin(p.location, ST_SetSRID(ST_MakePoint($8, $9), 4326)::geography, $10))
 			)
+			AND ($11::text[] IS NULL OR p.niyyah::text = ANY($11))
+			AND ($12::text IS NULL OR p.madhab::text = $12)
+			AND ($13::text[] IS NULL OR p.languages && $13)
 		ORDER BY u.trust_score DESC, u.last_login_at DESC NULLS LAST
 		LIMIT $6`
 
@@ -177,20 +216,8 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 		maxDist = *opts.MaxDistanceMeters
 	}
 
-	// ---------------------------------------------------------
-	// 🔥 НАШ РАДАР ДЛЯ ОТЛОВА БАГОВ (ВЫВОД В КОНСОЛЬ БЭКЕНДА)
-	// ---------------------------------------------------------
-	fmt.Println("==================================================")
-	fmt.Println("🚀 ВЫЗОВ ФУНКЦИИ FindCandidates")
-	fmt.Printf("LookingFor($1): '%v'\n", string(opts.LookingFor))
-	fmt.Printf("RequesterID($2): %v\n", opts.RequesterID)
-	fmt.Printf("AgeRangeMin($4): %v | AgeRangeMax($5): %v\n", opts.AgeRangeMin, opts.AgeRangeMax)
-	fmt.Printf("Spatial($7): %v, Lon($8): %v, Lat($9): %v, MaxDist($10): %v\n", useSpatial, lon, lat, maxDist)
-	fmt.Println("==================================================")
-	// ---------------------------------------------------------
-
 	rows, err := runner(ctx, r.pool).Query(ctx, query,
-		string(opts.LookingFor), // $1  ('' means any gender)
+		string(opts.LookingFor), // $1
 		opts.RequesterID,        // $2
 		excludeStrings,          // $3
 		opts.AgeRangeMin,        // $4
@@ -200,6 +227,9 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 		lon,                     // $8
 		lat,                     // $9
 		maxDist,                 // $10
+		allowedNiyyahs,          // $11
+		opts.MadhabFilter,       // $12
+		languageFilter,          // $13
 	)
 	if err != nil {
 		return nil, fmt.Errorf("finding candidates: %w", err)
@@ -213,6 +243,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 		if err := rows.Scan(
 			&c.UserID, &c.DisplayName, &c.AvatarURL,
 			&c.City, &promptsJSON, &c.TrustScore,
+			&c.Niyyah, &c.Madhab, &c.Languages, &c.NoPhotoMode,
 		); err != nil {
 			return nil, fmt.Errorf("scanning candidate: %w", err)
 		}

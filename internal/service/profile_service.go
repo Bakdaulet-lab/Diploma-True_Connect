@@ -18,16 +18,21 @@ type ProfileView struct {
 	DisplayName       string                `json:"display_name"`
 	Bio               string                `json:"bio,omitempty"`
 	Gender            string                `json:"gender,omitempty"`
-	BirthDate         *time.Time            `json:"birth_date,omitempty"` // ИСПРАВЛЕНО: Добавлено
+	BirthDate         *time.Time            `json:"birth_date,omitempty"`
 	Age               *int                  `json:"age,omitempty"`
 	City              string                `json:"city,omitempty"`
-	LookingFor        string                `json:"looking_for,omitempty"` // ИСПРАВЛЕНО: Добавлено
+	LookingFor        string                `json:"looking_for,omitempty"`
 	AvatarURL         string                `json:"avatar_url,omitempty"`
 	Photos            []PhotoView           `json:"photos"`
 	TrustScore        int                   `json:"trust_score"`
 	Badge             string                `json:"badge"`
 	VerificationLevel string                `json:"verification_level"`
 	Prompts           []domain.PromptAnswer `json:"prompts,omitempty"`
+	Niyyah            string                `json:"niyyah,omitempty"`
+	Madhab            string                `json:"madhab,omitempty"`
+	Languages         []string              `json:"languages,omitempty"`
+	NoPhotoMode       bool                  `json:"no_photo_mode"`
+	MaritalStatus     string                `json:"marital_status"`
 }
 
 // PhotoView is a single photo with a time-limited presigned URL.
@@ -48,6 +53,10 @@ type UpsertProfileInput struct {
 	Latitude    *float64
 	Longitude   *float64
 	LookingFor  domain.Gender
+	Niyyah      domain.Niyyah
+	Madhab      domain.Madhab
+	Languages   []string
+	NoPhotoMode bool
 }
 
 // ProfileService handles profile management and photo uploads.
@@ -120,15 +129,20 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		DisplayName:       profile.DisplayName,
 		Bio:               profile.Bio,
 		Gender:            string(profile.Gender),
-		BirthDate:         profile.BirthDate, // ИСПРАВЛЕНО
+		BirthDate:         profile.BirthDate,
 		City:              profile.City,
-		LookingFor:        string(profile.LookingFor), // ИСПРАВЛЕНО
+		LookingFor:        string(profile.LookingFor),
 		AvatarURL:         profile.AvatarURL,
 		Photos:            photoViews,
 		TrustScore:        trustScore,
 		Badge:             scoreModel.GetBadge(),
 		VerificationLevel: string(user.VerificationLevel),
 		Prompts:           profile.Prompts,
+		Niyyah:            string(profile.Niyyah),
+		Madhab:            string(profile.Madhab),
+		Languages:         profile.Languages,
+		NoPhotoMode:       profile.NoPhotoMode,
+		MaritalStatus:     profile.MaritalStatus,
 	}
 
 	if profile.BirthDate != nil {
@@ -139,8 +153,31 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 	return view, nil
 }
 
+// validNiyyahs is the set of accepted niyyah enum values.
+var validNiyyahs = map[domain.Niyyah]bool{
+	domain.NiyyahNikahYear:       true,
+	domain.NiyyahSeriousMarriage: true,
+	domain.NiyyahFriendship:      true,
+}
+
+// validMadhabs is the set of accepted madhab enum values.
+var validMadhabs = map[domain.Madhab]bool{
+	domain.MadhabHanafi:  true,
+	domain.MadhabShafii:  true,
+	domain.MadhabMaliki:  true,
+	domain.MadhabHanbali: true,
+	domain.MadhabNone:    true,
+}
+
 // UpsertProfile creates or updates the caller's own profile.
 func (s *ProfileService) UpsertProfile(ctx context.Context, userID uuid.UUID, input UpsertProfileInput) (*domain.Profile, error) {
+	if input.Niyyah != "" && !validNiyyahs[input.Niyyah] {
+		return nil, fmt.Errorf("upsert profile: invalid niyyah %q: %w", input.Niyyah, domain.ErrInvalidInput)
+	}
+	if input.Madhab != "" && !validMadhabs[input.Madhab] {
+		return nil, fmt.Errorf("upsert profile: invalid madhab %q: %w", input.Madhab, domain.ErrInvalidInput)
+	}
+
 	profile := &domain.Profile{
 		UserID:      userID,
 		DisplayName: input.DisplayName,
@@ -152,6 +189,10 @@ func (s *ProfileService) UpsertProfile(ctx context.Context, userID uuid.UUID, in
 		Latitude:    input.Latitude,
 		Longitude:   input.Longitude,
 		LookingFor:  input.LookingFor,
+		Niyyah:      input.Niyyah,
+		Madhab:      input.Madhab,
+		Languages:   input.Languages,
+		NoPhotoMode: input.NoPhotoMode,
 	}
 
 	if err := s.profileRepo.Upsert(ctx, profile); err != nil {
