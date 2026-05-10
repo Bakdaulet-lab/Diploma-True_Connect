@@ -214,6 +214,8 @@ func run() error {
 
 	// в”Ђв”Ђ Router в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
+	trustStatusCache := redisadapter.NewTrustStatusCache(redisClient)
+
 	router := handler.NewRouter(&handler.RouterDeps{
 		Health:       healthDeps,
 		Auth:         authHandler,
@@ -228,11 +230,13 @@ func run() error {
 		User:         userHandler,
 		Report:       reportHandler,
 		Admin:        adminHandler,
-		AuditRepo:    auditRepo,
-		JWT:          jwtManager,
-		Redis:        redisClient,
-		CORSOrigins:  cfg.Server.CORSOrigins,
-		Log:          log,
+		AuditRepo:        auditRepo,
+		JWT:              jwtManager,
+		Redis:            redisClient,
+		UserRepo:         userRepo,
+		TrustStatusCache: trustStatusCache,
+		CORSOrigins:      cfg.Server.CORSOrigins,
+		Log:              log,
 	})
 
 	// в”Ђв”Ђ HTTP server в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
 	"github.com/trueconnect/backend/internal/handler/middleware"
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
 	"github.com/trueconnect/backend/internal/repository"
@@ -26,11 +27,13 @@ type RouterDeps struct {
 	User         *UserHandler
 	Report       *ReportHandler
 	Admin        *AdminHandler
-	AuditRepo    repository.AuditRepository
-	JWT          *tcjwt.Manager
-	Redis        *redis.Client
-	CORSOrigins  []string
-	Log          *slog.Logger
+	AuditRepo        repository.AuditRepository
+	JWT              *tcjwt.Manager
+	Redis            *redis.Client
+	UserRepo         repository.UserRepository
+	TrustStatusCache *redisadapter.TrustStatusCache
+	CORSOrigins      []string
+	Log              *slog.Logger
 }
 
 // NewRouter creates the Gin engine with all routes and middleware registered.
@@ -77,7 +80,8 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 	// в”Ђв”Ђ Protected routes (JWT required) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 	protected := v1.Group("")
-	protected.Use(middleware.Auth(deps.JWT))
+	authMW := middleware.NewAuthMiddleware(deps.JWT, deps.UserRepo, deps.TrustStatusCache, deps.Log)
+	protected.Use(authMW.Authenticate())
 	protected.Use(middleware.AuditLogMiddleware(deps.Log, deps.AuditRepo))
 
 	// Per-user rate limit for write-heavy endpoints: 30 req/min.
