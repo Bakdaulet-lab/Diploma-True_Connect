@@ -9,10 +9,11 @@ import (
 type NotificationType string
 
 const (
-	NotificationTypeLike    NotificationType = "like"
-	NotificationTypeComment NotificationType = "comment"
-	NotificationTypeMatch   NotificationType = "match"
-	NotificationTypeSystem  NotificationType = "system"
+	NotificationTypeLike          NotificationType = "like"
+	NotificationTypeComment       NotificationType = "comment"
+	NotificationTypeMatch         NotificationType = "match"
+	NotificationTypeSystem        NotificationType = "system"
+	NotificationTypeNiyyahExpired NotificationType = "niyyah_expired"
 )
 
 type Notification struct {

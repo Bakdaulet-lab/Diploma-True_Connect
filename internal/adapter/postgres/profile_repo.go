@@ -106,7 +106,11 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 		SELECT
 			p.user_id, p.display_name, p.bio, p.gender, p.birth_date,
 			p.city, ST_X(p.location::geometry) AS lon, ST_Y(p.location::geometry) AS lat,
-			p.looking_for, p.avatar_url, p.prompts, p.created_at, p.updated_at
+			p.looking_for, p.avatar_url, p.prompts, p.created_at, p.updated_at,
+			COALESCE(p.niyyah::text, '')  AS niyyah,
+			COALESCE(p.madhab::text, '')  AS madhab,
+			COALESCE(p.languages, '{}')   AS languages,
+			p.no_photo_mode
 		FROM social.profiles p
 		WHERE p.user_id = $1`
 
@@ -115,11 +119,14 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	var gender, lookingFor *string
 	var lon, lat *float64
 	var promptsJSON []byte
+	var niyyah, madhab string
+	var languages []string
 
 	err := runner(ctx, r.pool).QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.DisplayName, &bio, &gender, &p.BirthDate,
 		&city, &lon, &lat,
 		&lookingFor, &avatarURL, &promptsJSON, &p.CreatedAt, &p.UpdatedAt,
+		&niyyah, &madhab, &languages, &p.NoPhotoMode,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -150,6 +157,9 @@ func (r *ProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domai
 	}
 	p.Longitude = lon
 	p.Latitude = lat
+	p.Niyyah = domain.Niyyah(niyyah)
+	p.Madhab = domain.Madhab(madhab)
+	p.Languages = languages
 
 	return p, nil
 }
@@ -198,7 +208,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 				$7::boolean = false OR
 				(p.location IS NULL OR ST_DWithin(p.location, ST_SetSRID(ST_MakePoint($8, $9), 4326)::geography, $10))
 			)
-			AND ($11::text[] IS NULL OR p.niyyah::text = ANY($11))
+			AND ($11::text[] IS NULL OR p.niyyah IS NULL OR p.niyyah::text = ANY($11))
 			AND ($12::text IS NULL OR p.madhab::text = $12)
 			AND ($13::text[] IS NULL OR p.languages && $13)
 		ORDER BY u.trust_score DESC, u.last_login_at DESC NULLS LAST

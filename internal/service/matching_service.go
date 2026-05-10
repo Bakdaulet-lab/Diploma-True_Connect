@@ -30,11 +30,12 @@ func fixAvatarURL(url string) string {
 
 // CandidateView is a matching card shown in the swipe feed.
 type CandidateView struct {
-	UserID      uuid.UUID `json:"user_id"`
-	DisplayName string    `json:"display_name"`
-	AvatarURL   string    `json:"avatar_url,omitempty"`
-	City        string    `json:"city,omitempty"`
-	TrustScore  int       `json:"trust_score"`
+	UserID        uuid.UUID `json:"user_id"`
+	DisplayName   string    `json:"display_name"`
+	AvatarURL     string    `json:"avatar_url,omitempty"`
+	AvatarBlurred bool      `json:"avatar_blurred,omitempty"`
+	City          string    `json:"city,omitempty"`
+	TrustScore    int       `json:"trust_score"`
 }
 
 // MatchView is a match card with user profile data for the frontend.
@@ -48,8 +49,9 @@ type MatchUserView struct {
 
 // Обновленная основная структура мэтча
 type MatchView struct {
-	ID        uuid.UUID      `json:"id"`
-	OtherUser *MatchUserView `json:"other_user"` // Тот самый вложенный объект!
+	ID                uuid.UUID      `json:"id"`
+	OtherUser         *MatchUserView `json:"other_user"`
+	NiyyahTimerEndsAt *time.Time     `json:"niyyah_timer_ends_at,omitempty"`
 }
 
 // LikeResult tells the caller whether a mutual match occurred.
@@ -90,6 +92,18 @@ func NewMatchingService(
 	}
 }
 
+// niyyahCompatible returns the niyyah values that are compatible with the requester's
+// own niyyah. A nikah_year requester only wants to see serious candidates; others
+// are open to the full spectrum.
+func niyyahCompatible(n domain.Niyyah) []string {
+	switch n {
+	case domain.NiyyahNikahYear:
+		return []string{string(domain.NiyyahNikahYear), string(domain.NiyyahSeriousMarriage)}
+	default:
+		return nil // no filter — allow all niyyah values including unset
+	}
+}
+
 // GetCandidates returns a batch of profiles for the swipe feed.
 func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) ([]*CandidateView, error) {
 	requesterProfile, err := s.profileRepo.GetByUserID(ctx, userID)
@@ -119,6 +133,10 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 	}
 
 	maxDistMeters := settings.MaxDistanceKm * 1000
+
+	// B1: compute niyyah compatibility filter from requester's own niyyah.
+	allowedNiyyahs := niyyahCompatible(requesterProfile.Niyyah)
+
 	opts := repository.FindCandidatesOpts{
 		RequesterID:       userID,
 		LookingFor:        requesterProfile.LookingFor,
@@ -129,6 +147,8 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		RequesterLon:      requesterProfile.Longitude,
 		ExcludeIDs:        seenIDs,
 		Limit:             candidateBatchSize,
+		AllowedNiyyahs:    allowedNiyyahs,
+		MadhabFilter:      settings.MadhabFilter,
 	}
 
 	rows, err := s.profileRepo.FindCandidates(ctx, opts)
@@ -136,16 +156,35 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		return nil, fmt.Errorf("get candidates: querying: %w", err)
 	}
 
+	requesterMadhab := string(requesterProfile.Madhab)
+
 	newSeenIDs := make([]uuid.UUID, 0, len(rows))
 	views := make([]*CandidateView, 0, len(rows))
 	for _, row := range rows {
 		newSeenIDs = append(newSeenIDs, row.UserID)
+
+		score := row.TrustScore
+		// B2: boost score by +10 when candidate shares the requester's madhab.
+		if requesterMadhab != "" && requesterMadhab != string(domain.MadhabNone) && row.Madhab == requesterMadhab {
+			score = min(score+10, 100)
+		}
+
+		avatarURL := fixAvatarURL(row.AvatarURL)
+		blurred := false
+		// B3: candidates with no-photo mode enabled never expose their avatar
+		// in the swipe feed (only visible after a mutual match in the chat view).
+		if row.NoPhotoMode {
+			avatarURL = ""
+			blurred = true
+		}
+
 		views = append(views, &CandidateView{
-			UserID:      row.UserID,
-			DisplayName: row.DisplayName,
-			AvatarURL:   fixAvatarURL(row.AvatarURL), // ПРИМЕНЯЕМ ФИКС ТУТ
-			City:        row.City,
-			TrustScore:  row.TrustScore,
+			UserID:        row.UserID,
+			DisplayName:   row.DisplayName,
+			AvatarURL:     avatarURL,
+			AvatarBlurred: blurred,
+			City:          row.City,
+			TrustScore:    score,
 		})
 	}
 
@@ -154,6 +193,13 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 	}
 
 	return views, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // Like records that userID likes targetID.
@@ -227,7 +273,6 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cur
 			continue
 		}
 
-		// Формируем вложенную структуру, которую ждет фронтенд
 		views = append(views, &MatchView{
 			ID: m.ID,
 			OtherUser: &MatchUserView{
@@ -236,6 +281,7 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cur
 				AvatarURL:   fixAvatarURL(profile.AvatarURL),
 				PublicKey:   user.PublicKey,
 			},
+			NiyyahTimerEndsAt: m.NiyyahTimerEndsAt,
 		})
 	}
 	return views, nextCursor, nil

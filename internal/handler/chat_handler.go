@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"strings"
-
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/gin-gonic/gin"
@@ -19,6 +17,7 @@ import (
 	"github.com/trueconnect/backend/internal/domain"
 	"github.com/trueconnect/backend/internal/handler/middleware"
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
+	"github.com/trueconnect/backend/internal/pkg/halalfilter"
 	"github.com/trueconnect/backend/internal/service"
 )
 
@@ -314,18 +313,11 @@ func (h *Hub) handleChatMsg(ctx context.Context, senderID uuid.UUID, payload jso
 		return
 	}
 
-	// ────► TOXIC CONTENT DETECTION ◄────
-	// Example filter logic: detect bad words in base64/plaintext payload
-	// Since E2E encryption makes this technically impossible on backend, we simulate
-	// detection by checking if the payload contains known simulated offensive bytes
-	isToxic := false
-	offensivePatterns := []string{"badword", "abuse", "scam"}
-	lowerContent := strings.ToLower(p.Content)
-	for _, word := range offensivePatterns {
-		if strings.Contains(lowerContent, word) {
-			isToxic = true
-			break
-		}
+	// C1: halal content filter — hard-block explicit content, flag harassment.
+	isBlocked, isToxic := halalfilter.CheckMessage(p.Content)
+	if isBlocked {
+		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "message blocked by content policy"})
+		return
 	}
 
 	dm, err := h.chatSvc.SendMessage(ctx, senderID, matchID, p.Content, isToxic)

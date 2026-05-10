@@ -48,20 +48,42 @@ func (m *mockProfileRepo) FindCandidates(_ context.Context, opts repository.Find
 		if p.UserID == opts.RequesterID {
 			continue
 		}
+		excluded := false
 		for _, ex := range opts.ExcludeIDs {
 			if p.UserID == ex {
-				goto skip
+				excluded = true
+				break
+			}
+		}
+		if excluded {
+			continue
+		}
+		// B1: apply niyyah compatibility filter (mirrors production SQL behaviour).
+		if len(opts.AllowedNiyyahs) > 0 && p.Niyyah != "" {
+			allowed := false
+			for _, a := range opts.AllowedNiyyahs {
+				if string(p.Niyyah) == a {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
 			}
 		}
 		rows = append(rows, &repository.CandidateRow{
 			UserID:      p.UserID,
 			DisplayName: p.DisplayName,
+			AvatarURL:   p.AvatarURL,
 			TrustScore:  50,
+			Niyyah:      string(p.Niyyah),
+			Madhab:      string(p.Madhab),
+			Languages:   p.Languages,
+			NoPhotoMode: p.NoPhotoMode,
 		})
 		if len(rows) >= opts.Limit {
 			break
 		}
-	skip:
 	}
 	return rows, nil
 }
@@ -231,6 +253,10 @@ func (m *mockMatchRepo) IsMatched(_ context.Context, userA, userB uuid.UUID) (bo
 		}
 	}
 	return false, nil
+}
+
+func (m *mockMatchRepo) FindExpiredNiyyahMatches(_ context.Context) ([]*domain.Match, error) {
+	return nil, nil
 }
 
 // ── mockSettingsRepo ──────────────────────────────────────────────────────────

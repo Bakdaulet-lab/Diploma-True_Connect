@@ -168,6 +168,86 @@ func TestListMatches_ReturnsOnlyOwnMatches(t *testing.T) {
 	}
 }
 
+// ── NiyyahCompatible (B1) ────────────────────────────────────────────────────
+
+func TestGetCandidates_NikkahYear_ExcludesFriendship(t *testing.T) {
+	t.Parallel()
+
+	svc, profileRepo, _, _, _ := newTestMatchingService()
+	requesterID := uuid.New()
+	friendshipID := uuid.New()
+	seriousID := uuid.New()
+
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: requesterID, DisplayName: "Requester",
+		Niyyah: domain.NiyyahNikahYear,
+	})
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: friendshipID, DisplayName: "FriendshipOnly",
+		Niyyah: domain.NiyyahFriendship,
+	})
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: seriousID, DisplayName: "SeriousMarriage",
+		Niyyah: domain.NiyyahSeriousMarriage,
+	})
+
+	candidates, err := svc.GetCandidates(context.Background(), requesterID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, c := range candidates {
+		if c.UserID == friendshipID {
+			t.Error("nikah_year requester should not see friendship-only candidates")
+		}
+	}
+	found := false
+	for _, c := range candidates {
+		if c.UserID == seriousID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("nikah_year requester should see serious_marriage candidates")
+	}
+}
+
+// ── NoPhotoMode (B3) ────────────────────────────────────────────────────────
+
+func TestGetCandidates_NoPhotoMode_BlursAvatar(t *testing.T) {
+	t.Parallel()
+
+	svc, profileRepo, _, _, _ := newTestMatchingService()
+	requesterID := uuid.New()
+	privateID := uuid.New()
+
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: requesterID, DisplayName: "Requester",
+	})
+	profileRepo.Upsert(context.Background(), &domain.Profile{
+		UserID: privateID, DisplayName: "PrivateUser",
+		AvatarURL:   "http://example.com/avatar.jpg",
+		NoPhotoMode: true,
+	})
+
+	candidates, err := svc.GetCandidates(context.Background(), requesterID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, c := range candidates {
+		if c.UserID == privateID {
+			if c.AvatarURL != "" {
+				t.Error("no-photo-mode candidate should have empty AvatarURL")
+			}
+			if !c.AvatarBlurred {
+				t.Error("no-photo-mode candidate should have AvatarBlurred=true")
+			}
+		}
+	}
+}
+
 // ── GetCandidates ─────────────────────────────────────────────────────────────
 
 func TestGetCandidates_ExcludesRequester(t *testing.T) {

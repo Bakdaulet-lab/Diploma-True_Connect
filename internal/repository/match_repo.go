@@ -26,4 +26,8 @@ type MatchRepository interface {
 
 	// IsMatched reports whether two users have a mutual match.
 	IsMatched(ctx context.Context, userA, userB uuid.UUID) (bool, error)
+
+	// FindExpiredNiyyahMatches returns mutual matches whose 90-day niyyah timer
+	// expired within the last 25 hours (so the daily worker processes each once).
+	FindExpiredNiyyahMatches(ctx context.Context) ([]*domain.Match, error)
 }

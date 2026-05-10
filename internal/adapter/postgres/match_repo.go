@@ -47,6 +47,10 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
                             matched_at = CASE
                                 WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.matched_at, NOW())
                                 ELSE social.matches.matched_at
+                            END,
+                            niyyah_timer_ends_at = CASE
+                                WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.niyyah_timer_ends_at, NOW() + INTERVAL '90 days')
+                                ELSE social.matches.niyyah_timer_ends_at
                             END
                 RETURNING id, %[2]s, matched_at`, setCol, checkCol)
 
@@ -72,7 +76,7 @@ func (r *MatchRepo) RecordPass(_ context.Context, _, _ uuid.UUID) error {
 
 func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*domain.Match, string, error) {
 	query := `
-		SELECT id, user_a_id, user_b_id, user_a_liked, user_b_liked, matched_at, created_at
+		SELECT id, user_a_id, user_b_id, user_a_liked, user_b_liked, matched_at, niyyah_timer_ends_at, created_at
 		FROM social.matches
 		WHERE (user_a_id = $1 OR user_b_id = $1)
 		  AND matched_at IS NOT NULL
@@ -99,7 +103,7 @@ func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, cursor st
 		if err := rows.Scan(
 			&m.ID, &m.UserAID, &m.UserBID,
 			&m.UserALiked, &m.UserBLiked,
-			&m.MatchedAt, &m.CreatedAt,
+			&m.MatchedAt, &m.NiyyahTimerEndsAt, &m.CreatedAt,
 		); err != nil {
 			return nil, "", fmt.Errorf("scanning match row: %w", err)
 		}
@@ -156,6 +160,38 @@ func (r *MatchRepo) IsMatched(ctx context.Context, userA, userB uuid.UUID) (bool
 	}
 
 	return true, nil
+}
+
+// FindExpiredNiyyahMatches returns mutual matches whose 90-day niyyah timer
+// expired within the last 25 hours so the daily worker processes each once.
+func (r *MatchRepo) FindExpiredNiyyahMatches(ctx context.Context) ([]*domain.Match, error) {
+	query := `
+		SELECT id, user_a_id, user_b_id, user_a_liked, user_b_liked, matched_at, niyyah_timer_ends_at, created_at
+		FROM social.matches
+		WHERE niyyah_timer_ends_at IS NOT NULL
+		  AND niyyah_timer_ends_at < NOW()
+		  AND niyyah_timer_ends_at > NOW() - INTERVAL '25 hours'
+		  AND matched_at IS NOT NULL`
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("finding expired niyyah matches: %w", err)
+	}
+	defer rows.Close()
+
+	var matches []*domain.Match
+	for rows.Next() {
+		m := &domain.Match{}
+		if err := rows.Scan(
+			&m.ID, &m.UserAID, &m.UserBID,
+			&m.UserALiked, &m.UserBLiked,
+			&m.MatchedAt, &m.NiyyahTimerEndsAt, &m.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scanning expired match: %w", err)
+		}
+		matches = append(matches, m)
+	}
+	return matches, rows.Err()
 }
 
 // orderPair returns (smaller, larger) UUID so the pair is always consistently ordered.

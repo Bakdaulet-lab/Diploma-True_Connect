@@ -72,6 +72,8 @@ func run() error {
 	tokenRepo := postgres.NewRefreshTokenRepo(pgPool)
 	sessionStore := redisadapter.NewSessionStore(redisClient)
 	adminRepo := postgres.NewAdminRepo(pgPool)
+	matchRepo := postgres.NewMatchRepo(pgPool)
+	notifRepo := postgres.NewNotificationRepo(pgPool)
 
 	// Decode encryption key
 	encryptionKey, err := hex.DecodeString(cfg.Auth.EncryptionKey)
@@ -81,6 +83,7 @@ func run() error {
 
 	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, graphRepo, encryptionKey)
 	trustStatusCache := redisadapter.NewTrustStatusCache(redisClient)
+	notifSvc := service.NewNotificationService(notifRepo, redisClient, log)
 
 	// ─── Workers ───────────────────────────────────────────────────────────────
 	// NOTE: TrustEngine runs inside the API process (cmd/api), not here.
@@ -89,6 +92,9 @@ func run() error {
 
 	sybilDetector := worker.NewSybilDetector(graphRepo, userRepo, userSvc, adminRepo, trustStatusCache, log, 6*time.Hour)
 	go sybilDetector.Run(ctx)
+
+	niyyahTimer := worker.NewNiyyahTimerWorker(matchRepo, notifSvc, log)
+	go niyyahTimer.Run(ctx)
 
 	log.Info("worker running, waiting for shutdown signal")
 	<-ctx.Done()
