@@ -313,6 +313,15 @@ func (r *ProfileRepo) GetLeaderboard(ctx context.Context, limit int) ([]domain.L
 	return board, nil
 }
 
+// SetMarriedViaApp sets marital_status = 'married_via_app' on the profile.
+func (r *ProfileRepo) SetMarriedViaApp(ctx context.Context, userID uuid.UUID) error {
+	const q = `UPDATE social.profiles SET marital_status = 'married_via_app' WHERE user_id = $1`
+	if _, err := runner(ctx, r.pool).Exec(ctx, q, userID); err != nil {
+		return fmt.Errorf("setting married via app: %w", err)
+	}
+	return nil
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func nullableString(s string) *string {

@@ -190,6 +190,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 			adminGroup.GET("/kyc/pending", deps.Admin.GetPendingKYC)
 			adminGroup.GET("/kyc/:id/document", deps.Admin.GetKYCDocument)
 			adminGroup.POST("/kyc/:id/review", deps.Admin.ReviewKYC)
+			adminGroup.GET("/whisper-flags", deps.Admin.GetWhisperFlags)
 		}
 	}
 

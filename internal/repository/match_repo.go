@@ -33,4 +33,7 @@ type MatchRepository interface {
 
 	// MarkFamilyIntroDone sets family_intro_done = true on the given match.
 	MarkFamilyIntroDone(ctx context.Context, matchID uuid.UUID) error
+
+	// MarkImamConfirmed sets imam_confirmed = true on the given match.
+	MarkImamConfirmed(ctx context.Context, matchID uuid.UUID) error
 }

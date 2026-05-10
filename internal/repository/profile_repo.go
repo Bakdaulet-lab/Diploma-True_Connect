@@ -22,6 +22,9 @@ type ProfileRepository interface {
 
 	// GetLeaderboard returns the list of users with the highest trust scores.
 	GetLeaderboard(ctx context.Context, limit int) ([]domain.LeaderboardEntry, error)
+
+	// SetMarriedViaApp sets marital_status = 'married_via_app' for the given user's profile.
+	SetMarriedViaApp(ctx context.Context, userID uuid.UUID) error
 }
 
 // FindCandidatesOpts carries all parameters for the candidate search query.

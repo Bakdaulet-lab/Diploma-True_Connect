@@ -14,14 +14,15 @@ import (
 
 type AdminService struct {
 	adminRepo     repository.AdminRepository
+	whisperRepo   repository.WhisperRepository
 	userRepo      repository.UserRepository
 	reputeSvc     *ReputationService
 	tsCache       *redisadapter.TrustStatusCache
 	encryptionKey []byte
 }
 
-func NewAdminService(adminRepo repository.AdminRepository, userRepo repository.UserRepository, reputeSvc *ReputationService, tsCache *redisadapter.TrustStatusCache, encryptionKey []byte) *AdminService {
-	return &AdminService{adminRepo: adminRepo, userRepo: userRepo, reputeSvc: reputeSvc, tsCache: tsCache, encryptionKey: encryptionKey}
+func NewAdminService(adminRepo repository.AdminRepository, whisperRepo repository.WhisperRepository, userRepo repository.UserRepository, reputeSvc *ReputationService, tsCache *redisadapter.TrustStatusCache, encryptionKey []byte) *AdminService {
+	return &AdminService{adminRepo: adminRepo, whisperRepo: whisperRepo, userRepo: userRepo, reputeSvc: reputeSvc, tsCache: tsCache, encryptionKey: encryptionKey}
 }
 
 func (s *AdminService) GetDashboardStats(ctx context.Context) (*repository.AdminDashboardStats, error) {
@@ -73,6 +74,10 @@ func (s *AdminService) UpdateKYCStatus(ctx context.Context, kycID uuid.UUID, sta
 
 func (s *AdminService) GetPendingSybilClusters(ctx context.Context, limit, offset int) ([]*repository.SybilClusterRow, error) {
 	return s.adminRepo.GetPendingSybilClusters(ctx, limit, offset)
+}
+
+func (s *AdminService) GetWhisperFlags(ctx context.Context) ([]repository.WhisperReportRow, error) {
+	return s.whisperRepo.GetFlaggedReports(ctx)
 }
 
 func (s *AdminService) ResolveSybilCluster(ctx context.Context, clusterID uuid.UUID, action string) error {

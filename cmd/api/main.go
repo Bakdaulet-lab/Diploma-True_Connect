@@ -206,7 +206,7 @@ func run() error {
 	reportSvc := service.NewReportService(reportRepo, graphRepo)
 	reportHandler := handler.NewReportHandler(reportSvc, log)
 
-	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), userRepo, reputeSvc, trustStatusCache, encryptionKey)
+	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), postgres.NewWhisperRepo(pgPool), userRepo, reputeSvc, trustStatusCache, encryptionKey)
 	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, mediaStore, trustStatusCache, log)
 
 	// Sprint 6/7 services and handlers
@@ -220,7 +220,7 @@ func run() error {
 	whisperSvc := service.NewWhisperService(whisperRepo, matchRepo, notifSvc, encryptionKey, log)
 	whisperHandler := handler.NewWhisperHandler(whisperSvc, log)
 
-	imamSvc := service.NewImamService()
+	imamSvc := service.NewImamService(matchRepo, profileRepo, notifSvc, log)
 	imamHandler := handler.NewImamHandler(imamSvc, log)
 
 	auditRepo := postgres.NewAuditRepo(pgPool)

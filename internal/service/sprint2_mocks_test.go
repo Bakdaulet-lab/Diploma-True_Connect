@@ -261,6 +261,8 @@ func (m *mockMatchRepo) FindExpiredNiyyahMatches(_ context.Context) ([]*domain.M
 
 func (m *mockMatchRepo) MarkFamilyIntroDone(_ context.Context, _ uuid.UUID) error { return nil }
 
+func (m *mockMatchRepo) MarkImamConfirmed(_ context.Context, _ uuid.UUID) error { return nil }
+
 // ── mockSettingsRepo ──────────────────────────────────────────────────────────
 
 type mockSettingsRepo struct {
@@ -392,3 +394,5 @@ func (m *mockMediaStore) UploadDocument(_ context.Context, userID uuid.UUID, dat
 func (m *mockProfileRepo) GetLeaderboard(_ context.Context, limit int) ([]domain.LeaderboardEntry, error) {
 	return nil, nil
 }
+
+func (m *mockProfileRepo) SetMarriedViaApp(_ context.Context, _ uuid.UUID) error { return nil }

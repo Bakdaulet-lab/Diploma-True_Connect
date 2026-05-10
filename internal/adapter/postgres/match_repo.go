@@ -203,6 +203,15 @@ func (r *MatchRepo) MarkFamilyIntroDone(ctx context.Context, matchID uuid.UUID) 
 	return nil
 }
 
+// MarkImamConfirmed sets imam_confirmed = true on the match.
+func (r *MatchRepo) MarkImamConfirmed(ctx context.Context, matchID uuid.UUID) error {
+	const q = `UPDATE social.matches SET imam_confirmed = true WHERE id = $1`
+	if _, err := runner(ctx, r.pool).Exec(ctx, q, matchID); err != nil {
+		return fmt.Errorf("marking imam confirmed: %w", err)
+	}
+	return nil
+}
+
 // orderPair returns (smaller, larger) UUID so the pair is always consistently ordered.
 func orderPair(a, b uuid.UUID) (uuid.UUID, uuid.UUID) {
 	if a.String() < b.String() {

@@ -192,6 +192,16 @@ func (h *AdminHandler) GetPendingSybilClusters(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": clusters})
 }
 
+func (h *AdminHandler) GetWhisperFlags(c *gin.Context) {
+	flags, err := h.adminSvc.GetWhisperFlags(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to get whisper flags", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not fetch whisper flags", nil)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": flags})
+}
+
 func (h *AdminHandler) ResolveSybilCluster(c *gin.Context) {
 	clusterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

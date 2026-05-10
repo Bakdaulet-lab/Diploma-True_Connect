@@ -1,0 +1,82 @@
+[
+  {
+    "id": "a0000001-a000-4001-a000-000000000001",
+    "name": "Ахмед Сейткали",
+    "city": "Almaty",
+    "mosque": "Мечеть Хазрет Султан (Алматы)",
+    "languages": ["kazakh", "russian"],
+    "availability_notes": "Пт–Вс, после Джума-намаза"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000002",
+    "name": "Нурлан Бектенов",
+    "city": "Almaty",
+    "mosque": "Мечеть Центральная",
+    "languages": ["kazakh"],
+    "availability_notes": "По договорённости"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000003",
+    "name": "Данияр Ержан",
+    "city": "Astana",
+    "mosque": "Мечеть Хазрет Султан",
+    "languages": ["kazakh", "russian", "arabic"],
+    "availability_notes": "Пт и Сб, 14:00–18:00"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000004",
+    "name": "Бекзат Омаров",
+    "city": "Astana",
+    "mosque": "Мечеть Нур-Астана",
+    "languages": ["kazakh", "russian"],
+    "availability_notes": "Ежедневно кроме пятницы"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000005",
+    "name": "Жанибек Алибеков",
+    "city": "Shymkent",
+    "mosque": "Мечеть Ардак",
+    "languages": ["kazakh"],
+    "availability_notes": "Сб–Вс, 10:00–16:00"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000006",
+    "name": "Аділ Назаров",
+    "city": "Shymkent",
+    "mosque": "Мечеть Ақ Мешіт",
+    "languages": ["kazakh", "russian"],
+    "availability_notes": "По предварительной записи"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000007",
+    "name": "Серік Маженов",
+    "city": "Karaganda",
+    "mosque": "Мечеть Нур",
+    "languages": ["kazakh", "russian"],
+    "availability_notes": "Пт–Вс"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000008",
+    "name": "Мейрам Хасенов",
+    "city": "Karaganda",
+    "mosque": "Мечеть Жұлдыз",
+    "languages": ["kazakh"],
+    "availability_notes": "Ежедневно, 9:00–12:00"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000009",
+    "name": "Аскар Кенжебеков",
+    "city": "Semey",
+    "mosque": "Мечеть Абылай Хан",
+    "languages": ["kazakh", "russian"],
+    "availability_notes": "Пт и Сб"
+  },
+  {
+    "id": "a0000001-a000-4001-a000-000000000010",
+    "name": "Тімур Рахімов",
+    "city": "Semey",
+    "mosque": "Мечеть Семей Жамағаты",
+    "languages": ["kazakh"],
+    "availability_notes": "По договорённості"
+  }
+]

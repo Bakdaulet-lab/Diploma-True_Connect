@@ -43,7 +43,7 @@ func (r *WhisperRepo) Create(ctx context.Context, reporterID, reportedID, matchI
 
 func (r *WhisperRepo) GetByReportedUser(ctx context.Context, reportedID uuid.UUID) ([]repository.WhisperReportRow, error) {
 	query := `
-		SELECT reporter_id, reported_id, COALESCE(meeting_match_id, $2), strike_weight, admin_flagged
+		SELECT id, reporter_id, reported_id, COALESCE(meeting_match_id, $2), strike_weight, admin_flagged, created_at
 		FROM social.whisper_reports
 		WHERE reported_id = $1 AND strike_counted = false
 		ORDER BY created_at DESC`
@@ -58,10 +58,37 @@ func (r *WhisperRepo) GetByReportedUser(ctx context.Context, reportedID uuid.UUI
 	for rows.Next() {
 		var row repository.WhisperReportRow
 		if err := rows.Scan(
-			&row.ReporterID, &row.ReportedID, &row.MatchID,
-			&row.StrikeWeight, &row.AdminFlagged,
+			&row.ID, &row.ReporterID, &row.ReportedID, &row.MatchID,
+			&row.StrikeWeight, &row.AdminFlagged, &row.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scanning whisper report: %w", err)
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}
+
+func (r *WhisperRepo) GetFlaggedReports(ctx context.Context) ([]repository.WhisperReportRow, error) {
+	query := `
+		SELECT id, reporter_id, reported_id, COALESCE(meeting_match_id, $1), strike_weight, admin_flagged, created_at
+		FROM social.whisper_reports
+		WHERE admin_flagged = true
+		ORDER BY created_at DESC`
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, uuid.Nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting flagged whisper reports: %w", err)
+	}
+	defer rows.Close()
+
+	var result []repository.WhisperReportRow
+	for rows.Next() {
+		var row repository.WhisperReportRow
+		if err := rows.Scan(
+			&row.ID, &row.ReporterID, &row.ReportedID, &row.MatchID,
+			&row.StrikeWeight, &row.AdminFlagged, &row.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scanning flagged whisper report: %w", err)
 		}
 		result = append(result, row)
 	}

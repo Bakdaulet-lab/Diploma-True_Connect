@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -20,13 +21,18 @@ type WhisperRepository interface {
 
 	// FlagForAdmin marks all uncounted reports for reportedID as admin_flagged.
 	FlagForAdmin(ctx context.Context, reportedID uuid.UUID) error
+
+	// GetFlaggedReports returns all reports that have been admin_flagged, newest first.
+	GetFlaggedReports(ctx context.Context) ([]WhisperReportRow, error)
 }
 
 // WhisperReportRow is the minimal row returned for admin review.
 type WhisperReportRow struct {
-	ReporterID  uuid.UUID
-	ReportedID  uuid.UUID
-	MatchID     uuid.UUID
+	ID           uuid.UUID
+	ReporterID   uuid.UUID
+	ReportedID   uuid.UUID
+	MatchID      uuid.UUID
 	StrikeWeight int
 	AdminFlagged bool
+	CreatedAt    time.Time
 }
