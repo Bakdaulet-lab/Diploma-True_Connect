@@ -9,17 +9,13 @@
 - [x] **P0-3** Seed users: bcrypt → Argon2id, fixed down schema (commits e978778 + cef3d06)
 - [x] **P0-4** RATED edge: CREATE → MERGE, no double-count (commit d798b18). Соответствует диплому Section 6.4.
 - [x] **P0-5 part 1/3** Trust status cache adapter в Redis (commit f702d64)
-
-## В работе 🔧
-
-- [ ] **P0-5 part 2/3** Auth middleware читает trust_status из БД с кешем (Section 6.6).
-  Files: `internal/handler/middleware/auth_middleware.go`, `internal/handler/router.go`, `cmd/api/main.go`.
-  Strategy: cache hit → use; cache miss → DB read → cache fill; DB error → 500 fail-closed; не fail-open.
-  Block: banned, suspended, under_review.
-
-- [ ] **P0-5 part 3/3** Invalidate trust status cache on ban/suspend.
-  Files: `admin_handler.go` (ReviewVerdict, ResolveSybilCluster), `internal/worker/sybil_detector.go`.
-  After any UpdateTrustStatus → tsCache.Delete(userID).
+- [x] **P0-5 part 2/3** Auth middleware читает trust_status из БД с кешем (commit cffc4f7).
+  `AuthMiddleware` struct: cache hit → use; miss/Redis error → DB fallback + warn; DB error → 500 fail-closed.
+  Блокирует: banned, suspended, under_review. Заменил старый `Auth(jwt)` (JWT-only, fail-open).
+- [x] **P0-5 part 3/3** Invalidate trust status cache on ban/suspend/review (commit bc7d7bf).
+  `AdminHandler.ReviewVerdict` → `tsCache.Delete(targetID)`.
+  `AdminService.ResolveSybilCluster` → `tsCache.Delete(uid)` для каждого suspect.
+  `SybilDetector.detect` → `tsCache.Delete(uid)` после UpdateTrustStatus.
 
 ## Дальше 📋
 
