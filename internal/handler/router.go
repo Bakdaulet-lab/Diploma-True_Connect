@@ -152,6 +152,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		// в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ Admin / Review Workflow в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 		if deps.Admin != nil {
 			adminGroup := protected.Group("/admin")
+			adminGroup.Use(middleware.RequireAdmin())
 			adminGroup.GET("/users/under-review", deps.Admin.ListUnderReview)
 			adminGroup.POST("/users/:id/review", deps.Admin.ReviewVerdict)
 			adminGroup.GET("/sybil-clusters", deps.Admin.GetSybilClusters)

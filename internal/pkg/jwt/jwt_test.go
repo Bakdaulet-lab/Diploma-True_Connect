@@ -18,7 +18,7 @@ func TestGenerate_ReturnsNonEmptyToken(t *testing.T) {
 	t.Parallel()
 
 	m := newTestManager(15 * time.Minute)
-	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal)
+	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestGenerate_ProducesThreeParts(t *testing.T) {
 	t.Parallel()
 
 	m := newTestManager(15 * time.Minute)
-	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal)
+	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestVerify_ValidToken(t *testing.T) {
 	m := newTestManager(15 * time.Minute)
 	userID := uuid.New()
 
-	token, err := m.Generate(userID, domain.VerificationPhoneVerified, domain.TrustStatusNormal)
+	token, err := m.Generate(userID, domain.VerificationPhoneVerified, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestVerify_ExpiredToken(t *testing.T) {
 
 	// Issue a token that expired 1 second ago.
 	m := newTestManager(-1 * time.Second)
-	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal)
+	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestVerify_TamperedToken(t *testing.T) {
 	t.Parallel()
 
 	m := newTestManager(15 * time.Minute)
-	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal)
+	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestVerify_WrongSecret(t *testing.T) {
 	issuer := tcjwt.NewManager("secret-used-to-sign-xxxxxxxxxxxxxxxxx", 15*time.Minute)
 	verifier := tcjwt.NewManager("different-secret-xxxxxxxxxxxxxxxxxxxxxxx", 15*time.Minute)
 
-	token, err := issuer.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal)
+	token, err := issuer.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestVerify_ClaimsContainCorrectExpiry(t *testing.T) {
 	m := newTestManager(expiry)
 
 	before := time.Now()
-	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal)
+	token, err := m.Generate(uuid.New(), domain.VerificationNone, domain.TrustStatusNormal, false)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}

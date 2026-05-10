@@ -1,0 +1,2 @@
+ALTER TABLE social.users
+    ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;

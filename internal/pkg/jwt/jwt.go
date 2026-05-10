@@ -14,6 +14,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 	VerificationLevel domain.VerificationLevel `json:"ver"`
 	TrustStatus       domain.TrustStatus       `json:"tst"`
+	IsAdmin           bool                     `json:"adm"`
 }
 
 // Manager handles JWT creation and verification.
@@ -31,7 +32,7 @@ func NewManager(secret string, expiry time.Duration) *Manager {
 }
 
 // Generate creates a new signed JWT access token.
-func (m *Manager) Generate(userID uuid.UUID, verLevel domain.VerificationLevel, trustStatus domain.TrustStatus) (string, error) {
+func (m *Manager) Generate(userID uuid.UUID, verLevel domain.VerificationLevel, trustStatus domain.TrustStatus, isAdmin bool) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -41,6 +42,7 @@ func (m *Manager) Generate(userID uuid.UUID, verLevel domain.VerificationLevel, 
 		},
 		VerificationLevel: verLevel,
 		TrustStatus:       trustStatus,
+		IsAdmin:           isAdmin,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

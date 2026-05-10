@@ -59,7 +59,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted,
 			   password_hash, public_key, verification_level, trust_status, trust_score,
-			   is_active, last_login_at, fcm_token, created_at, updated_at
+			   is_admin, is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE id = $1 AND is_active = true`
 
@@ -74,6 +74,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 		&user.VerificationLevel,
 		&user.TrustStatus,
 		&user.TrustScore,
+		&user.IsAdmin,
 		&user.IsActive,
 		&user.LastLoginAt,
 		&user.FCMToken,
@@ -94,7 +95,7 @@ func (r *UserRepo) GetByPhoneHash(ctx context.Context, phoneHash []byte) (*domai
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted,
 			   password_hash, public_key, verification_level, trust_status, trust_score,
-			   is_active, last_login_at, fcm_token, created_at, updated_at
+			   is_admin, is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE phone_hash = $1 AND is_active = true`
 
@@ -109,6 +110,7 @@ func (r *UserRepo) GetByPhoneHash(ctx context.Context, phoneHash []byte) (*domai
 		&user.VerificationLevel,
 		&user.TrustStatus,
 		&user.TrustScore,
+		&user.IsAdmin,
 		&user.IsActive,
 		&user.LastLoginAt,
 		&user.FCMToken,
@@ -242,7 +244,7 @@ func isDuplicateKey(err error) bool {
 func (r *UserRepo) ListByTrustStatus(ctx context.Context, status domain.TrustStatus, limit, offset int) ([]*domain.User, error) {
 	query := `
 		SELECT id, phone_hash, phone_encrypted, email_encrypted, password_hash,
-		       verification_level, trust_status, trust_score, is_active, last_login_at, fcm_token, created_at, updated_at
+		       verification_level, trust_status, trust_score, is_admin, is_active, last_login_at, fcm_token, created_at, updated_at
 		FROM social.users
 		WHERE trust_status = $1
 		ORDER BY created_at ASC
@@ -266,6 +268,7 @@ func (r *UserRepo) ListByTrustStatus(ctx context.Context, status domain.TrustSta
 			&user.VerificationLevel,
 			&user.TrustStatus,
 			&user.TrustScore,
+			&user.IsAdmin,
 			&user.IsActive,
 			&user.LastLoginAt,
 			&user.FCMToken,

@@ -23,6 +23,8 @@ const (
 	ContextKeyVerificationLevel = "verification_level"
 	// ContextKeyTrustStatus is the gin context key for the user's trust status.
 	ContextKeyTrustStatus = "trust_status"
+	// ContextKeyIsAdmin is the gin context key for the admin flag.
+	ContextKeyIsAdmin = "is_admin"
 )
 
 // AuthMiddleware validates JWT tokens and enforces trust status on every protected request.
@@ -89,6 +91,7 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 		c.Set(ContextKeyUserID, userID)
 		c.Set(ContextKeyVerificationLevel, claims.VerificationLevel)
 		c.Set(ContextKeyTrustStatus, status)
+		c.Set(ContextKeyIsAdmin, claims.IsAdmin)
 		c.Next()
 	}
 }
@@ -135,6 +138,19 @@ func GetUserID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	uid, ok := val.(uuid.UUID)
 	return uid, ok
+}
+
+// RequireAdmin aborts with 403 if the authenticated user does not have the admin flag set.
+// Must be placed after Authenticate() in the middleware chain.
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		isAdmin, _ := c.Get(ContextKeyIsAdmin)
+		if admin, ok := isAdmin.(bool); !ok || !admin {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin_required"})
+			return
+		}
+		c.Next()
+	}
 }
 
 // Auth is deprecated — use NewAuthMiddleware(...).Authenticate() instead.

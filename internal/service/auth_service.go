@@ -211,7 +211,7 @@ func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string) error 
 
 // issueTokens creates a new JWT + refresh token pair and persists the refresh token.
 func (s *AuthService) issueTokens(ctx context.Context, user *domain.User) (*AuthResult, error) {
-	accessToken, err := s.jwt.Generate(user.ID, user.VerificationLevel, user.TrustStatus)
+	accessToken, err := s.jwt.Generate(user.ID, user.VerificationLevel, user.TrustStatus, user.IsAdmin)
 	if err != nil {
 		return nil, fmt.Errorf("generating access token: %w", err)
 	}

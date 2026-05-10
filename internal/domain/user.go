@@ -34,6 +34,7 @@ type User struct {
 	VerificationLevel VerificationLevel
 	TrustStatus       TrustStatus
 	TrustScore        int
+	IsAdmin           bool
 	IsActive          bool
 	LastLoginAt       *time.Time
 	FCMToken          *string
