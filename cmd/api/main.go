@@ -174,6 +174,10 @@ func run() error {
 	postSvc := service.NewPostService(postRepo, mediaStore, notifSvc)
 	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey, pushCh)
 
+	// Sprint 10: Mahram group chat (declared before Hub so the Hub can reference it)
+	mahramChatRepo := postgres.NewMahramChatRepo(pgPool)
+	mahramChatSvc := service.NewMahramChatService(mahramChatRepo, matchRepo, encryptionKey, redisClient, log)
+
 	// в”Ђв”Ђ Handlers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	authHandler := handler.NewAuthHandler(authSvc, log, cfg.Server.Env == "development")
@@ -188,7 +192,7 @@ func run() error {
 
 	// Sprint 4 handlers
 	postHandler := handler.NewPostHandler(postSvc, reputeSvc, log)
-	chatHub := handler.NewHub(chatSvc, matchingSvc, reputeSvc, redisClient, jwtManager, log,
+	chatHub := handler.NewHub(chatSvc, matchingSvc, reputeSvc, mahramChatSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
 	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)
@@ -209,6 +213,8 @@ func run() error {
 	mahramRepo := postgres.NewMahramRepo(pgPool)
 	mahramSvc := service.NewMahramService(mahramRepo, encryptionKey, log)
 	mahramHandler := handler.NewMahramHandler(mahramSvc, log)
+
+	mahramChatHandler := handler.NewMahramChatHandler(mahramChatSvc, log)
 
 	whisperRepo := postgres.NewWhisperRepo(pgPool)
 	whisperSvc := service.NewWhisperService(whisperRepo, matchRepo, notifSvc, encryptionKey, log)
@@ -242,6 +248,7 @@ func run() error {
 		Report:           reportHandler,
 		Admin:            adminHandler,
 		Mahram:           mahramHandler,
+		MahramChat:       mahramChatHandler,
 		Whisper:          whisperHandler,
 		Imam:             imamHandler,
 		AuditRepo:        auditRepo,

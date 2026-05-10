@@ -194,6 +194,15 @@ func (r *MatchRepo) FindExpiredNiyyahMatches(ctx context.Context) ([]*domain.Mat
 	return matches, rows.Err()
 }
 
+// MarkFamilyIntroDone sets family_intro_done = true on the match.
+func (r *MatchRepo) MarkFamilyIntroDone(ctx context.Context, matchID uuid.UUID) error {
+	const q = `UPDATE social.matches SET family_intro_done = true WHERE id = $1`
+	if _, err := runner(ctx, r.pool).Exec(ctx, q, matchID); err != nil {
+		return fmt.Errorf("marking family intro done: %w", err)
+	}
+	return nil
+}
+
 // orderPair returns (smaller, larger) UUID so the pair is always consistently ordered.
 func orderPair(a, b uuid.UUID) (uuid.UUID, uuid.UUID) {
 	if a.String() < b.String() {

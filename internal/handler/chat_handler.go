@@ -38,6 +38,11 @@ type wsReadPayload struct {
 	MatchID string `json:"match_id"`
 }
 
+type wsMahramChatPayload struct {
+	RoomID  string `json:"room_id"`
+	Content string `json:"content"`
+}
+
 type wsTypingPayload struct {
 	MatchID string `json:"match_id"`
 }
@@ -52,16 +57,17 @@ type wsOutgoing struct {
 
 // Hub manages WebSocket connections and message routing.
 type Hub struct {
-	mu             sync.RWMutex
-	connections    map[uuid.UUID]*websocket.Conn
-	chatSvc        *service.ChatService
-	matchSvc       *service.MatchingService
-	reputationSvc  *service.ReputationService
-	rdb            *redis.Client
-	jwtManager     *tcjwt.Manager
-	log            *slog.Logger
-	allowedOrigins []string
-	isDev          bool
+	mu              sync.RWMutex
+	connections     map[uuid.UUID]*websocket.Conn
+	chatSvc         *service.ChatService
+	matchSvc        *service.MatchingService
+	reputationSvc   *service.ReputationService
+	mahramChatSvc   *service.MahramChatService
+	rdb             *redis.Client
+	jwtManager      *tcjwt.Manager
+	log             *slog.Logger
+	allowedOrigins  []string
+	isDev           bool
 }
 
 // NewHub creates a new WebSocket hub.
@@ -69,6 +75,7 @@ func NewHub(
 	chatSvc *service.ChatService,
 	matchSvc *service.MatchingService,
 	reputationSvc *service.ReputationService,
+	mahramChatSvc *service.MahramChatService,
 	rdb *redis.Client,
 	jwtManager *tcjwt.Manager,
 	log *slog.Logger,
@@ -80,6 +87,7 @@ func NewHub(
 		chatSvc:        chatSvc,
 		matchSvc:       matchSvc,
 		reputationSvc:  reputationSvc,
+		mahramChatSvc:  mahramChatSvc,
 		rdb:            rdb,
 		jwtManager:     jwtManager,
 		log:            log,
@@ -286,6 +294,8 @@ func (h *Hub) readLoop(ctx context.Context, conn *websocket.Conn, userID uuid.UU
 		switch msg.Type {
 		case "chat_msg":
 			h.handleChatMsg(ctx, userID, msg.Payload)
+		case "mahram_chat_msg":
+			h.handleMahramChatMsg(ctx, userID, msg.Payload)
 		case "typing":
 			h.handleTyping(ctx, userID, msg.Payload)
 		case "read":
@@ -352,6 +362,42 @@ func (h *Hub) handleChatMsg(ctx context.Context, senderID uuid.UUID, payload jso
 		recipientID := service.RecipientID(match, senderID)
 		h.publish(ctx, recipientID, outMsg)
 	}
+}
+
+func (h *Hub) handleMahramChatMsg(ctx context.Context, senderID uuid.UUID, payload json.RawMessage) {
+	if h.mahramChatSvc == nil {
+		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "mahram chat not enabled"})
+		return
+	}
+
+	var p wsMahramChatPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "invalid mahram_chat_msg payload"})
+		return
+	}
+
+	roomID, err := uuid.Parse(p.RoomID)
+	if err != nil {
+		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "invalid room_id"})
+		return
+	}
+
+	isBlocked, _ := halalfilter.CheckMessage(p.Content)
+	if isBlocked {
+		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "message blocked by content policy"})
+		return
+	}
+
+	_, err = h.mahramChatSvc.SendMessage(ctx, roomID, senderID, p.Content)
+	if err != nil {
+		if errors.Is(err, domain.ErrForbidden) {
+			h.sendTo(senderID, wsOutgoing{Type: "error", Error: "not a room participant"})
+		} else {
+			h.log.Error("mahram_chat_msg error", slog.String("error", err.Error()))
+			h.sendTo(senderID, wsOutgoing{Type: "error", Error: "could not send message"})
+		}
+	}
+	// Relay is handled inside MahramChatService.SendMessage via Redis pub/sub.
 }
 
 func (h *Hub) handleTyping(ctx context.Context, senderID uuid.UUID, payload json.RawMessage) {

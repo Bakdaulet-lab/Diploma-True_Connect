@@ -147,6 +147,37 @@ func (h *MatchingHandler) ListMatches(c *gin.Context) {
 	})
 }
 
+// FamilyIntro handles POST /v1/matches/:id/family-intro
+func (h *MatchingHandler) FamilyIntro(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	matchID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		errorResponse(c, http.StatusBadRequest, "INVALID_ID", "id must be a valid UUID", nil)
+		return
+	}
+
+	if err := h.matchingSvc.FamilyIntroductionDone(c.Request.Context(), matchID, userID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			errorResponse(c, http.StatusNotFound, "NOT_FOUND", "match not found", nil)
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			errorResponse(c, http.StatusForbidden, "FORBIDDEN", "match not finalized", nil)
+			return
+		}
+		h.log.Error("family intro error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not record milestone", nil)
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
+}
+
 // GetGraphCandidates handles GET /v1/matching/graph-candidates
 func (h *MatchingHandler) GetGraphCandidates(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)

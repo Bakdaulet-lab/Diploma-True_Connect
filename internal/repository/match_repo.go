@@ -30,4 +30,7 @@ type MatchRepository interface {
 	// FindExpiredNiyyahMatches returns mutual matches whose 90-day niyyah timer
 	// expired within the last 25 hours (so the daily worker processes each once).
 	FindExpiredNiyyahMatches(ctx context.Context) ([]*domain.Match, error)
+
+	// MarkFamilyIntroDone sets family_intro_done = true on the given match.
+	MarkFamilyIntroDone(ctx context.Context, matchID uuid.UUID) error
 }

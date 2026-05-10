@@ -1,4 +1,4 @@
-.PHONY: build run test lint migrate-up migrate-down docker-up docker-down clean
+.PHONY: build run test lint migrate-up migrate-down docker-up docker-down clean seed-halal reset-demo
 
 # Build all binaries
 build:
@@ -47,3 +47,16 @@ docker-reset:
 # Clean build artifacts
 clean:
 	rm -rf bin/
+
+# Load Айгерим + Алихан demo users into the running Postgres container.
+seed-halal:
+	cat migrations/seed_halal_demo.sql | docker compose -f deployments/docker-compose.yml exec -T postgres psql -U postgres -d trueconnect
+
+# Full reset: tear down volumes, rebuild, migrate, and reseed demo data.
+reset-demo:
+	docker compose -f deployments/docker-compose.yml down -v
+	docker compose -f deployments/docker-compose.yml --env-file .env up --build -d
+	@echo "Waiting for Postgres to be ready..."
+	@sleep 12
+	go run ./cmd/migrate up
+	$(MAKE) seed-halal

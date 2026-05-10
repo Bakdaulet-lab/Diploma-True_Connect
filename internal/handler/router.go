@@ -28,6 +28,7 @@ type RouterDeps struct {
 	Report       *ReportHandler
 	Admin        *AdminHandler
 	Mahram       *MahramHandler
+	MahramChat   *MahramChatHandler
 	Whisper      *WhisperHandler
 	Imam         *ImamHandler
 	AuditRepo        repository.AuditRepository
@@ -111,6 +112,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		protected.POST("/matching/like", userRL, deps.Matching.Like)
 		protected.POST("/matching/pass", userRL, deps.Matching.Pass)
 		protected.GET("/matches", deps.Matching.ListMatches)
+		protected.POST("/matches/:id/family-intro", userRL, deps.Matching.FamilyIntro)
 
 		// в"Ђв"Ђ Settings в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 		protected.GET("/settings", deps.Settings.GetSettings)
@@ -151,6 +153,12 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 
 		// в"Ђв"Ђ Reports в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 		protected.POST("/reports", userRL, deps.Report.CreateReport)
+
+		// Mahram Group Chat
+		if deps.MahramChat != nil {
+			protected.POST("/mahram-rooms", userRL, deps.MahramChat.CreateRoom)
+			protected.GET("/mahram-rooms/:room_id/messages", deps.MahramChat.GetMessages)
+		}
 
 		// Mahram Registration
 		if deps.Mahram != nil {

@@ -157,6 +157,13 @@ make test
 - `GET /v1/imams?city=...` - List imams by city
 - `POST /v1/matches/:id/nikah-confirm` - Confirm nikah with an imam
 
+### Mahram Group Chat (3-way chaperoned chat)
+- `POST /v1/mahram-rooms` - Create a mahram chat room for a match
+- `GET /v1/mahram-rooms/:room_id/messages` - Get paginated room messages
+
+### Family Introduction Milestone
+- `POST /v1/matches/:id/family-intro` - Mark family introduction as complete
+
 ### Health
 - `GET /v1/health` - Service health check
 
@@ -188,6 +195,33 @@ See `.env.example` for all required variables. Key settings:
 | `MINIO_*` | MinIO connection settings |
 | `JWT_SECRET` | JWT signing key (32+ chars) |
 | `ENCRYPTION_KEY` | AES-256 key for PII (64 hex chars) |
+
+## Running the Demo
+
+The demo scenario "Айгерим meets Алихан in 90 seconds" showcases niyyah-compatible matching, mahram chat, and Imam Connect end-to-end.
+
+```bash
+# 1. Start all services and apply migrations
+make docker-up && make migrate-up
+
+# 2. Load demo users (Айгерим + Алихан pre-seeded in Almaty with nikah_year / hanafi)
+make seed-halal
+
+# 3. Run the Flutter app
+flutter run -d android     # or -d chrome for web preview
+
+# 4. Login as Айгерим: +7 111 111 1111 / demo password
+#    Алихан has already liked Айгерим → mutual match fires on her first swipe right.
+
+# Full reset + reseed when needed
+make reset-demo
+```
+
+**Demo credentials (after seed-halal):**
+- Айгерим: phone `+7 111 111 1111` — female, nikah_year, hanafi, Almaty, trust 82
+- Алихан:  phone `+7 222 222 2222` — male,   nikah_year, hanafi, Almaty, trust 78 (+10 madhab boost displayed)
+
+See `docs/PIVOT_PLAN.md` for the full 90-second demo scenario table.
 
 ## Architecture
 

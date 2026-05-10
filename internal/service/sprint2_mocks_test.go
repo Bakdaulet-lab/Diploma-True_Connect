@@ -259,6 +259,8 @@ func (m *mockMatchRepo) FindExpiredNiyyahMatches(_ context.Context) ([]*domain.M
 	return nil, nil
 }
 
+func (m *mockMatchRepo) MarkFamilyIntroDone(_ context.Context, _ uuid.UUID) error { return nil }
+
 // ── mockSettingsRepo ──────────────────────────────────────────────────────────
 
 type mockSettingsRepo struct {

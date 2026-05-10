@@ -287,6 +287,39 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cur
 	return views, nextCursor, nil
 }
 
+// FamilyIntroductionDone marks a match as having completed the family introduction milestone.
+// callerID must be one of the match participants.
+func (s *MatchingService) FamilyIntroductionDone(ctx context.Context, matchID, callerID uuid.UUID) error {
+	match, err := s.matchRepo.GetMatch(ctx, matchID, callerID)
+	if err != nil {
+		return fmt.Errorf("family intro: %w", err)
+	}
+	if match.MatchedAt == nil {
+		return fmt.Errorf("family intro: match not finalized: %w", domain.ErrForbidden)
+	}
+
+	if err := s.matchRepo.MarkFamilyIntroDone(ctx, matchID); err != nil {
+		return fmt.Errorf("family intro: %w", err)
+	}
+
+	// Notify both participants.
+	otherID := match.UserAID
+	if otherID == callerID {
+		otherID = match.UserBID
+	}
+	matchIDCopy := matchID
+	if s.notifSvc != nil {
+		for _, uid := range []uuid.UUID{callerID, otherID} {
+			_ = s.notifSvc.Create(ctx, &domain.Notification{
+				UserID:   uid,
+				Type:     domain.NotificationTypeSystem,
+				EntityID: &matchIDCopy,
+			})
+		}
+	}
+	return nil
+}
+
 // GetGraphCandidates returns a batch of profiles from Neo4j (friends-of-friends).
 func (s *MatchingService) GetGraphCandidates(ctx context.Context, userID uuid.UUID) ([]*CandidateView, error) {
 	recIDs, err := s.trustGraphRepo.GetRecommendations(ctx, userID, candidateBatchSize)
