@@ -1,6 +1,10 @@
 # TrueConnect Backend
 
-Trust-based social networking and dating platform for Kazakhstan. Built with Go, PostgreSQL, Neo4j, Redis, and MinIO.
+Muslim-focused trust-based social networking and matchmaking platform for Kazakhstan. Built with Go, PostgreSQL, Neo4j, Redis, and MinIO.
+
+> **Client status:**
+> - **Flutter (mobile)** — actively developed. Primary client.
+> - **Next.js (web)** — frozen as legacy from v6, no longer actively maintained. Mobile-first via Flutter.
 
 ## Tech Stack
 
@@ -140,6 +144,18 @@ make test
 
 ### Reports
 - `POST /v1/reports` - Report a user
+
+### Mahram Registration (Islamic guardian system)
+- `POST /v1/mahram` - Register a mahram (guardian) by phone
+- `GET /v1/mahram` - List own mahrams
+- `POST /v1/mahram/:id/verify` - Verify mahram OTP code
+
+### Whisper Network (anonymous post-match feedback)
+- `POST /v1/whisper` - Submit anonymous feedback about a past match
+
+### Imam Connect
+- `GET /v1/imams?city=...` - List imams by city
+- `POST /v1/matches/:id/nikah-confirm` - Confirm nikah with an imam
 
 ### Health
 - `GET /v1/health` - Service health check

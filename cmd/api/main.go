@@ -205,6 +205,18 @@ func run() error {
 	adminService := service.NewAdminService(postgres.NewAdminRepo(pgPool), userRepo, reputeSvc, trustStatusCache, encryptionKey)
 	adminHandler := handler.NewAdminHandler(userSvc, reputeSvc, adminService, mediaStore, trustStatusCache, log)
 
+	// Sprint 6/7 services and handlers
+	mahramRepo := postgres.NewMahramRepo(pgPool)
+	mahramSvc := service.NewMahramService(mahramRepo, encryptionKey, log)
+	mahramHandler := handler.NewMahramHandler(mahramSvc, log)
+
+	whisperRepo := postgres.NewWhisperRepo(pgPool)
+	whisperSvc := service.NewWhisperService(whisperRepo, matchRepo, notifSvc, encryptionKey, log)
+	whisperHandler := handler.NewWhisperHandler(whisperSvc, log)
+
+	imamSvc := service.NewImamService()
+	imamHandler := handler.NewImamHandler(imamSvc, log)
+
 	auditRepo := postgres.NewAuditRepo(pgPool)
 
 	healthDeps := &handler.HealthDeps{
@@ -216,19 +228,22 @@ func run() error {
 	// в”Ђв”Ђ Router в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 	router := handler.NewRouter(&handler.RouterDeps{
-		Health:       healthDeps,
-		Auth:         authHandler,
-		Profile:      profileHandler,
-		Matching:     matchingHandler,
-		Settings:     settingsHandler,
-		Interaction:  interactionHandler,
-		Post:         postHandler,
-		Chat:         chatHub,
-		KYC:          kycHandler,
-		Notification: handler.NewNotificationHandler(notifSvc, log),
-		User:         userHandler,
-		Report:       reportHandler,
-		Admin:        adminHandler,
+		Health:           healthDeps,
+		Auth:             authHandler,
+		Profile:          profileHandler,
+		Matching:         matchingHandler,
+		Settings:         settingsHandler,
+		Interaction:      interactionHandler,
+		Post:             postHandler,
+		Chat:             chatHub,
+		KYC:              kycHandler,
+		Notification:     handler.NewNotificationHandler(notifSvc, log),
+		User:             userHandler,
+		Report:           reportHandler,
+		Admin:            adminHandler,
+		Mahram:           mahramHandler,
+		Whisper:          whisperHandler,
+		Imam:             imamHandler,
 		AuditRepo:        auditRepo,
 		JWT:              jwtManager,
 		Redis:            redisClient,
@@ -274,4 +289,3 @@ func run() error {
 	log.Info("server stopped gracefully")
 	return nil
 }
-

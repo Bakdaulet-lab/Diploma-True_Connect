@@ -26,7 +26,8 @@
 │                        CLIENTS                                      │
 │   ┌──────────────┐   ┌──────────────┐   ┌──────────────────────┐   │
 │   │  Flutter App  │   │  Next.js Web │   │  Admin Dashboard     │   │
-│   │  (iOS/Android)│   │  (SSR + SPA) │   │  (Next.js internal)  │   │
+│   │  (iOS/Android)│   │ [DEPRECATED] │   │  (Next.js internal)  │   │
+│   │  PRIMARY     │   │  legacy v6   │   │  (internal only)     │   │
 │   └──────┬───────┘   └──────┬───────┘   └──────────┬───────────┘   │
 └──────────┼──────────────────┼──────────────────────┼───────────────┘
            │                  │                      │
@@ -1222,6 +1223,91 @@ volumes:
   neo4j_data:
   minio_data:
 ```
+
+---
+
+## Appendix C: Halal Pivot — New Database Tables (Sprints 6–8)
+
+Added on branch `app-v7`. Migrations `000013`–`000016`. All tables in `social` schema unless noted.
+
+### New ENUMs (migration 000013)
+
+```sql
+CREATE TYPE social.niyyah AS ENUM ('nikah_year', 'serious_marriage', 'friendship');
+CREATE TYPE social.madhab AS ENUM ('hanafi', 'shafii', 'maliki', 'hanbali', 'none');
+```
+
+### Extended columns
+
+| Table | New columns |
+|---|---|
+| `social.profiles` | `niyyah social.niyyah`, `madhab social.madhab`, `languages TEXT[]`, `no_photo_mode BOOLEAN DEFAULT false`, `marital_status VARCHAR(20) DEFAULT 'single'` |
+| `social.user_settings` | `modesty_level INT DEFAULT 0`, `niyyah_filter TEXT`, `madhab_filter TEXT` |
+| `social.matches` | `niyyah_timer_ends_at TIMESTAMPTZ`, `family_intro_done BOOLEAN DEFAULT false`, `imam_confirmed BOOLEAN DEFAULT false` |
+
+### New tables (migrations 000014–000015)
+
+```sql
+-- Mahram (Islamic guardian) registration
+CREATE TABLE social.mahrams (
+    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    woman_user_id           UUID NOT NULL REFERENCES social.users(id) ON DELETE CASCADE,
+    mahram_phone_encrypted  BYTEA NOT NULL,
+    mahram_phone_hash       BYTEA NOT NULL UNIQUE,
+    telegram_chat_id        BIGINT,
+    verification_status     VARCHAR(20) NOT NULL DEFAULT 'pending',
+    verified_at             TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3-way mahram group chat rooms
+CREATE TABLE social.mahram_chat_rooms (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    match_id        UUID UNIQUE REFERENCES social.matches(id),
+    mahram_user_id  UUID REFERENCES social.users(id),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Mahram group chat messages (AES-256-GCM encrypted)
+CREATE TABLE social.mahram_messages (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    room_id         UUID NOT NULL REFERENCES social.mahram_chat_rooms(id),
+    sender_id       UUID NOT NULL REFERENCES social.users(id),
+    content_encrypted BYTEA NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Whisper Network: anonymous post-match safety feedback
+CREATE TABLE social.whisper_reports (
+    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    reporter_id             UUID NOT NULL REFERENCES social.users(id),
+    reported_id             UUID NOT NULL REFERENCES social.users(id),
+    meeting_match_id        UUID REFERENCES social.matches(id),
+    feedback_encrypted      BYTEA NOT NULL,
+    strike_weight           INT NOT NULL DEFAULT 1,
+    strike_counted          BOOLEAN NOT NULL DEFAULT false,
+    admin_flagged           BOOLEAN NOT NULL DEFAULT false,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### KYC IIN Uniqueness (migration 000016)
+
+```sql
+-- Prevents ban-evasion re-registration with same government ID
+ALTER TABLE identity_vault.verifications
+    ADD COLUMN iin_hash BYTEA NOT NULL DEFAULT ''::bytea;
+CREATE UNIQUE INDEX idx_verifications_iin_hash
+    ON identity_vault.verifications (iin_hash)
+    WHERE iin_hash != ''::bytea;
+```
+
+### Frontend status (Sprint 8)
+
+| Client | Status |
+|---|---|
+| Flutter (`frontend/`) | **Active** — primary mobile client (Sprints 12–13) |
+| Next.js (`web/`) | **Deprecated** — frozen at v6, no longer maintained |
 
 ---
 

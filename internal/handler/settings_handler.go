@@ -87,6 +87,21 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 			input.AgeRangeMax = &n
 		}
 	}
+	if v, ok := raw["modesty_level"]; ok {
+		if n, ok := toInt(v); ok {
+			input.ModestyLevel = &n
+		}
+	}
+	if v, ok := raw["niyyah_filter"]; ok {
+		if s, ok := v.(string); ok {
+			input.NiyyahFilter = &s
+		}
+	}
+	if v, ok := raw["madhab_filter"]; ok {
+		if s, ok := v.(string); ok {
+			input.MadhabFilter = &s
+		}
+	}
 
 	updated, err := h.settingsSvc.Update(c.Request.Context(), userID, input)
 	if err != nil {

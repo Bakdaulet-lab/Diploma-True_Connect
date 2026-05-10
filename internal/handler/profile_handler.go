@@ -56,6 +56,10 @@ type upsertProfileRequest struct {
 	Longitude   *float64              `json:"longitude"    validate:"omitempty,min=-180,max=180"`
 	LookingFor  string                `json:"looking_for"  validate:"omitempty,oneof=male female other"`
 	Prompts     []domain.PromptAnswer `json:"prompts"      validate:"omitempty"`
+	Niyyah      *string               `json:"niyyah"`
+	Madhab      *string               `json:"madhab"`
+	Languages   []string              `json:"languages"    validate:"omitempty,dive,max=50"`
+	NoPhotoMode *bool                 `json:"no_photo_mode"`
 }
 
 // UpsertProfile handles PUT /v1/profiles/me.
@@ -76,6 +80,16 @@ func (h *ProfileHandler) UpsertProfile(c *gin.Context) {
 		return
 	}
 
+	var niyyah domain.Niyyah
+	if req.Niyyah != nil {
+		niyyah = domain.Niyyah(*req.Niyyah)
+	}
+	var madhab domain.Madhab
+	if req.Madhab != nil {
+		madhab = domain.Madhab(*req.Madhab)
+	}
+	noPhotoMode := req.NoPhotoMode != nil && *req.NoPhotoMode
+
 	input := service.UpsertProfileInput{
 		DisplayName: req.DisplayName,
 		Bio:         req.Bio,
@@ -85,6 +99,10 @@ func (h *ProfileHandler) UpsertProfile(c *gin.Context) {
 		Longitude:   req.Longitude,
 		LookingFor:  domain.Gender(req.LookingFor),
 		Prompts:     req.Prompts,
+		Niyyah:      niyyah,
+		Madhab:      madhab,
+		Languages:   req.Languages,
+		NoPhotoMode: noPhotoMode,
 	}
 
 	if req.BirthDate != nil && *req.BirthDate != "" {
