@@ -17,10 +17,16 @@
   `AdminService.ResolveSybilCluster` → `tsCache.Delete(uid)` для каждого suspect.
   `SybilDetector.detect` → `tsCache.Delete(uid)` после UpdateTrustStatus.
 
+- [x] **P0-6** Admin role + RequireAdmin middleware (commit 57dcb50).
+  Миграция `000012_add_is_admin` — `is_admin BOOLEAN NOT NULL DEFAULT false`.
+  JWT claim `adm` в `Claims.IsAdmin`. `Generate()` принимает `isAdmin bool`.
+  `RequireAdmin()` middleware читает `is_admin` из контекста → 403 если false.
+  Admin route group в router теперь требует `RequireAdmin()` после `Authenticate()`.
+  `user_repo.go`: `is_admin` добавлен в `GetByID`, `GetByPhoneHash`, `ListByTrustStatus`.
+
 ## Дальше 📋
 
-- [ ] **P0-6** Admin role + RequireAdmin middleware. Сейчас любой залогиненный юзер может вызывать `/v1/admin/*`.
-  Нужно: миграция + колонка `is_admin BOOLEAN`, JWT claim `adm`, middleware `RequireAdmin()`, привязка к admin route group в router.
+- [ ] Нет открытых P0 задач. Все фиксы перед защитой завершены.
 
 ## Контекст
 
