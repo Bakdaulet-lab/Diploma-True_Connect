@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/halal_pattern_painter.dart';
-import '../discovery/discovery_screen.dart';
 
 class NiyyahSelectionScreen extends StatefulWidget {
   const NiyyahSelectionScreen({super.key});
@@ -17,15 +17,7 @@ class _NiyyahSelectionScreenState extends State<NiyyahSelectionScreen> {
 
   void _continue() {
     if (_selected == null) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, a, __) => FadeTransition(
-          opacity: a,
-          child: const DiscoveryScreen(),
-        ),
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
-    );
+    context.go('/home');
   }
 
   @override

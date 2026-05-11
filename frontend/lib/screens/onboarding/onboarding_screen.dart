@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/halal_pattern_painter.dart';
-import '../niyyah/niyyah_selection_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -24,15 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (_, a, __) => FadeTransition(
-            opacity: a,
-            child: const NiyyahSelectionScreen(),
-          ),
-          transitionDuration: const Duration(milliseconds: 400),
-        ),
-      );
+      context.go('/niyyah');
     }
   }
 
@@ -148,7 +140,7 @@ class _OnboardingSlide1 extends StatelessWidget {
           const SizedBox(height: 32),
 
           // Quran quote
-          _QuranQuote(
+          const _QuranQuote(
             arabic:
                 'وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُم مِّنْ أَنفُسِكُمْ أَزْوَاجًا',
             kazakh: 'Оның аяттарының бірі — өздеріңнен жұп жаратқаны',
@@ -223,14 +215,14 @@ class _OnboardingSlide2 extends StatelessWidget {
           const SizedBox(height: 28),
 
           // Feature chips
-          Wrap(
+          const Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
             children: [
-              const _FeatureChip(icon: '🛡️', label: 'KYC верификация'),
-              const _FeatureChip(icon: '⭐', label: 'Trust Score'),
-              const _FeatureChip(icon: '👨‍👩‍👧', label: 'Махрам қатысуы'),
+              _FeatureChip(icon: '🛡️', label: 'KYC верификация'),
+              _FeatureChip(icon: '⭐', label: 'Trust Score'),
+              _FeatureChip(icon: '👨‍👩‍👧', label: 'Махрам қатысуы'),
             ],
           ),
         ],
@@ -279,14 +271,14 @@ class _OnboardingSlide3 extends StatelessWidget {
 
           const SizedBox(height: 28),
 
-          Wrap(
+          const Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
             children: [
-              const _FeatureChip(icon: '🇰🇿', label: 'Қазақша'),
-              const _FeatureChip(icon: '🌐', label: 'Орысша'),
-              const _FeatureChip(icon: '🕌', label: 'Арабша'),
+              _FeatureChip(icon: '🇰🇿', label: 'Қазақша'),
+              _FeatureChip(icon: '🌐', label: 'Орысша'),
+              _FeatureChip(icon: '🕌', label: 'Арабша'),
             ],
           ),
         ],
@@ -307,7 +299,7 @@ class _FeatureChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.primaryLight,
         borderRadius: AppRadius.chip,
       ),

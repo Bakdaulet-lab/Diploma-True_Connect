@@ -124,9 +124,7 @@ class _MatchCard extends StatelessWidget {
     final timerStr = match['niyyah_timer_ends_at'] as String?;
     final timerEndsAt =
         timerStr != null ? DateTime.tryParse(timerStr) : null;
-    final daysLeft = timerEndsAt != null
-        ? timerEndsAt.difference(DateTime.now()).inDays
-        : null;
+    final daysLeft = timerEndsAt?.difference(DateTime.now()).inDays;
 
     return GestureDetector(
       onTap: () => context.push('/chat/$matchId'),

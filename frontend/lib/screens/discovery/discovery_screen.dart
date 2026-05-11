@@ -508,7 +508,7 @@ class _CardInfo extends StatelessWidget {
                     (l) => Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: AppColors.surfaceVariant,
                         borderRadius: AppRadius.chip,
                       ),

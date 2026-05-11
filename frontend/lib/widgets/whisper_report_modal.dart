@@ -142,7 +142,7 @@ class _WhisperSheetState extends ConsumerState<_WhisperSheet> {
         // Warning note
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppColors.accentLight,
             borderRadius: AppRadius.chip,
           ),

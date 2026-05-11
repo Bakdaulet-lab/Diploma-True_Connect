@@ -304,7 +304,7 @@ class _ImamCard extends StatelessWidget {
                 .map((l) => Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: AppColors.surfaceVariant,
                         borderRadius: AppRadius.chip,
                       ),
@@ -379,7 +379,7 @@ class _NikahConfirmDialogState extends ConsumerState<_NikahConfirmDialog> {
     if (_confirmed) {
       return AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.card),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.card),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -435,7 +435,7 @@ class _NikahConfirmDialogState extends ConsumerState<_NikahConfirmDialog> {
 
     return AlertDialog(
       backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.card),
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.card),
       title: Text(
         'Никахты растау',
         style: GoogleFonts.nunito(
@@ -462,7 +462,7 @@ class _NikahConfirmDialogState extends ConsumerState<_NikahConfirmDialog> {
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.secondaryLight,
               borderRadius: AppRadius.chip,
             ),

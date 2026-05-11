@@ -191,7 +191,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
             const SizedBox(height: AppSpacing.md),
             Container(
               padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.accentLight,
                 borderRadius: AppRadius.chip,
               ),

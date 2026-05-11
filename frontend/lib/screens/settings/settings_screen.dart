@@ -51,7 +51,7 @@ class SettingsScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
         // ── Halal Mode ────────────────────────────────────────────────────
-        _SectionHeader('Халал режим'),
+        const _SectionHeader('Халал режим'),
 
         _SettingsCard(
           child: Column(
@@ -114,7 +114,7 @@ class SettingsScreen extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 2),
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: AppColors.primaryLight,
                             borderRadius: AppRadius.chip,
                           ),
@@ -149,7 +149,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
 
         // ── Matching ──────────────────────────────────────────────────────
-        _SectionHeader('Іздеу'),
+        const _SectionHeader('Іздеу'),
 
         _SettingsCard(
           child: Column(
@@ -181,11 +181,11 @@ class SettingsScreen extends ConsumerWidget {
         ),
 
         // ── Mahram Management ─────────────────────────────────────────────
-        _SectionHeader('Махрам басқару'),
+        const _SectionHeader('Махрам басқару'),
         _MahramSection(ref: ref),
 
         // ── Account ───────────────────────────────────────────────────────
-        _SectionHeader('Аккаунт'),
+        const _SectionHeader('Аккаунт'),
 
         _SettingsCard(
           child: Column(

@@ -112,7 +112,7 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SectionLabel('Ислами сәйкестік'),
+                const _SectionLabel('Ислами сәйкестік'),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: 8,
@@ -126,7 +126,7 @@ class ProfileScreen extends ConsumerWidget {
                       (l) => Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.surfaceVariant,
                           borderRadius: AppRadius.chip,
                         ),
@@ -150,7 +150,7 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionLabel('Өзім туралы'),
+                  const _SectionLabel('Өзім туралы'),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     profile.bio!,

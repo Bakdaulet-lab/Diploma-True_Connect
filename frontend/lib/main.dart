@@ -33,11 +33,6 @@ class TrueConnectApp extends ConsumerWidget {
       theme: AppTheme.light,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
-      // Support RTL for Arabic text in onboarding / Quran quotes
-      builder: (context, child) => Directionality(
-        textDirection: TextDirection.ltr,
-        child: child!,
-      ),
     );
   }
 }

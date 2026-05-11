@@ -3,16 +3,13 @@ import 'package:flutter/foundation.dart';
 
 abstract final class ApiConstants {
   static String get baseUrl {
-    // For development: use machine IP instead of localhost
-    // to work around network isolation issues on Windows/web
-    const ip = '172.22.192.1';
-    return 'http://$ip:8080/v1';
+    // Use the host machine IP that's accessible from browser
+    return 'http://172.22.192.1:8080/v1';
   }
 
   static String get chatWs {
-    const ip = '172.22.192.1';
     if (Platform.isAndroid) return 'ws://10.0.2.2:8080/v1/ws';
-    return 'ws://$ip:8080/v1/ws';
+    return 'ws://172.22.192.1:8080/v1/ws';
   }
 
   static const timeout = Duration(seconds: 10);
