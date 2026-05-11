@@ -5,8 +5,10 @@ import '../../providers/auth_provider.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
 import '../../screens/chat/chat_screen.dart';
+import '../../screens/chat/mahram_chat_screen.dart';
 import '../../screens/discovery/discovery_screen.dart';
 import '../../screens/home/home_shell.dart';
+import '../../screens/imams/imam_connect_screen.dart';
 import '../../screens/kyc/kyc_screen.dart';
 import '../../screens/matches/matches_screen.dart';
 import '../../screens/niyyah/niyyah_selection_screen.dart';
@@ -38,6 +40,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // ── Public ──────────────────────────────────────────────────────────
       GoRoute(
         path: '/splash',
         builder: (_, __) => const SplashScreen(),
@@ -58,6 +61,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/auth/register',
         builder: (_, __) => const RegisterScreen(),
       ),
+
+      // ── Shell (bottom nav) ───────────────────────────────────────────────
       ShellRoute(
         builder: (_, __, child) => HomeShell(child: child),
         routes: [
@@ -79,10 +84,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+
+      // ── Feature screens ──────────────────────────────────────────────────
       GoRoute(
         path: '/chat/:matchId',
         builder: (_, state) => ChatScreen(
           matchId: state.pathParameters['matchId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/mahram-chat/:roomId',
+        builder: (_, state) => MahramChatScreen(
+          roomId: state.pathParameters['roomId'] ?? '',
         ),
       ),
       GoRoute(
@@ -94,6 +107,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/kyc',
         builder: (_, __) => const KycScreen(),
+      ),
+      GoRoute(
+        path: '/imams',
+        builder: (_, state) => ImamConnectScreen(
+          matchId: state.uri.queryParameters['matchId'],
+        ),
       ),
     ],
     errorBuilder: (_, state) => Scaffold(

@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/halal_pattern_painter.dart';
 import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
+import '../../widgets/whisper_report_modal.dart';
 
 class ProfileDetailScreen extends StatelessWidget {
   final Map<String, dynamic> profile;
@@ -92,6 +93,16 @@ class ProfileDetailScreen extends StatelessWidget {
         onLike: () {
           Haptics.vibrate(HapticsType.success);
           Navigator.pop(context, 'like');
+        },
+        onWhisper: () {
+          final userId = profile['id'] as String? ?? '';
+          if (userId.isNotEmpty) {
+            showWhisperModal(
+              context,
+              matchId: profile['matchId'] as String? ?? '',
+              reportedUserId: userId,
+            );
+          }
         },
       ),
     );
@@ -462,16 +473,21 @@ class _PromptsSection extends StatelessWidget {
 class _BottomActions extends StatelessWidget {
   final VoidCallback onPass;
   final VoidCallback onLike;
+  final VoidCallback onWhisper;
 
-  const _BottomActions({required this.onPass, required this.onLike});
+  const _BottomActions({
+    required this.onPass,
+    required this.onLike,
+    required this.onWhisper,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        AppSpacing.xl,
         AppSpacing.md,
-        AppSpacing.xl,
+        AppSpacing.md,
+        AppSpacing.md,
         AppSpacing.md + MediaQuery.of(context).padding.bottom,
       ),
       decoration: const BoxDecoration(
@@ -486,7 +502,7 @@ class _BottomActions extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Pass — outlined, NOT round, NOT red
+          // Pass — outlined
           Expanded(
             child: OutlinedButton(
               onPressed: onPass,
@@ -508,7 +524,7 @@ class _BottomActions extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AppSpacing.sm),
 
           // Like — filled primary
           Expanded(
@@ -528,6 +544,29 @@ class _BottomActions extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: AppSpacing.sm),
+
+          // Whisper ghost report button
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: onWhisper,
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                side: const BorderSide(
+                    color: AppColors.surfaceVariant, width: 1.5),
+                shape: const RoundedRectangleBorder(
+                    borderRadius: AppRadius.button),
+              ),
+              child: const Icon(
+                Icons.report_gmailerrorred_outlined,
+                color: AppColors.textHint,
+                size: 20,
               ),
             ),
           ),
