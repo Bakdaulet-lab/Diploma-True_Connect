@@ -17,6 +17,7 @@ class DioClient {
       connectTimeout: ApiConstants.timeout,
       receiveTimeout: ApiConstants.timeout,
       headers: {'Content-Type': 'application/json'},
+      validateStatus: (code) => code != null && code < 500,
     ));
 
     _refreshDio = Dio(BaseOptions(
@@ -72,18 +73,13 @@ class _AuthInterceptor extends Interceptor {
       }
 
       try {
-        final resp = await _refreshDio.post(
-          ApiConstants.authRefresh,
-          data: {'refresh_token': refreshToken},
-        );
-        final newAccess = resp.data['access_token'] as String?;
-        final newRefresh = resp.data['refresh_token'] as String?;
+        final resp = await _refreshDio.post(ApiConstants.authRefresh);
+        final data = resp.data as Map<String, dynamic>;
+        final authData = data['data'] as Map<String, dynamic>? ?? data;
+        final newAccess = authData['access_token'] as String?;
 
         if (newAccess != null) {
           await _storage.write(key: 'access_token', value: newAccess);
-        }
-        if (newRefresh != null) {
-          await _storage.write(key: 'refresh_token', value: newRefresh);
         }
 
         // Retry original request with new token
