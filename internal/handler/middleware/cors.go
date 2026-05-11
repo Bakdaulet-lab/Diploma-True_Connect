@@ -13,6 +13,12 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 		origin := c.GetHeader("Origin")
 
 		allowed := false
+		// Allow all localhost origins in development
+		if strings.HasPrefix(origin, "http://localhost:") ||
+		   strings.HasPrefix(origin, "http://127.0.0.1:") {
+			allowed = true
+		}
+		// Also check explicit list
 		for _, o := range allowedOrigins {
 			if strings.EqualFold(origin, o) {
 				allowed = true
@@ -20,7 +26,7 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 			}
 		}
 
-		if allowed {
+		if allowed || len(allowedOrigins) == 0 {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")

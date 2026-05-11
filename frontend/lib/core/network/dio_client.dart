@@ -17,7 +17,6 @@ class DioClient {
       connectTimeout: ApiConstants.timeout,
       receiveTimeout: ApiConstants.timeout,
       headers: {'Content-Type': 'application/json'},
-      validateStatus: (code) => code != null && code < 500,
     ));
 
     _refreshDio = Dio(BaseOptions(
