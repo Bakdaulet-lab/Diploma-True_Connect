@@ -109,6 +109,9 @@ PostGIS `ST_DWithin` queries on the `social` schema. Matching candidates are cac
 ### Real-Time Chat
 WebSocket hub (`internal/handler/chat_handler.go`). Messages are encrypted with AES-256-GCM before storage. Redis Pub/Sub fans out messages across multiple API instances.
 
+### Embedded Data Catalogs
+Static reference data (e.g. imam directory, madhab lists) is embedded at compile time via `//go:embed` into Go binaries. See `internal/pkg/imam/` for the pattern: JSON catalog + init-time unmarshaling + query functions (ListByCity, GetByID). This avoids database round-trips for immutable data.
+
 ## Frontend Architecture
 
 **Flutter (`frontend/`)**: Riverpod for state management, GoRouter for navigation, Dio for HTTP, `web_socket_channel` for WebSocket, `flutter_secure_storage` for tokens, `json_serializable` + `build_runner` for model codegen.
