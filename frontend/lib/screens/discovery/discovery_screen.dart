@@ -284,8 +284,7 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final score = (candidate['trust_score'] as num?)?.toInt() ??
         (candidate['trustScore'] as num?)?.toInt() ?? 0;
-    final niyyah = NiyyahTypeExt.fromString(
-        candidate['niyyah'] as String? ?? candidate['niyyah'] as String?);
+    final niyyah = NiyyahTypeExt.fromString(candidate['niyyah'] as String?);
     final madhab = candidate['madhab'] as String? ?? '';
     final isKyc = candidate['is_kyc_verified'] as bool? ??
         candidate['isKycVerified'] as bool? ?? false;
@@ -629,7 +628,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                 ),
               ),
               const Spacer(),
-              const KazakhDivider(indent: 0),
+              const IslamicStarWidget(size: 16, color: AppColors.secondary),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),

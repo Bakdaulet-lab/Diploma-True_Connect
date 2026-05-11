@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,25 +19,55 @@ import '../../screens/profile/profile_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/splash/splash_screen.dart';
 
+/// Fires ChangeNotifier when auth state changes so GoRouter re-evaluates
+/// redirects without recreating the GoRouter instance.
+class _AuthRouterNotifier extends ChangeNotifier {
+  _AuthRouterNotifier(Ref ref) {
+    ref.listen<AsyncValue<dynamic>>(
+      authStateProvider,
+      (_, __) => notifyListeners(),
+    );
+  }
+}
+
+final _authRouterNotifierProvider = Provider<_AuthRouterNotifier>((ref) {
+  return _AuthRouterNotifier(ref);
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final notifier = ref.watch(_authRouterNotifierProvider);
 
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: notifier,
     redirect: (context, state) {
-      final isAuthenticated = authState.valueOrNull != null;
+      final authState = ref.read(authStateProvider);
       final loc = state.matchedLocation;
+
+      // Still restoring session — do not redirect yet.
+      if (authState.isLoading) return null;
+
+      final isAuthenticated = authState.valueOrNull != null;
 
       const publicRoutes = [
         '/splash',
         '/onboarding',
         '/auth/login',
         '/auth/register',
+        '/niyyah',
       ];
+
       if (!isAuthenticated &&
           !publicRoutes.any((r) => loc.startsWith(r))) {
         return '/auth/login';
       }
+
+      // Authenticated users should not stay on auth screens.
+      if (isAuthenticated &&
+          (loc == '/auth/login' || loc == '/auth/register')) {
+        return '/home';
+      }
+
       return null;
     },
     routes: [

@@ -501,6 +501,7 @@ class _MahramSectionState extends State<_MahramSection> {
     try {
       final dio = widget.ref.read(dioClientProvider).dio;
       final resp = await dio.get(ApiConstants.mahram);
+      if (!mounted) return;
       setState(() {
         _mahrams = (resp.data as List<dynamic>)
             .map((e) => e as Map<String, dynamic>)
@@ -517,12 +518,14 @@ class _MahramSectionState extends State<_MahramSection> {
       await dio.post(ApiConstants.mahram,
           data: {'phone': _phoneCtr.text.trim()});
       _phoneCtr.clear();
+      if (!mounted) return;
       setState(() {
         _showAdd = false;
         _loading = false;
       });
       await _loadMahrams();
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
