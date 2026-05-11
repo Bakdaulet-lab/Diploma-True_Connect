@@ -41,7 +41,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     // Token exists — attempt to fetch own user from /v1/users/me
     try {
       final resp = await _dio.get('/users/me');
-      final user = User.fromJson(resp.data as Map<String, dynamic>);
+      final data = resp.data as Map<String, dynamic>;
+      // Handle wrapped response
+      final userData = data['data'] as Map<String, dynamic>? ?? data;
+      final user = User.fromJson(userData);
       state = AsyncValue.data(user);
     } catch (_) {
       // Token invalid or server down — stay logged out
@@ -61,7 +64,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
         'password': password,
         'name': name,
       });
-      await _saveTokens(resp.data as Map<String, dynamic>);
+      final data = resp.data as Map<String, dynamic>;
+      final authData = data['data'] as Map<String, dynamic>? ?? data;
+
+      // Fetch user data separately
+      final userResp = await _dio.get('/users/me');
+      final userData = userResp.data is Map ? userResp.data : {};
+      final userDataMap = userData['data'] as Map<String, dynamic>? ?? userData;
+      authData['user'] = userDataMap;
+      authData['refresh_token'] = 'cookie'; // Set via HTTP-only cookie
+
+      await _saveTokens(authData);
     } on DioException catch (e, st) {
       state = AsyncValue.error(_dioMessage(e), st);
     }
@@ -77,7 +90,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
         'phone': phone,
         'password': password,
       });
-      await _saveTokens(resp.data as Map<String, dynamic>);
+      final data = resp.data as Map<String, dynamic>;
+      final authData = data['data'] as Map<String, dynamic>? ?? data;
+
+      // Fetch user data separately
+      final userResp = await _dio.get('/users/me');
+      final userData = userResp.data is Map ? userResp.data : {};
+      final userDataMap = userData['data'] as Map<String, dynamic>? ?? userData;
+      authData['user'] = userDataMap;
+      authData['refresh_token'] = 'cookie';
+
+      await _saveTokens(authData);
     } on DioException catch (e, st) {
       state = AsyncValue.error(_dioMessage(e), st);
     }
