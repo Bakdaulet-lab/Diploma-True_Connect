@@ -1,6 +1,21 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 abstract final class ApiConstants {
-  static const baseUrl = 'http://10.0.2.2:8080/v1'; // Android emulator → localhost
-  static const timeout = Duration(seconds: 30);
+  static String get baseUrl {
+    // For development: use machine IP instead of localhost
+    // to work around network isolation issues on Windows/web
+    const ip = '172.22.192.1';
+    return 'http://$ip:8080/v1';
+  }
+
+  static String get chatWs {
+    const ip = '172.22.192.1';
+    if (Platform.isAndroid) return 'ws://10.0.2.2:8080/v1/ws';
+    return 'ws://$ip:8080/v1/ws';
+  }
+
+  static const timeout = Duration(seconds: 10);
 
   // Auth
   static const authRegister = '/auth/register';
@@ -16,9 +31,6 @@ abstract final class ApiConstants {
   static const candidates = '/matching/candidates';
   static const swipe = '/matching/swipe';
   static const matches = '/matching/matches';
-
-  // Chat
-  static const chatWs = 'ws://10.0.2.2:8080/v1/ws';
 
   // KYC
   static const kycSubmit = '/kyc/submit';
