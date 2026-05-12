@@ -1,15 +1,18 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'platform_stub.dart' if (dart.library.io) 'platform_io.dart';
 
 abstract final class ApiConstants {
+  static String get _host {
+    if (kIsWeb) return 'localhost';
+    return isAndroid ? '10.0.2.2' : 'localhost';
+  }
+
   static String get baseUrl {
-    // Use the host machine IP that's accessible from browser
-    return 'http://172.22.192.1:8080/v1';
+    return 'http://$_host:8080/v1';
   }
 
   static String get chatWs {
-    if (Platform.isAndroid) return 'ws://10.0.2.2:8080/v1/ws';
-    return 'ws://172.22.192.1:8080/v1/ws';
+    return 'ws://$_host:8080/v1/ws';
   }
 
   static const timeout = Duration(seconds: 10);
@@ -21,19 +24,21 @@ abstract final class ApiConstants {
   static const authLogout = '/auth/logout';
 
   // Profile
-  static const profile = '/users/me/profile';
-  static const profilePhoto = '/users/me/photos';
+  static const profile = '/profiles/me';
+  static const profiles = '/profiles';
+  static const profilePhoto = '/profiles/me/photos';
 
   // Matching
   static const candidates = '/matching/candidates';
-  static const swipe = '/matching/swipe';
-  static const matches = '/matching/matches';
+  static const matchLike = '/matching/like';
+  static const matchPass = '/matching/pass';
+  static const matches = '/matches';
 
   // KYC
   static const kycSubmit = '/kyc/submit';
 
   // Settings
-  static const settings = '/users/me/settings';
+  static const settings = '/settings';
 
   // Imams
   static const imams = '/imams';

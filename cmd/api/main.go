@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"context"
@@ -116,6 +116,7 @@ func run() error {
 
 	authSvc := service.NewAuthService(
 		userRepo,
+		profileRepo,
 		tokenRepo,
 		sessionStore,
 		graphRepo,

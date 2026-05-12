@@ -30,6 +30,7 @@ func NewAuthHandler(authService *service.AuthService, log *slog.Logger, devMode 
 type registerRequest struct {
 	Phone     string  `json:"phone" validate:"required,kz_phone"`
 	Password  string  `json:"password" validate:"required,min=8,max=128"`
+	Name      string  `json:"name" validate:"required,min=1,max=60"`
 	PublicKey *string `json:"public_key"` // Optional X25519 Public Key
 }
 
@@ -59,9 +60,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	result, err := h.authService.Register(c.Request.Context(), service.RegisterInput{
-		Phone:     req.Phone,
-		Password:  req.Password,
-		PublicKey: req.PublicKey,
+		Phone:       req.Phone,
+		Password:    req.Password,
+		DisplayName: req.Name,
+		PublicKey:   req.PublicKey,
 	})
 	if err != nil {
 		h.handleAuthError(c, err, "register")

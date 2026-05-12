@@ -254,6 +254,7 @@ func newTestAuthService() *service.AuthService {
 	jwtMgr := tcjwt.NewManager("test-secret-which-is-32-chars-longg", 15*time.Minute)
 	return service.NewAuthService(
 		newMockUserRepo(),
+		newMockProfileRepo(),
 		newMockTokenRepo(),
 		newMockSessionStore(),
 		&mockGraphRepo{},
@@ -269,10 +270,22 @@ func newTestAuthService() *service.AuthService {
 func TestRegister_Success(t *testing.T) {
 	t.Parallel()
 
-	svc := newTestAuthService()
+	profileRepo := newMockProfileRepo()
+	svc := service.NewAuthService(
+		newMockUserRepo(),
+		profileRepo,
+		newMockTokenRepo(),
+		newMockSessionStore(),
+		&mockGraphRepo{},
+		tcjwt.NewManager("test-secret-which-is-32-chars-longg", 15*time.Minute),
+		testEncryptionKey(),
+		7*24*time.Hour,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
 	result, err := svc.Register(context.Background(), service.RegisterInput{
-		Phone:    "+77001234567",
-		Password: "secure-password-123",
+		Phone:       "+77001234567",
+		Password:    "secure-password-123",
+		DisplayName: "Aigerim",
 	})
 
 	if err != nil {
@@ -290,13 +303,21 @@ func TestRegister_Success(t *testing.T) {
 	if result.ExpiresIn != 900 {
 		t.Errorf("expected ExpiresIn=900, got %d", result.ExpiresIn)
 	}
+
+	profile, err := profileRepo.GetByUserID(context.Background(), result.UserID)
+	if err != nil {
+		t.Fatalf("expected profile to be created: %v", err)
+	}
+	if profile.DisplayName != "Aigerim" {
+		t.Errorf("expected display name to be persisted, got %q", profile.DisplayName)
+	}
 }
 
 func TestRegister_DuplicatePhone(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestAuthService()
-	input := service.RegisterInput{Phone: "+77001234567", Password: "password123"}
+	input := service.RegisterInput{Phone: "+77001234567", Password: "password123", DisplayName: "Aigerim"}
 
 	if _, err := svc.Register(context.Background(), input); err != nil {
 		t.Fatalf("first registration failed: %v", err)
@@ -317,7 +338,7 @@ func TestLogin_Success(t *testing.T) {
 	svc := newTestAuthService()
 	phone, password := "+77009876543", "my-password-456"
 
-	if _, err := svc.Register(context.Background(), service.RegisterInput{Phone: phone, Password: password}); err != nil {
+	if _, err := svc.Register(context.Background(), service.RegisterInput{Phone: phone, Password: password, DisplayName: "Aigerim"}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
@@ -335,7 +356,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	svc := newTestAuthService()
 	if _, err := svc.Register(context.Background(), service.RegisterInput{
-		Phone: "+77001111111", Password: "correct-password",
+		Phone: "+77001111111", Password: "correct-password", DisplayName: "Aigerim",
 	}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -369,7 +390,7 @@ func TestLogin_BruteForceProtection(t *testing.T) {
 	phone := "+77002222222"
 
 	if _, err := svc.Register(context.Background(), service.RegisterInput{
-		Phone: phone, Password: "correct",
+		Phone: phone, Password: "correct", DisplayName: "Aigerim",
 	}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -395,7 +416,7 @@ func TestRefresh_Success(t *testing.T) {
 	svc := newTestAuthService()
 
 	reg, err := svc.Register(context.Background(), service.RegisterInput{
-		Phone: "+77003333333", Password: "password",
+		Phone: "+77003333333", Password: "password", DisplayName: "Aigerim",
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
@@ -419,7 +440,7 @@ func TestRefresh_TokenReuse_IsRejected(t *testing.T) {
 	svc := newTestAuthService()
 
 	reg, err := svc.Register(context.Background(), service.RegisterInput{
-		Phone: "+77004444444", Password: "password",
+		Phone: "+77004444444", Password: "password", DisplayName: "Aigerim",
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
@@ -446,7 +467,7 @@ func TestLogout_TokenBecomesInvalid(t *testing.T) {
 	svc := newTestAuthService()
 
 	reg, err := svc.Register(context.Background(), service.RegisterInput{
-		Phone: "+77005555555", Password: "password",
+		Phone: "+77005555555", Password: "password", DisplayName: "Aigerim",
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
@@ -473,6 +494,7 @@ func TestLogin_SuspendedAccount(t *testing.T) {
 	jwtMgr := tcjwt.NewManager("test-secret-which-is-32-chars-longg", 15*time.Minute)
 	svc := service.NewAuthService(
 		userRepo,
+		newMockProfileRepo(),
 		newMockTokenRepo(),
 		newMockSessionStore(),
 		&mockGraphRepo{},
@@ -486,7 +508,7 @@ func TestLogin_SuspendedAccount(t *testing.T) {
 	phone, password := "+77006666666", "password"
 
 	// Register and capture the user ID from the result.
-	reg, err := svc.Register(ctx, service.RegisterInput{Phone: phone, Password: password})
+	reg, err := svc.Register(ctx, service.RegisterInput{Phone: phone, Password: password, DisplayName: "Aigerim"})
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -512,6 +534,7 @@ func TestRefresh_TokenReuse_RevokesAllTokens(t *testing.T) {
 	jwtMgr := tcjwt.NewManager("test-secret-which-is-32-chars-longg", 15*time.Minute)
 	svc := service.NewAuthService(
 		newMockUserRepo(),
+		newMockProfileRepo(),
 		tokenRepo,
 		newMockSessionStore(),
 		&mockGraphRepo{},
@@ -524,7 +547,7 @@ func TestRefresh_TokenReuse_RevokesAllTokens(t *testing.T) {
 	ctx := context.Background()
 
 	// Register to get a refresh token.
-	reg, err := svc.Register(ctx, service.RegisterInput{Phone: "+77007777777", Password: "password"})
+	reg, err := svc.Register(ctx, service.RegisterInput{Phone: "+77007777777", Password: "password", DisplayName: "Aigerim"})
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -558,9 +581,10 @@ func TestRefresh_TokenReuse_RevokesAllTokens(t *testing.T) {
 func (m *mockGraphRepo) GetRecommendations(ctx context.Context, uid uuid.UUID, limit int) ([]uuid.UUID, error) {
 	return nil, nil
 }
-func (m *mockUserRepo) SubmitKYCRequest(ctx context.Context, userID uuid.UUID, documentURL string) error { return nil }
+func (m *mockUserRepo) SubmitKYCRequest(ctx context.Context, userID uuid.UUID, documentURL string) error {
+	return nil
+}
 
-func (m *mockGraphRepo) GetDirectInteractions(ctx context.Context, uid uuid.UUID) ([]uuid.UUID, error) { return nil, nil }
-
-
-
+func (m *mockGraphRepo) GetDirectInteractions(ctx context.Context, uid uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}

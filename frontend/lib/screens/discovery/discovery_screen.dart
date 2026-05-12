@@ -236,16 +236,23 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   Widget _buildError(String message) {
+    final needsProfile = message.contains('PROFILE_REQUIRED') ||
+        message.contains('complete your profile');
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.wifi_off, size: 48, color: AppColors.textHint),
+            Icon(
+              needsProfile ? Icons.person_outline : Icons.wifi_off,
+              size: 48,
+              color: AppColors.textHint,
+            ),
             const SizedBox(height: 16),
             Text(
-              'Желі қатесі',
+              needsProfile ? 'Профильді толтырыңыз' : 'Желі қатесі',
               style: GoogleFonts.nunito(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -254,12 +261,21 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              message,
+              needsProfile
+                  ? 'Сізге кандидаттарды көру үшін профильді, оның ішінде орналасуды толтыру керек.'
+                  : message,
               style: GoogleFonts.nunito(
                   fontSize: 13, color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
+            if (needsProfile) ...[
+              ElevatedButton(
+                onPressed: () => context.go('/profile'),
+                child: const Text('Профильге өту'),
+              ),
+              const SizedBox(height: 12),
+            ],
             ElevatedButton(
               onPressed: () =>
                   ref.read(matchingNotifierProvider.notifier).load(),

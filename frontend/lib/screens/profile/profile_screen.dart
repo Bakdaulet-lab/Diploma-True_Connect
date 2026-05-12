@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/network/dio_error_message.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/profile.dart';
@@ -13,8 +15,12 @@ import '../../widgets/trust_score_badge.dart';
 
 final _ownProfileProvider = FutureProvider<Profile>((ref) async {
   final dio = ref.watch(dioClientProvider).dio;
-  final resp = await dio.get(ApiConstants.profile);
-  return Profile.fromJson(resp.data as Map<String, dynamic>);
+  try {
+    final resp = await dio.get(ApiConstants.profile);
+    return Profile.fromJson(resp.data as Map<String, dynamic>);
+  } on DioException catch (e) {
+    throw dioErrorMessage(e);
+  }
 });
 
 class ProfileScreen extends ConsumerWidget {
@@ -241,22 +247,67 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildError(BuildContext context, WidgetRef ref, String msg) {
+    final isMissingProfile =
+        msg.contains('NOT_FOUND') || msg.contains('resource not found');
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.person_off, size: 48, color: AppColors.textHint),
-          const SizedBox(height: 16),
-          Text(msg,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isMissingProfile ? Icons.person_add_alt_1 : Icons.person_off,
+              size: 48,
+              color: AppColors.textHint,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isMissingProfile ? 'Профиль әлі жасалмаған' : msg,
               style: GoogleFonts.nunito(color: AppColors.textSecondary),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => ref.refresh(_ownProfileProvider.future),
-            child: const Text('Қайтадан'),
-          ),
-        ],
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isMissingProfile
+                  ? 'Профильді бір рет толтырсаңыз, бұл бет қалыпты жұмыс істейді.'
+                  : 'Профильді қайтадан жүктеп көріңіз.',
+              style: GoogleFonts.nunito(
+                  fontSize: 13, color: AppColors.textHint),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            if (isMissingProfile) ...[
+              ElevatedButton(
+                onPressed: () async {
+                  final created = await _showCreateProfileSheet(context);
+                  if (created == true) {
+                    ref.invalidate(_ownProfileProvider);
+                  }
+                },
+                child: const Text('Профиль жасау'),
+              ),
+              const SizedBox(height: 12),
+            ],
+            ElevatedButton(
+              onPressed: () => ref.refresh(_ownProfileProvider.future),
+              child: const Text('Қайтадан'),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<bool?> _showCreateProfileSheet(BuildContext context) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _CreateProfileSheet(),
     );
   }
 
@@ -388,6 +439,175 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CreateProfileSheet extends ConsumerStatefulWidget {
+  const _CreateProfileSheet();
+
+  @override
+  ConsumerState<_CreateProfileSheet> createState() =>
+      _CreateProfileSheetState();
+}
+
+class _CreateProfileSheetState extends ConsumerState<_CreateProfileSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _displayNameCtr = TextEditingController();
+  final _cityCtr = TextEditingController();
+  final _bioCtr = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _displayNameCtr.dispose();
+    _cityCtr.dispose();
+    _bioCtr.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      await dio.put(ApiConstants.profile, data: {
+        'display_name': _displayNameCtr.text.trim(),
+        if (_cityCtr.text.trim().isNotEmpty) 'city': _cityCtr.text.trim(),
+        if (_bioCtr.text.trim().isNotEmpty) 'bio': _bioCtr.text.trim(),
+      });
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = dioErrorMessage(e);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.person_add_alt_1,
+                        color: AppColors.primary, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Профиль жасау',
+                      style: GoogleFonts.nunito(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Кемінде аты-жөнін енгізіңіз, кейін профильді толықтыра аласыз.',
+                  style: GoogleFonts.nunito(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                TextFormField(
+                  controller: _displayNameCtr,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    hintText: 'Аты-жөні',
+                    prefixIcon:
+                        Icon(Icons.badge_outlined, color: AppColors.textHint),
+                  ),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Аты-жөніңізді енгізіңіз'
+                      : null,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: _cityCtr,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    hintText: 'Қала (қосымша)',
+                    prefixIcon: Icon(Icons.location_city_outlined,
+                        color: AppColors.textHint),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: _bioCtr,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    hintText: 'Өзіңіз туралы қысқаша (қосымша)',
+                    prefixIcon:
+                        Icon(Icons.edit_outlined, color: AppColors.textHint),
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    style: GoogleFonts.nunito(
+                      fontSize: 13,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _submit,
+                    child: _saving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Жасау'),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

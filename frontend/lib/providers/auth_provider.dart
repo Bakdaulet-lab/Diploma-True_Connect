@@ -67,7 +67,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       final data = resp.data as Map<String, dynamic>;
       final authData = data['data'] as Map<String, dynamic>? ?? data;
 
-      // Fetch user data separately
+      await _persistAuthTokens(authData);
+
+      // Fetch user data separately after the bearer token is stored.
       final userResp = await _dio.get('/users/me');
       final userData = userResp.data is Map ? userResp.data : {};
       final userDataMap = userData['data'] as Map<String, dynamic>? ?? userData;
@@ -93,7 +95,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       final data = resp.data as Map<String, dynamic>;
       final authData = data['data'] as Map<String, dynamic>? ?? data;
 
-      // Fetch user data separately
+      await _persistAuthTokens(authData);
+
+      // Fetch user data separately after the bearer token is stored.
       final userResp = await _dio.get('/users/me');
       final userData = userResp.data is Map ? userResp.data : {};
       final userDataMap = userData['data'] as Map<String, dynamic>? ?? userData;
@@ -117,16 +121,36 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
   }
 
   Future<void> _saveTokens(Map<String, dynamic> data) async {
+    await _persistAuthTokens(data);
     final tokens = AuthTokens.fromJson(data);
-    await _storage.write(key: 'access_token', value: tokens.accessToken);
-    await _storage.write(key: 'refresh_token', value: tokens.refreshToken);
     state = AsyncValue.data(tokens.user);
+  }
+
+  Future<void> _persistAuthTokens(Map<String, dynamic> data) async {
+    final accessToken = data['access_token'] as String;
+    final refreshToken = data['refresh_token'] as String? ?? 'cookie';
+
+    await _storage.write(key: 'access_token', value: accessToken);
+    await _storage.write(key: 'refresh_token', value: refreshToken);
   }
 
   String _dioMessage(DioException e) {
     final data = e.response?.data;
-    if (data is Map && data['error'] != null) {
-      return data['error'] as String;
+    if (data is Map) {
+      final error = data['error'];
+      if (error is Map) {
+        final message = error['message'];
+        if (message is String && message.isNotEmpty) {
+          return message;
+        }
+
+        final code = error['code'];
+        if (code is String && code.isNotEmpty) {
+          return code;
+        }
+      } else if (error is String && error.isNotEmpty) {
+        return error;
+      }
     }
     return e.message ?? 'Желі қатесі';
   }

@@ -44,6 +44,7 @@ type MatchUserView struct {
 	UserID      uuid.UUID `json:"user_id"`
 	DisplayName string    `json:"display_name"`
 	AvatarURL   string    `json:"avatar_url"`
+	TrustScore  int       `json:"trust_score"`
 	PublicKey   *string   `json:"public_key,omitempty"`
 }
 
@@ -279,6 +280,7 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cur
 				UserID:      otherID,
 				DisplayName: profile.DisplayName,
 				AvatarURL:   fixAvatarURL(profile.AvatarURL),
+				TrustScore:  user.TrustScore,
 				PublicKey:   user.PublicKey,
 			},
 			NiyyahTimerEndsAt: m.NiyyahTimerEndsAt,

@@ -13,6 +13,7 @@ class Profile {
   final String? niyyah;       // nikah_year | serious_marriage | friendship
   final String? madhab;       // hanafi | shafii | maliki | hanbali | none
   final List<String> languages;
+  final List<Map<String, dynamic>> prompts;
   final bool noPhotoMode;
   final String maritalStatus; // single | married_via_app | divorced
 
@@ -29,29 +30,42 @@ class Profile {
     this.niyyah,
     this.madhab,
     this.languages = const [],
+    this.prompts = const [],
     this.noPhotoMode = false,
     this.maritalStatus = 'single',
   });
 
-  factory Profile.fromJson(Map<String, dynamic> json) => Profile(
-        userId: json['user_id'] as String,
-        displayName: json['display_name'] as String? ?? '',
-        age: json['age'] as int?,
-        city: json['city'] as String?,
-        bio: json['bio'] as String?,
-        avatarUrl: json['avatar_url'] as String?,
-        avatarBlurred: json['avatar_blurred'] as bool? ?? false,
-        trustScore: json['trust_score'] as int? ?? 0,
-        isKycVerified: json['is_kyc_verified'] as bool? ?? false,
-        niyyah: json['niyyah'] as String?,
-        madhab: json['madhab'] as String?,
-        languages: (json['languages'] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [],
-        noPhotoMode: json['no_photo_mode'] as bool? ?? false,
-        maritalStatus: json['marital_status'] as String? ?? 'single',
-      );
+  factory Profile.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] is Map
+      ? Map<String, dynamic>.from(json['data'] as Map)
+      : Map<String, dynamic>.from(json);
+    final verificationLevel =
+        _readString(data, ['verification_level', 'verificationLevel']) ?? 'none';
+
+    return Profile(
+      userId: _readString(data, ['user_id', 'id']) ?? '',
+      displayName:
+          _readString(data, ['display_name', 'displayName', 'name']) ?? '',
+      age: _readInt(data, ['age']),
+      city: _readString(data, ['city']),
+      bio: _readString(data, ['bio']),
+      avatarUrl:
+          _readString(data, ['avatar_url', 'avatarUrl', 'imageUrl']),
+      avatarBlurred: _readBool(data, ['avatar_blurred', 'avatarBlurred']),
+      trustScore: _readInt(data, ['trust_score', 'trustScore']) ?? 0,
+      isKycVerified: _readBool(
+        data,
+        ['is_kyc_verified', 'isKycVerified'],
+      ) || verificationLevel != 'none',
+      niyyah: _readString(data, ['niyyah']),
+      madhab: _readString(data, ['madhab']),
+      languages: _readStringList(data, ['languages']),
+      noPhotoMode: _readBool(data, ['no_photo_mode', 'noPhotoMode']),
+      maritalStatus:
+          _readString(data, ['marital_status', 'maritalStatus']) ?? 'single',
+      prompts: _readMapList(data, ['prompts']),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'user_id': userId,
@@ -64,6 +78,7 @@ class Profile {
         if (niyyah != null) 'niyyah': niyyah,
         if (madhab != null) 'madhab': madhab,
         'languages': languages,
+        if (prompts.isNotEmpty) 'prompts': prompts,
         'marital_status': maritalStatus,
       };
 
@@ -76,6 +91,7 @@ class Profile {
     String? niyyah,
     String? madhab,
     List<String>? languages,
+    List<Map<String, dynamic>>? prompts,
     bool? noPhotoMode,
   }) =>
       Profile(
@@ -91,7 +107,56 @@ class Profile {
         niyyah: niyyah ?? this.niyyah,
         madhab: madhab ?? this.madhab,
         languages: languages ?? this.languages,
+        prompts: prompts ?? this.prompts,
         noPhotoMode: noPhotoMode ?? this.noPhotoMode,
         maritalStatus: maritalStatus,
       );
+}
+
+int? _readInt(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+  }
+  return null;
+}
+
+bool _readBool(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is bool) return value;
+  }
+  return false;
+}
+
+String? _readString(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is String) return value;
+  }
+  return null;
+}
+
+List<String> _readStringList(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is List) {
+      return value.whereType<String>().toList();
+    }
+  }
+  return <String>[];
+}
+
+List<Map<String, dynamic>> _readMapList(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is List) {
+      return value
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+  }
+  return <Map<String, dynamic>>[];
 }

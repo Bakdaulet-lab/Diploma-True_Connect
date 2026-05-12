@@ -127,8 +127,9 @@ class _OnboardingSlide1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(32, 80, 32, 24),
+      physics: const ClampingScrollPhysics(),
       child: Column(
         children: [
           // Illustration: two silhouettes under an arch
@@ -181,8 +182,9 @@ class _OnboardingSlide2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(32, 80, 32, 24),
+      physics: const ClampingScrollPhysics(),
       child: Column(
         children: [
           SizedBox(
@@ -337,29 +339,27 @@ class _QuranQuote extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(height: 1, color: AppColors.secondary.withValues(alpha: 0.4)),
-        const SizedBox(height: 12),
         Text(
           arabic,
           textAlign: TextAlign.center,
-          textDirection: TextDirection.rtl,
           style: GoogleFonts.amiri(
-            fontSize: 16,
-            color: AppColors.textPrimary,
+            fontSize: 18,
+            color: AppColors.primaryDark,
             height: 1.8,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           kazakh,
           textAlign: TextAlign.center,
           style: GoogleFonts.nunito(
-            fontSize: 13,
-            color: AppColors.textSecondary,
+            fontSize: 14,
             fontStyle: FontStyle.italic,
+            color: AppColors.textSecondary,
+            height: 1.6,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 12),
         Text(
           surah,
           style: GoogleFonts.nunito(

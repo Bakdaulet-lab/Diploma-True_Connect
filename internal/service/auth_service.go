@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ import (
 // AuthService handles registration, login, token refresh, and logout.
 type AuthService struct {
 	userRepo      repository.UserRepository
+	profileRepo   repository.ProfileRepository
 	tokenRepo     repository.RefreshTokenRepository
 	sessionStore  repository.SessionStore
 	graphRepo     repository.TrustGraphRepository
@@ -31,6 +33,7 @@ type AuthService struct {
 // NewAuthService creates a new auth service with all dependencies injected.
 func NewAuthService(
 	userRepo repository.UserRepository,
+	profileRepo repository.ProfileRepository,
 	tokenRepo repository.RefreshTokenRepository,
 	sessionStore repository.SessionStore,
 	graphRepo repository.TrustGraphRepository,
@@ -41,6 +44,7 @@ func NewAuthService(
 ) *AuthService {
 	return &AuthService{
 		userRepo:      userRepo,
+		profileRepo:   profileRepo,
 		tokenRepo:     tokenRepo,
 		sessionStore:  sessionStore,
 		graphRepo:     graphRepo,
@@ -53,9 +57,10 @@ func NewAuthService(
 
 // RegisterInput represents the data needed to register a new user.
 type RegisterInput struct {
-	Phone     string
-	Password  string
-	PublicKey *string
+	Phone       string
+	Password    string
+	DisplayName string
+	PublicKey   *string
 }
 
 // AuthResult contains the tokens returned after successful authentication.
@@ -68,6 +73,10 @@ type AuthResult struct {
 
 // Register creates a new user account and returns an initial token pair.
 func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthResult, error) {
+	if strings.TrimSpace(input.DisplayName) == "" {
+		return nil, fmt.Errorf("register: display name is required: %w", domain.ErrInvalidInput)
+	}
+
 	passwordHash, err := crypto.HashPassword(input.Password)
 	if err != nil {
 		return nil, fmt.Errorf("hashing password: %w", err)
@@ -96,6 +105,15 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 			return nil, fmt.Errorf("register: %w", domain.ErrAlreadyExists)
 		}
 		return nil, fmt.Errorf("register: creating user: %w", err)
+	}
+
+	profile := &domain.Profile{
+		UserID:        user.ID,
+		DisplayName:   input.DisplayName,
+		MaritalStatus: domain.MaritalSingle,
+	}
+	if err := s.profileRepo.Upsert(ctx, profile); err != nil {
+		return nil, fmt.Errorf("register: creating profile: %w", err)
 	}
 
 	// Create user node in Neo4j trust graph; non-fatal if it fails.

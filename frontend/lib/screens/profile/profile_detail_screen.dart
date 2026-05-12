@@ -1,25 +1,130 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:haptic_feedback/haptic_feedback.dart';
+import '../../core/constants/api_constants.dart';
+import '../../core/network/dio_error_message.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/profile.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
 import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
 import '../../widgets/whisper_report_modal.dart';
 
-class ProfileDetailScreen extends StatelessWidget {
+final publicProfileProvider =
+    FutureProvider.family<Profile, String>((ref, userId) async {
+  if (userId.isEmpty) {
+    throw 'profile id is missing';
+  }
+
+  final dio = ref.watch(dioClientProvider).dio;
+  try {
+    final resp = await dio.get('${ApiConstants.profiles}/$userId');
+    final payload = resp.data is Map
+        ? Map<String, dynamic>.from(resp.data as Map)
+        : <String, dynamic>{};
+    return Profile.fromJson(payload);
+  } on DioException catch (e) {
+    throw dioErrorMessage(e);
+  }
+});
+
+Map<String, dynamic> _legacyProfileMap(Profile profile) {
+  return {
+    'id': profile.userId,
+    'name': profile.displayName,
+    'displayName': profile.displayName,
+    'age': profile.age,
+    'city': profile.city ?? '',
+    'bio': profile.bio ?? '',
+    'imageUrl': profile.avatarUrl ?? '',
+    'avatarUrl': profile.avatarUrl ?? '',
+    'trustScore': profile.trustScore,
+    'isKycVerified': profile.isKycVerified,
+    'niyyah': profile.niyyah,
+    'madhab': profile.madhab,
+    'prompts': profile.prompts,
+    'matchId': '',
+    'languages': profile.languages,
+    'noPhotoMode': profile.noPhotoMode,
+    'maritalStatus': profile.maritalStatus,
+  };
+}
+
+class ProfileDetailScreen extends ConsumerWidget {
   final Map<String, dynamic> profile;
 
   const ProfileDetailScreen({super.key, required this.profile});
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = profile['id'] as String? ?? '';
+    if (userId.isEmpty) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Text('Профиль ID жоқ'),
+        ),
+      );
+    }
+
+    final asyncProfile = ref.watch(publicProfileProvider(userId));
+
+    return asyncProfile.when(
+      loading: () => const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      ),
+      error: (error, _) => Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off,
+                    size: 48, color: AppColors.textHint),
+                const SizedBox(height: 16),
+                Text(
+                  error.toString(),
+                  style: GoogleFonts.nunito(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => ref.refresh(publicProfileProvider(userId)),
+                  child: const Text('Қайтадан көру'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (loadedProfile) => _ProfileDetailView(
+        profile: _legacyProfileMap(loadedProfile),
+      ),
+    );
+  }
+}
+
+class _ProfileDetailView extends StatelessWidget {
+  final Map<String, dynamic> profile;
+
+  const _ProfileDetailView({required this.profile});
+
+  @override
   Widget build(BuildContext context) {
     final score = (profile['trustScore'] as num?)?.toInt() ?? 0;
-    final niyyah =
-        NiyyahTypeExt.fromString(profile['niyyah'] as String?);
+    final niyyah = NiyyahTypeExt.fromString(profile['niyyah'] as String?);
     final madhab = profile['madhab'] as String? ?? '';
     final isKyc = profile['isKycVerified'] as bool? ?? false;
+    final matchId = profile['matchId'] as String? ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -34,21 +139,16 @@ class ProfileDetailScreen extends StatelessWidget {
               Navigator.pop(context);
             },
           ),
-
           SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Name / age / city header
                 _ProfileHeader(profile: profile),
-
                 const KazakhDivider(indent: AppSpacing.lg),
                 const SizedBox(height: AppSpacing.md),
-
-                // Niyyah + Madhab chips
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -58,33 +158,21 @@ class ProfileDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: AppSpacing.lg),
-
-                // Trust Score section
                 _TrustSection(score: score),
-
                 const SizedBox(height: AppSpacing.md),
                 const KazakhDivider(indent: AppSpacing.lg),
                 const SizedBox(height: AppSpacing.md),
-
-                // Bio
                 if ((profile['bio'] as String?)?.isNotEmpty == true)
                   _BioSection(bio: profile['bio'] as String),
-
-                // Prompts
                 if ((profile['prompts'] as List?)?.isNotEmpty == true)
-                  _PromptsSection(
-                      prompts: profile['prompts'] as List),
-
+                  _PromptsSection(prompts: profile['prompts'] as List),
                 const SizedBox(height: 120),
               ],
             ),
           ),
         ],
       ),
-
-      // Bottom action buttons — rectangular, not round FABs
       bottomNavigationBar: _BottomActions(
         onPass: () {
           Haptics.vibrate(HapticsType.medium);
@@ -94,22 +182,22 @@ class ProfileDetailScreen extends StatelessWidget {
           Haptics.vibrate(HapticsType.success);
           Navigator.pop(context, 'like');
         },
-        onWhisper: () {
-          final userId = profile['id'] as String? ?? '';
-          if (userId.isNotEmpty) {
-            showWhisperModal(
-              context,
-              matchId: profile['matchId'] as String? ?? '',
-              reportedUserId: userId,
-            );
-          }
-        },
+        onWhisper: matchId.isNotEmpty
+            ? () {
+                final userId = profile['id'] as String? ?? '';
+                if (userId.isNotEmpty) {
+                  showWhisperModal(
+                    context,
+                    matchId: matchId,
+                    reportedUserId: userId,
+                  );
+                }
+              }
+            : null,
       ),
     );
   }
 }
-
-// ─── Sliver App Bar with hero photo ──────────────────────────────────────────
 
 class _ProfileSliverAppBar extends StatelessWidget {
   final Map<String, dynamic> profile;
@@ -126,6 +214,12 @@ class _ProfileSliverAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarUrl = (profile['imageUrl'] as String?)?.isNotEmpty == true
+        ? profile['imageUrl'] as String?
+        : (profile['avatarUrl'] as String?)?.isNotEmpty == true
+            ? profile['avatarUrl'] as String?
+            : null;
+
     return SliverAppBar(
       expandedHeight: MediaQuery.of(context).size.height * 0.52,
       pinned: true,
@@ -146,21 +240,24 @@ class _ProfileSliverAppBar extends StatelessWidget {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // Hero photo
             Hero(
               tag: 'profile-img-${profile["id"]}',
-              child: Image.network(
-                profile['imageUrl'] as String? ?? '',
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: AppColors.surfaceVariant,
-                  child: const Icon(Icons.person,
-                      size: 120, color: AppColors.textHint),
-                ),
-              ),
+              child: avatarUrl != null
+                  ? Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.surfaceVariant,
+                        child: const Icon(Icons.person,
+                            size: 120, color: AppColors.textHint),
+                      ),
+                    )
+                  : Container(
+                      color: AppColors.surfaceVariant,
+                      child: const Icon(Icons.person,
+                          size: 120, color: AppColors.textHint),
+                    ),
             ),
-
-            // Bottom gradient
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -176,15 +273,11 @@ class _ProfileSliverAppBar extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Trust score — top right
             Positioned(
               top: 60,
               right: 16,
               child: AnimatedTrustScoreBadge(score: score, size: 52),
             ),
-
-            // KYC badge
             if (isKyc)
               Positioned(
                 bottom: 16,
@@ -221,8 +314,6 @@ class _ProfileSliverAppBar extends StatelessWidget {
   }
 }
 
-// ─── Profile header: name + city ─────────────────────────────────────────────
-
 class _ProfileHeader extends StatelessWidget {
   final Map<String, dynamic> profile;
 
@@ -230,6 +321,10 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = profile['name'] as String? ?? '';
+    final age = profile['age'];
+    final title = age is num ? '$name, ${age.toInt()}' : name;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
@@ -237,7 +332,7 @@ class _ProfileHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${profile["name"]}, ${profile["age"]}',
+            title,
             style: GoogleFonts.nunito(
               fontSize: 26,
               fontWeight: FontWeight.bold,
@@ -265,8 +360,6 @@ class _ProfileHeader extends StatelessWidget {
     );
   }
 }
-
-// ─── Trust score display ──────────────────────────────────────────────────────
 
 class _TrustSection extends StatelessWidget {
   final int score;
@@ -319,8 +412,6 @@ class _TrustSection extends StatelessWidget {
   }
 }
 
-// ─── Bio section ─────────────────────────────────────────────────────────────
-
 class _BioSection extends StatefulWidget {
   final String bio;
 
@@ -343,7 +434,8 @@ class _BioSectionState extends State<_BioSection> {
         children: [
           Row(
             children: [
-              const IslamicStarWidget(size: 14, color: AppColors.secondary),
+              const Icon(Icons.star_border,
+                  size: 14, color: AppColors.secondary),
               const SizedBox(width: 8),
               Text(
                 'Өзі туралы',
@@ -389,8 +481,6 @@ class _BioSectionState extends State<_BioSection> {
   }
 }
 
-// ─── Prompts section ──────────────────────────────────────────────────────────
-
 class _PromptsSection extends StatelessWidget {
   final List prompts;
 
@@ -406,7 +496,8 @@ class _PromptsSection extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              const IslamicStarWidget(size: 14, color: AppColors.secondary),
+              const Icon(Icons.star_border,
+                  size: 14, color: AppColors.secondary),
               const SizedBox(width: 8),
               Text(
                 'Сұрақтар',
@@ -419,8 +510,10 @@ class _PromptsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          ...prompts.map((p) {
-            final prompt = p as Map;
+          ...prompts.map((item) {
+            final prompt = item is Map
+                ? Map<String, dynamic>.from(item)
+                : <String, dynamic>{};
             return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 12),
@@ -468,17 +561,15 @@ class _PromptsSection extends StatelessWidget {
   }
 }
 
-// ─── Bottom action bar ────────────────────────────────────────────────────────
-
 class _BottomActions extends StatelessWidget {
   final VoidCallback onPass;
   final VoidCallback onLike;
-  final VoidCallback onWhisper;
+  final VoidCallback? onWhisper;
 
   const _BottomActions({
     required this.onPass,
     required this.onLike,
-    required this.onWhisper,
+    this.onWhisper,
   });
 
   @override
@@ -502,7 +593,6 @@ class _BottomActions extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Pass — outlined
           Expanded(
             child: OutlinedButton(
               onPressed: onPass,
@@ -523,10 +613,7 @@ class _BottomActions extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: AppSpacing.sm),
-
-          // Like — filled primary
           Expanded(
             flex: 2,
             child: ElevatedButton(
@@ -547,10 +634,7 @@ class _BottomActions extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: AppSpacing.sm),
-
-          // Whisper ghost report button
           SizedBox(
             width: 52,
             height: 52,

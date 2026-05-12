@@ -232,9 +232,8 @@ class SettingsScreen extends ConsumerWidget {
               style: GoogleFonts.nunito(color: AppColors.textSecondary),
               textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () =>
-                ref.refresh(settingsNotifierProvider.notifier),
+              ElevatedButton(
+                onPressed: () => ref.refresh(settingsNotifierProvider),
             child: const Text('Қайтадан'),
           ),
         ],

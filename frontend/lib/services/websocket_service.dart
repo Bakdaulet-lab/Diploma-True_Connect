@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../core/constants/api_constants.dart';
 
 class WebSocketService {
   WebSocketChannel? _channel;
@@ -12,7 +13,7 @@ class WebSocketService {
   void connect(String token) {
     if (_channel != null) return;
 
-    final uri = Uri.parse('ws://localhost:8080/v1/chat/ws?token=$token');
+    final uri = Uri.parse('${ApiConstants.chatWs}?token=$token');
     _channel = WebSocketChannel.connect(uri);
 
     _channel!.stream.listen(

@@ -132,7 +132,7 @@ func (s *ProfileService) GetProfile(ctx context.Context, targetUserID uuid.UUID)
 		BirthDate:         profile.BirthDate,
 		City:              profile.City,
 		LookingFor:        string(profile.LookingFor),
-		AvatarURL:         profile.AvatarURL,
+		AvatarURL:         fixAvatarURL(profile.AvatarURL),
 		Photos:            photoViews,
 		TrustScore:        trustScore,
 		Badge:             scoreModel.GetBadge(),
