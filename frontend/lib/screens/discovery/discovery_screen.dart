@@ -7,6 +7,7 @@ import 'package:haptic_feedback/haptic_feedback.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/matching_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
 import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
@@ -290,14 +291,14 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
 
 // ─── Profile Card ─────────────────────────────────────────────────────────────
 
-class _ProfileCard extends StatelessWidget {
+class _ProfileCard extends ConsumerWidget {
   final Map<String, dynamic> candidate;
   final VoidCallback onTap;
 
   const _ProfileCard({required this.candidate, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final score = (candidate['trust_score'] as num?)?.toInt() ??
         (candidate['trustScore'] as num?)?.toInt() ?? 0;
     final niyyah = NiyyahTypeExt.fromString(candidate['niyyah'] as String?);
@@ -307,6 +308,14 @@ class _ProfileCard extends StatelessWidget {
     final avatarBlurred = candidate['avatar_blurred'] as bool? ?? false;
     final imageUrl = candidate['avatar_url'] as String? ??
         candidate['imageUrl'] as String? ?? '';
+
+    final userMadhabFilter = ref
+        .watch(settingsNotifierProvider)
+        .valueOrNull
+        ?.madhabFilter;
+    final isMadhabBoost = madhab.isNotEmpty &&
+        userMadhabFilter != null &&
+        madhab.toLowerCase() == userMadhabFilter.toLowerCase();
 
     return GestureDetector(
       onTap: onTap,
@@ -339,6 +348,7 @@ class _ProfileCard extends StatelessWidget {
                 bio: candidate['bio'] as String? ?? '',
                 niyyah: niyyah,
                 madhab: madhab,
+                isMadhabBoost: isMadhabBoost,
                 languages: (candidate['languages'] as List<dynamic>?)
                         ?.map((e) => e as String)
                         .toList() ??
@@ -468,6 +478,7 @@ class _CardInfo extends StatelessWidget {
   final String bio;
   final NiyyahType niyyah;
   final String madhab;
+  final bool isMadhabBoost;
   final List<String> languages;
 
   const _CardInfo({
@@ -477,6 +488,7 @@ class _CardInfo extends StatelessWidget {
     required this.bio,
     required this.niyyah,
     required this.madhab,
+    this.isMadhabBoost = false,
     required this.languages,
   });
 
@@ -519,7 +531,8 @@ class _CardInfo extends StatelessWidget {
             runSpacing: 4,
             children: [
               NiyyahBadge(niyyah: niyyah),
-              if (madhab.isNotEmpty) MadhabBadge(madhab: madhab),
+              if (madhab.isNotEmpty)
+                MadhabBadge(madhab: madhab, isBoost: isMadhabBoost),
               ...languages.take(2).map(
                     (l) => Container(
                       padding: const EdgeInsets.symmetric(

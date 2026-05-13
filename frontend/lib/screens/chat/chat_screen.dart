@@ -140,6 +140,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
       actions: [
+        // First meeting protocol button
+        IconButton(
+          icon: const Icon(Icons.location_on_outlined,
+              color: AppColors.secondary, size: 22),
+          tooltip: 'Бірінші кездесу',
+          onPressed: () =>
+              context.push('/first-meeting/${widget.matchId}'),
+        ),
         // Invite Mahram button
         TextButton.icon(
           onPressed: _openMahramInvite,

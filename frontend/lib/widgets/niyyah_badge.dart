@@ -104,8 +104,9 @@ class NiyyahBadge extends StatelessWidget {
 // Madhab chip
 class MadhabBadge extends StatelessWidget {
   final String madhab;
+  final bool isBoost;
 
-  const MadhabBadge({super.key, required this.madhab});
+  const MadhabBadge({super.key, required this.madhab, this.isBoost = false});
 
   String get _label {
     switch (madhab.toLowerCase()) {
@@ -126,17 +127,40 @@ class MadhabBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: const BoxDecoration(
-        color: AppColors.secondaryLight,
+      decoration: BoxDecoration(
+        color: isBoost
+            ? AppColors.secondary.withValues(alpha: 0.25)
+            : AppColors.secondaryLight,
         borderRadius: AppRadius.chip,
+        border: isBoost
+            ? Border.all(color: AppColors.goldBorder, width: 1)
+            : null,
       ),
-      child: Text(
-        _label,
-        style: GoogleFonts.nunito(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _label,
+            style: GoogleFonts.nunito(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isBoost
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary,
+            ),
+          ),
+          if (isBoost) ...[
+            const SizedBox(width: 3),
+            Text(
+              '+10',
+              style: GoogleFonts.nunito(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.secondary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

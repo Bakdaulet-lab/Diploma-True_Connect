@@ -31,6 +31,7 @@ type RouterDeps struct {
 	MahramChat   *MahramChatHandler
 	Whisper      *WhisperHandler
 	Imam         *ImamHandler
+	Venue        *VenueHandler
 	AuditRepo        repository.AuditRepository
 	JWT              *tcjwt.Manager
 	Redis            *redis.Client
@@ -176,6 +177,11 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		if deps.Imam != nil {
 			protected.GET("/imams", deps.Imam.ListImams)
 			protected.POST("/matches/:id/nikah-confirm", userRL, deps.Imam.ConfirmNikah)
+		}
+
+		// Halal Venues (first meeting protocol)
+		if deps.Venue != nil {
+			protected.GET("/venues", deps.Venue.ListVenues)
 		}
 
 		// Admin / Review Workflow

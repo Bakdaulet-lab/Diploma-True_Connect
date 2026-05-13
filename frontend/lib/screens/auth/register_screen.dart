@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dio/dio.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
@@ -19,8 +21,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _nameCtr = TextEditingController();
   final _phoneCtr = TextEditingController();
   final _passCtr = TextEditingController();
+  String? _madhab;
   bool _obscure = true;
   bool _loading = false;
+
+  static const _madhabOptions = [
+    ('hanafi', 'Ханафи'),
+    ('shafi', 'Шафии'),
+    ('maliki', 'Маликий'),
+    ('hanbali', 'Ханбали'),
+  ];
 
   @override
   void dispose() {
@@ -41,19 +51,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         );
 
     if (!mounted) return;
-    setState(() => _loading = false);
 
     final authState = ref.read(authStateProvider);
-    authState.whenOrNull(
-      error: (e, _) => ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString()))),
-      data: (user) {
-        if (user != null) {
-          // After registration → Niyyah selection (mandatory)
-          context.go('/niyyah');
-        }
-      },
-    );
+    if (authState.hasError) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authState.error.toString())),
+      );
+      return;
+    }
+
+    if (authState.valueOrNull != null && _madhab != null) {
+      // Save madhab to profile immediately after account creation.
+      try {
+        final dio = ref.read(dioClientProvider).dio;
+        await dio.put(ApiConstants.profile, data: {
+          'display_name': _nameCtr.text.trim(),
+          'madhab': _madhab,
+        });
+      } catch (_) {
+        // Non-blocking — user can update madhab later in profile edit.
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (authState.valueOrNull != null) {
+      context.go('/niyyah');
+    }
   }
 
   @override
@@ -112,6 +138,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     child: Form(
                       key: _form,
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Name
                           TextFormField(
@@ -179,6 +206,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          // Madhab (optional)
+                          DropdownButtonFormField<String>(
+                            value: _madhab,
+                            decoration: const InputDecoration(
+                              hintText: 'Мазхаб (қосымша)',
+                              prefixIcon: Icon(Icons.mosque_outlined,
+                                  color: AppColors.textHint),
+                            ),
+                            dropdownColor: AppColors.surface,
+                            items: _madhabOptions
+                                .map((opt) => DropdownMenuItem(
+                                      value: opt.$1,
+                                      child: Text(
+                                        opt.$2,
+                                        style: GoogleFonts.nunito(
+                                            color: AppColors.textPrimary),
+                                      ),
+                                    ))
+                                .toList(),
+                            onChanged: (v) => setState(() => _madhab = v),
+                          ),
 
                           const SizedBox(height: AppSpacing.lg),
 
@@ -198,13 +248,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
                           const SizedBox(height: AppSpacing.sm),
 
-                          Text(
-                            'Тіркелу арқылы сіз қызмет\nшарттарымен келісесіз',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.nunito(
-                              fontSize: 11,
-                              color: AppColors.textHint,
-                              height: 1.5,
+                          Center(
+                            child: Text(
+                              'Тіркелу арқылы сіз қызмет\nшарттарымен келісесіз',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.nunito(
+                                fontSize: 11,
+                                color: AppColors.textHint,
+                                height: 1.5,
+                              ),
                             ),
                           ),
                         ],

@@ -106,22 +106,51 @@ class MatchesScreen extends ConsumerWidget {
 
 // ─── Match Card ───────────────────────────────────────────────────────────────
 
-class _MatchCard extends StatelessWidget {
+class _MatchCard extends ConsumerStatefulWidget {
   final Map<String, dynamic> match;
   const _MatchCard({required this.match});
 
   @override
-  Widget build(BuildContext context) {
-    final name = match['other_user_name'] as String? ?? '';
-    final avatarUrl = match['other_user_avatar_url'] as String?;
-    final trustScore =
-        (match['other_user_trust_score'] as num?)?.toInt() ?? 0;
-    final matchId = match['id'] as String? ?? '';
-    final imamConfirmed = match['imam_confirmed'] as bool? ?? false;
-    final familyIntroDone = match['family_intro_done'] as bool? ?? false;
+  ConsumerState<_MatchCard> createState() => _MatchCardState();
+}
 
-    // Niyyah timer
-    final timerStr = match['niyyah_timer_ends_at'] as String?;
+class _MatchCardState extends ConsumerState<_MatchCard> {
+  bool _introLoading = false;
+
+  Future<void> _doFamilyIntro(String matchId) async {
+    setState(() => _introLoading = true);
+    try {
+      await markFamilyIntro(ref, matchId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Отбасы таныстырылды! +15 Trust Score'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      ref.invalidate(matchesListProvider);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Қате орын алды, қайталап көріңіз')),
+      );
+    } finally {
+      if (mounted) setState(() => _introLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.match['other_user_name'] as String? ?? '';
+    final avatarUrl = widget.match['other_user_avatar_url'] as String?;
+    final trustScore =
+        (widget.match['other_user_trust_score'] as num?)?.toInt() ?? 0;
+    final matchId = widget.match['id'] as String? ?? '';
+    final imamConfirmed = widget.match['imam_confirmed'] as bool? ?? false;
+    final familyIntroDone =
+        widget.match['family_intro_done'] as bool? ?? false;
+
+    final timerStr = widget.match['niyyah_timer_ends_at'] as String?;
     final timerEndsAt =
         timerStr != null ? DateTime.tryParse(timerStr) : null;
     final daysLeft = timerEndsAt?.difference(DateTime.now()).inDays;
@@ -135,53 +164,89 @@ class _MatchCard extends StatelessWidget {
           borderRadius: AppRadius.card,
           boxShadow: AppShadows.soft,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar
-            Stack(
+            Row(
               children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: AppColors.surfaceVariant,
-                  backgroundImage:
-                      avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null
-                      ? const Icon(Icons.person,
-                          size: 32, color: AppColors.textHint)
-                      : null,
+                // Avatar
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundColor: AppColors.surfaceVariant,
+                      backgroundImage:
+                          avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      child: avatarUrl == null
+                          ? const Icon(Icons.person,
+                              size: 32, color: AppColors.textHint)
+                          : null,
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: TrustScoreBadge(score: trustScore, size: 22),
+                    ),
+                  ],
                 ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: TrustScoreBadge(score: trustScore, size: 22),
+
+                const SizedBox(width: AppSpacing.md),
+
+                // Name + status
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: GoogleFonts.nunito(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _statusRow(imamConfirmed, familyIntroDone),
+                    ],
+                  ),
                 ),
+
+                // Niyyah timer
+                if (daysLeft != null && !imamConfirmed)
+                  _TimerChip(daysLeft: daysLeft),
               ],
             ),
 
-            const SizedBox(width: AppSpacing.md),
-
-            // Name + status
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: GoogleFonts.nunito(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+            // Family Introduction button — shown when not done and not nikah confirmed
+            if (!familyIntroDone && !imamConfirmed) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _introLoading
+                      ? null
+                      : () => _doFamilyIntro(matchId),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.secondary,
+                    side: const BorderSide(
+                        color: AppColors.goldBorder, width: 1),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    textStyle:
+                        GoogleFonts.nunito(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 4),
-                  _statusRow(imamConfirmed, familyIntroDone),
-                ],
+                  icon: _introLoading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.secondary),
+                        )
+                      : const Icon(Icons.group_add_outlined, size: 16),
+                  label: const Text('Отбасыны таныстыру'),
+                ),
               ),
-            ),
-
-            // Niyyah timer
-            if (daysLeft != null && !imamConfirmed)
-              _TimerChip(daysLeft: daysLeft),
+            ],
           ],
         ),
       ),

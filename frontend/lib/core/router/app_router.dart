@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../services/push_service.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
 import '../../screens/chat/chat_screen.dart';
@@ -15,6 +16,8 @@ import '../../screens/niyyah/niyyah_selection_screen.dart';
 import '../../screens/onboarding/onboarding_screen.dart';
 import '../../screens/profile/profile_detail_screen.dart';
 import '../../screens/profile/profile_screen.dart';
+import '../../screens/matches/first_meeting_screen.dart';
+import '../../screens/profile/edit_profile_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/splash/splash_screen.dart';
 
@@ -37,6 +40,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(_authRouterNotifierProvider);
 
   return GoRouter(
+    navigatorKey: PushService.navigatorKey,
     initialLocation: '/splash',
     refreshListenable: notifier,
     redirect: (context, state) {
@@ -133,6 +137,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => ProfileDetailScreen(
           profile: {'id': state.pathParameters['userId'] ?? ''},
         ),
+      ),
+      GoRoute(
+        path: '/first-meeting/:matchId',
+        builder: (_, state) => FirstMeetingScreen(
+          matchId: state.pathParameters['matchId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/profile/edit',
+        builder: (_, __) => const EditProfileScreen(),
       ),
       GoRoute(
         path: '/kyc',

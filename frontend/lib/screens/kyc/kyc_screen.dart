@@ -11,7 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
 
-enum _KycStatus { idle, uploading, pending, verified }
+enum _KycStatus { idle, uploading, pending, verified, banned }
 
 class KycScreen extends ConsumerStatefulWidget {
   const KycScreen({super.key});
@@ -62,6 +62,17 @@ class _KycScreenState extends ConsumerState<KycScreen> {
       });
       await dio.post(ApiConstants.kycSubmit, data: formData);
       if (mounted) setState(() => _status = _KycStatus.pending);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final code = (e.response?.data as Map?)?['code'] as String?;
+      if (e.response?.statusCode == 403 && code == 'IIN_BANNED') {
+        setState(() => _status = _KycStatus.banned);
+      } else {
+        setState(() {
+          _status = _KycStatus.idle;
+          _errorMessage = 'Жүктеу қатесі: ${e.message}';
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -97,9 +108,11 @@ class _KycScreenState extends ConsumerState<KycScreen> {
           ),
         ),
       ),
-      body: _status == _KycStatus.pending || _status == _KycStatus.verified
-          ? _buildSuccess()
-          : _buildForm(),
+      body: switch (_status) {
+        _KycStatus.pending || _KycStatus.verified => _buildSuccess(),
+        _KycStatus.banned => _buildBanned(),
+        _ => _buildForm(),
+      },
     );
   }
 
@@ -256,6 +269,59 @@ class _KycScreenState extends ConsumerState<KycScreen> {
             ElevatedButton(
               onPressed: () => context.pop(),
               child: const Text('Артқа'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBanned() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.block,
+                  size: 56, color: AppColors.accent),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'Аккаунт бұғатталды',
+              style: GoogleFonts.nunito(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.accent,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Бұл ЖСН бойынша аккаунт бұрын бұғатталған. '
+              'TrueConnect саясаты бойынша жаңа аккаунт '
+              'ашуға рұқсат берілмейді.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            OutlinedButton.icon(
+              onPressed: () => context.pop(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: const BorderSide(color: AppColors.accent),
+              ),
+              icon: const Icon(Icons.arrow_back, size: 16),
+              label: const Text('Артқа'),
             ),
           ],
         ),

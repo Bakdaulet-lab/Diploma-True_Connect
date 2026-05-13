@@ -223,6 +223,7 @@ func run() error {
 
 	imamSvc := service.NewImamService(matchRepo, profileRepo, notifSvc, log)
 	imamHandler := handler.NewImamHandler(imamSvc, log)
+	venueHandler := handler.NewVenueHandler()
 
 	auditRepo := postgres.NewAuditRepo(pgPool)
 
@@ -252,6 +253,7 @@ func run() error {
 		MahramChat:       mahramChatHandler,
 		Whisper:          whisperHandler,
 		Imam:             imamHandler,
+		Venue:            venueHandler,
 		AuditRepo:        auditRepo,
 		JWT:              jwtManager,
 		Redis:            redisClient,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/dio_client.dart';
+import '../core/services/push_service.dart';
 import '../models/user.dart';
 
 // ─── DioClient provider ───────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       authData['refresh_token'] = 'cookie'; // Set via HTTP-only cookie
 
       await _saveTokens(authData);
+      await _patchFcmToken();
     } on DioException catch (e, st) {
       state = AsyncValue.error(_dioMessage(e), st);
     }
@@ -105,6 +107,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       authData['refresh_token'] = 'cookie';
 
       await _saveTokens(authData);
+      await _patchFcmToken();
     } on DioException catch (e, st) {
       state = AsyncValue.error(_dioMessage(e), st);
     }
@@ -132,6 +135,16 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
 
     await _storage.write(key: 'access_token', value: accessToken);
     await _storage.write(key: 'refresh_token', value: refreshToken);
+  }
+
+  Future<void> _patchFcmToken() async {
+    final token = PushService.fcmToken;
+    if (token == null) return;
+    try {
+      await _dio.patch(ApiConstants.fcmToken, data: {'fcm_token': token});
+    } catch (_) {
+      // Best-effort — don't fail login if push token upload fails.
+    }
   }
 
   String _dioMessage(DioException e) {

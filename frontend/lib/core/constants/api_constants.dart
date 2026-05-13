@@ -49,4 +49,10 @@ abstract final class ApiConstants {
 
   // Whisper
   static const whisper = '/whisper';
+
+  // Halal venues
+  static const venues = '/venues';
+
+  // Push notifications
+  static const fcmToken = '/users/me/fcm-token';
 }

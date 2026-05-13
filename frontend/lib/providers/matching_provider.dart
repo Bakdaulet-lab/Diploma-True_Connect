@@ -49,6 +49,13 @@ final matchingNotifierProvider = StateNotifierProvider<MatchingNotifier,
   return MatchingNotifier(ref.watch(dioClientProvider).dio);
 });
 
+// ─── Family Introduction ──────────────────────────────────────────────────────
+
+Future<void> markFamilyIntro(WidgetRef ref, String matchId) async {
+  final dio = ref.read(dioClientProvider).dio;
+  await dio.post('${ApiConstants.matches}/$matchId/family-intro');
+}
+
 // ─── Match list ───────────────────────────────────────────────────────────────
 
 final matchesListProvider =

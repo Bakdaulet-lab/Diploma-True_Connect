@@ -51,7 +51,7 @@ class ProfileScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Colors.white),
-            onPressed: () => context.push('/kyc'),
+            onPressed: () => context.push('/profile/edit'),
             tooltip: 'Өңдеу',
           ),
         ],
