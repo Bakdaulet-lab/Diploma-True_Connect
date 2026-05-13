@@ -53,6 +53,15 @@ abstract final class ApiConstants {
   // Halal venues
   static const venues = '/venues';
 
+  // Social feed
+  static const posts = '/posts';
+
+  // Notifications
+  static const notifications = '/notifications';
+
+  // Chat history
+  static String matchMessages(String matchId) => '/matches/$matchId/messages';
+
   // Push notifications
   static const fcmToken = '/users/me/fcm-token';
 }

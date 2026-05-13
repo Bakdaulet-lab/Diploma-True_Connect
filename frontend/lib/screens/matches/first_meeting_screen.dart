@@ -7,6 +7,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_error_message.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/interaction.dart';
 import '../../models/venue.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
@@ -64,6 +65,16 @@ class _FirstMeetingScreenState extends ConsumerState<FirstMeetingScreen> {
 
   String _selectedCity = 'Almaty';
 
+  void _showRateSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.bottomSheet),
+      builder: (_) => _RateMeetingSheet(matchId: widget.matchId),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncVenues = ref.watch(_venuesProvider(_selectedCity));
@@ -90,6 +101,16 @@ class _FirstMeetingScreenState extends ConsumerState<FirstMeetingScreen> {
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showRateSheet(context),
+        backgroundColor: AppColors.secondary,
+        foregroundColor: AppColors.textPrimary,
+        icon: const Icon(Icons.star_outline),
+        label: Text(
+          'Кездесуді бағала',
+          style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
         ),
       ),
       body: Stack(
@@ -421,6 +442,178 @@ class _VenueCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Rate meeting sheet ───────────────────────────────────────────────────────
+
+class _RateMeetingSheet extends ConsumerStatefulWidget {
+  final String matchId;
+  const _RateMeetingSheet({required this.matchId});
+
+  @override
+  ConsumerState<_RateMeetingSheet> createState() => _RateMeetingSheetState();
+}
+
+class _RateMeetingSheetState extends ConsumerState<_RateMeetingSheet> {
+  int _rating = 3;
+  InteractionContext _ctx = InteractionContext.date;
+  final _commentCtrl = TextEditingController();
+  bool _loading = false;
+  bool _done = false;
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _loading = true);
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      await dio.post(
+        '/interactions',
+        data: {
+          'match_id': widget.matchId,
+          'rating': _rating,
+          'context': _ctx.value,
+          if (_commentCtrl.text.trim().isNotEmpty)
+            'comment': _commentCtrl.text.trim(),
+        },
+      );
+      setState(() => _done = true);
+    } on DioException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(dioErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: _done ? _buildSuccess() : _buildForm(),
+      ),
+    );
+  }
+
+  Widget _buildSuccess() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.check_circle, color: AppColors.primary, size: 56),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Бағалау жіберілді!',
+          style: GoogleFonts.nunito(
+            fontSize: 18, fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Trust Score жаңартылады.',
+          style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Жабу'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildForm() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Кездесуді бағала',
+          style: GoogleFonts.nunito(
+            fontSize: 18, fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(5, (i) {
+            final star = i + 1;
+            return IconButton(
+              onPressed: () => setState(() => _rating = star),
+              icon: Icon(
+                star <= _rating ? Icons.star : Icons.star_border,
+                color: AppColors.secondary,
+                size: 36,
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Кездесу түрі',
+          style: GoogleFonts.nunito(
+            fontSize: 13, fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          spacing: AppSpacing.sm,
+          children: InteractionContext.values.map((c) {
+            final selected = _ctx == c;
+            return ChoiceChip(
+              label: Text(c.label),
+              selected: selected,
+              onSelected: (_) => setState(() => _ctx = c),
+              selectedColor: AppColors.primary,
+              labelStyle: GoogleFonts.nunito(
+                fontSize: 13,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        TextField(
+          controller: _commentCtrl,
+          maxLines: 2,
+          maxLength: 300,
+          decoration: const InputDecoration(hintText: 'Пікір (міндетті емес)...'),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        ElevatedButton(
+          onPressed: _loading ? null : _submit,
+          child: _loading
+              ? const SizedBox(
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Жіберу'),
+        ),
+      ],
     );
   }
 }

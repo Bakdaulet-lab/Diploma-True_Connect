@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/chat_provider.dart';
+import '../../services/websocket_service.dart';
+import 'call_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String matchId;
@@ -48,6 +51,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _onTyping(String _) {
     ref.read(chatNotifierProvider(widget.matchId).notifier).sendTyping();
+  }
+
+  Future<void> _startCall() async {
+    const storage = FlutterSecureStorage();
+    final token = await storage.read(key: 'access_token') ?? '';
+    final wsService = WebSocketService();
+    wsService.connect(token);
+    if (!mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CallScreen(
+        matchData: {'id': widget.matchId},
+        wsService: wsService,
+        isCaller: true,
+      ),
+    ));
   }
 
   void _openMahramInvite() {
@@ -140,6 +158,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
       actions: [
+        // Video call button
+        IconButton(
+          icon: const Icon(Icons.call_outlined,
+              color: AppColors.secondary, size: 22),
+          tooltip: 'Қоңырау шалу',
+          onPressed: _startCall,
+        ),
         // First meeting protocol button
         IconButton(
           icon: const Icon(Icons.location_on_outlined,

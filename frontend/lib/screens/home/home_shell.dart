@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/notification_provider.dart';
 
-class HomeShell extends StatelessWidget {
+class HomeShell extends ConsumerWidget {
   final Widget child;
 
   const HomeShell({super.key, required this.child});
 
   int _tabIndex(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
-    if (loc.startsWith('/matches')) return 1;
-    if (loc.startsWith('/profile')) return 2;
-    if (loc.startsWith('/settings')) return 3;
+    if (loc.startsWith('/feed')) return 1;
+    if (loc.startsWith('/matches')) return 2;
+    if (loc.startsWith('/profile')) return 3;
+    if (loc.startsWith('/settings')) return 4;
     return 0;
   }
 
@@ -21,17 +24,21 @@ class HomeShell extends StatelessWidget {
       case 0:
         context.go('/home');
       case 1:
-        context.go('/matches');
+        context.go('/feed');
       case 2:
-        context.go('/profile');
+        context.go('/matches');
       case 3:
+        context.go('/profile');
+      case 4:
         context.go('/settings');
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final index = _tabIndex(context);
+    final unreadCount = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+
     return Scaffold(
       body: child,
       bottomNavigationBar: Container(
@@ -56,23 +63,35 @@ class HomeShell extends StatelessWidget {
               fontSize: 11, fontWeight: FontWeight.w600),
           unselectedLabelStyle: GoogleFonts.nunito(fontSize: 11),
           type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
+          items: [
+            const BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.explore_outlined),
               activeIcon: _NavIcon(icon: Icons.explore, active: true),
               label: 'Табу',
             ),
-            BottomNavigationBarItem(
-              icon: _NavIcon(icon: Icons.favorite_border),
-              activeIcon: _NavIcon(icon: Icons.favorite, active: true),
-              label: 'Сәйкестік',
+            const BottomNavigationBarItem(
+              icon: _NavIcon(icon: Icons.article_outlined),
+              activeIcon: _NavIcon(icon: Icons.article, active: true),
+              label: 'Жаңалық',
             ),
             BottomNavigationBarItem(
+              icon: _BadgedNavIcon(
+                icon: Icons.favorite_border,
+                count: unreadCount,
+              ),
+              activeIcon: _BadgedNavIcon(
+                icon: Icons.favorite,
+                count: unreadCount,
+                active: true,
+              ),
+              label: 'Сәйкестік',
+            ),
+            const BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.person_outline),
               activeIcon: _NavIcon(icon: Icons.person, active: true),
               label: 'Профиль',
             ),
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.tune_outlined),
               activeIcon: _NavIcon(icon: Icons.tune, active: true),
               label: 'Баптаулар',
@@ -95,5 +114,49 @@ class _NavIcon extends StatelessWidget {
     return Icon(icon,
         size: 24,
         color: active ? AppColors.primary : AppColors.textHint);
+  }
+}
+
+class _BadgedNavIcon extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final bool active;
+
+  const _BadgedNavIcon({
+    required this.icon,
+    required this.count,
+    this.active = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon,
+            size: 24,
+            color: active ? AppColors.primary : AppColors.textHint),
+        if (count > 0)
+          Positioned(
+            top: -4,
+            right: -6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
