@@ -82,6 +82,7 @@ Map<String, dynamic> _extractMap(dynamic payload) {
 }
 
 Map<String, dynamic> _normalizeMatch(Map<String, dynamic> raw) {
+  final rawId = raw['id'] ?? raw['user_id'] ?? raw['userId'];
   final otherUser = _extractMap(raw['other_user']);
   final displayName = _readString(otherUser, ['display_name', 'displayName', 'name']);
   final avatarUrl = _readString(otherUser, ['avatar_url', 'avatarUrl', 'imageUrl']);
@@ -89,7 +90,7 @@ Map<String, dynamic> _normalizeMatch(Map<String, dynamic> raw) {
 
   return {
     ...raw,
-    'id': raw['id']?.toString() ?? '',
+    'id': rawId?.toString() ?? '',
     'other_user': otherUser,
     'other_user_name': displayName,
     'other_user_avatar_url': avatarUrl != null && avatarUrl.isNotEmpty ? avatarUrl : null,

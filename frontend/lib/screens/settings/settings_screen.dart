@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/network/dio_error_message.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/settings.dart';
@@ -485,9 +487,6 @@ class _MahramSection extends StatefulWidget {
 }
 
 class _MahramSectionState extends State<_MahramSection> {
-  final _phoneCtr = TextEditingController();
-  bool _showAdd = false;
-  bool _loading = false;
   List<Map<String, dynamic>> _mahrams = [];
 
   @override
@@ -509,32 +508,6 @@ class _MahramSectionState extends State<_MahramSection> {
     } catch (_) {}
   }
 
-  Future<void> _addMahram() async {
-    if (_phoneCtr.text.trim().isEmpty) return;
-    setState(() => _loading = true);
-    try {
-      final dio = widget.ref.read(dioClientProvider).dio;
-      await dio.post(ApiConstants.mahram,
-          data: {'phone': _phoneCtr.text.trim()});
-      _phoneCtr.clear();
-      if (!mounted) return;
-      setState(() {
-        _showAdd = false;
-        _loading = false;
-      });
-      await _loadMahrams();
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _phoneCtr.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return _SettingsCard(
@@ -544,51 +517,164 @@ class _MahramSectionState extends State<_MahramSection> {
           ..._mahrams.map((m) => _MahramTile(mahram: m)),
 
           // Add button
-          if (!_showAdd)
-            ListTile(
-              leading: const Icon(Icons.add_circle_outline,
-                  color: AppColors.primary),
-              title: Text(
-                'Махрам қосу',
-                style: GoogleFonts.nunito(
-                    fontSize: 14, color: AppColors.primary),
-              ),
-              onTap: () => setState(() => _showAdd = true),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
+          ListTile(
+            leading:
+                const Icon(Icons.add_circle_outline, color: AppColors.primary),
+            title: Text(
+              'Махрам қосу',
+              style: GoogleFonts.nunito(fontSize: 14, color: AppColors.primary),
+            ),
+            onTap: () async {
+              final created = await showModalBottomSheet<bool>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: AppColors.surface,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (_) => const _AddMahramSheet(),
+              );
+              if (created == true) {
+                await _loadMahrams();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddMahramSheet extends ConsumerStatefulWidget {
+  const _AddMahramSheet();
+
+  @override
+  ConsumerState<_AddMahramSheet> createState() => _AddMahramSheetState();
+}
+
+class _AddMahramSheetState extends ConsumerState<_AddMahramSheet> {
+  final _phoneCtr = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _phoneCtr.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final phone = _phoneCtr.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _error = 'Телефон нөмірін енгізіңіз');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      await dio.post(ApiConstants.mahram, data: {'phone': phone});
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = dioErrorMessage(e);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneCtr,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        hintText: '+7 ___ ___ __ __',
-                        prefixIcon: Icon(Icons.phone_outlined,
-                            color: AppColors.textHint),
-                      ),
-                    ),
-                  ),
+                  const Icon(Icons.add_circle_outline,
+                      color: AppColors.primary, size: 22),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _loading ? null : _addMahram,
-                    style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.md)),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Text('Қосу'),
+                  Text(
+                    'Махрам қосу',
+                    style: GoogleFonts.nunito(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ],
               ),
-            ),
-        ],
+              const SizedBox(height: 8),
+              Text(
+                'Махрамның телефон нөмірін енгізіңіз.',
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _phoneCtr,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  hintText: '+7 ___ ___ __ __',
+                  prefixIcon:
+                      Icon(Icons.phone_outlined, color: AppColors.textHint),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: GoogleFonts.nunito(
+                    fontSize: 13,
+                    color: AppColors.accent,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _submit,
+                  child: _saving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Қосу'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        ),
       ),
     );
   }

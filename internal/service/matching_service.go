@@ -122,14 +122,16 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		seenIDs = []uuid.UUID{}
 	}
 
+	matchedIDs := []uuid.UUID{}
 	matches, _, err := s.matchRepo.ListMatches(ctx, userID, "", 200)
 	if err == nil {
+		matchedIDs = make([]uuid.UUID, 0, len(matches))
 		for _, m := range matches {
 			other := m.UserAID
 			if other == userID {
 				other = m.UserBID
 			}
-			seenIDs = append(seenIDs, other)
+			matchedIDs = append(matchedIDs, other)
 		}
 	}
 
@@ -137,6 +139,9 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 
 	// B1: compute niyyah compatibility filter from requester's own niyyah.
 	allowedNiyyahs := niyyahCompatible(requesterProfile.Niyyah)
+
+	excludeIDs := append([]uuid.UUID{}, seenIDs...)
+	excludeIDs = append(excludeIDs, matchedIDs...)
 
 	opts := repository.FindCandidatesOpts{
 		RequesterID:       userID,
@@ -146,7 +151,7 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		MaxDistanceMeters: &maxDistMeters,
 		RequesterLat:      requesterProfile.Latitude,
 		RequesterLon:      requesterProfile.Longitude,
-		ExcludeIDs:        seenIDs,
+		ExcludeIDs:        excludeIDs,
 		Limit:             candidateBatchSize,
 		AllowedNiyyahs:    allowedNiyyahs,
 		MadhabFilter:      settings.MadhabFilter,
@@ -155,6 +160,23 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 	rows, err := s.profileRepo.FindCandidates(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("get candidates: querying: %w", err)
+	}
+	if len(rows) == 0 && len(seenIDs) > 0 {
+		opts.ExcludeIDs = matchedIDs
+		rows, err = s.profileRepo.FindCandidates(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("get candidates: retrying without seen cache: %w", err)
+		}
+	}
+	if len(rows) == 0 && opts.MaxDistanceMeters != nil {
+		// Fallback: widen discovery beyond distance when local pool is empty.
+		opts.MaxDistanceMeters = nil
+		opts.RequesterLat = nil
+		opts.RequesterLon = nil
+		rows, err = s.profileRepo.FindCandidates(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("get candidates: retrying without distance filter: %w", err)
+		}
 	}
 
 	requesterMadhab := string(requesterProfile.Madhab)
@@ -218,12 +240,14 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 
 	if matched {
 		// New match! Notify the target user
-                if s.notifSvc != nil { _ = s.notifSvc.Create(ctx, &domain.Notification{
-			UserID:   targetID,
-			ActorID:  &userID,
-			Type:     domain.NotificationTypeMatch,
-			EntityID: &matchID,
-                }) }
+		if s.notifSvc != nil {
+			_ = s.notifSvc.Create(ctx, &domain.Notification{
+				UserID:   targetID,
+				ActorID:  &userID,
+				Type:     domain.NotificationTypeMatch,
+				EntityID: &matchID,
+			})
+		}
 		// We could optionally notify the current user too, but usually the current user knows since they just swiped "Like"
 	}
 
