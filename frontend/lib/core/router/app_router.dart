@@ -5,10 +5,15 @@ import '../../providers/auth_provider.dart';
 import '../services/push_service.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
+import '../../screens/chat/call_screen.dart';
 import '../../screens/chat/chat_screen.dart';
 import '../../screens/chat/mahram_chat_screen.dart';
 import '../../screens/discovery/discovery_screen.dart';
+import '../../screens/feed/create_post_screen.dart';
+import '../../screens/feed/feed_screen.dart';
 import '../../screens/home/home_shell.dart';
+import '../../screens/notifications/notifications_screen.dart';
+import '../../services/websocket_service.dart';
 import '../../screens/imams/imam_connect_screen.dart';
 import '../../screens/kyc/kyc_screen.dart';
 import '../../screens/matches/matches_screen.dart';
@@ -105,6 +110,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const DiscoveryScreen(),
           ),
           GoRoute(
+            path: '/feed',
+            builder: (_, __) => const FeedScreen(),
+          ),
+          GoRoute(
             path: '/matches',
             builder: (_, __) => const MatchesScreen(),
           ),
@@ -120,6 +129,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Feature screens ──────────────────────────────────────────────────
+      GoRoute(
+        path: '/feed/create',
+        builder: (_, __) => const CreatePostScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (_, __) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/call/:matchId',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return CallScreen(
+            matchData: {'id': state.pathParameters['matchId'] ?? ''},
+            wsService: extra['wsService'] as WebSocketService,
+            isCaller: extra['isCaller'] as bool? ?? true,
+            initialOffer: extra['initialOffer'] as Map<String, dynamic>?,
+          );
+        },
+      ),
       GoRoute(
         path: '/chat/:matchId',
         builder: (_, state) => ChatScreen(

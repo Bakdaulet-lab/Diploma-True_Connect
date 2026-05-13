@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/constants/api_constants.dart';
+import 'auth_provider.dart';
 
 // ─── Chat Event ───────────────────────────────────────────────────────────────
 
@@ -80,6 +82,7 @@ class ChatState {
 
 class ChatNotifier extends StateNotifier<ChatState> {
   final String _matchId;
+  final Dio _dio;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _typingTimer;
@@ -88,7 +91,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final _eventBus = StreamController<ChatEvent>.broadcast();
   Stream<ChatEvent> get events => _eventBus.stream;
 
-  ChatNotifier(this._matchId) : super(const ChatState()) {
+  ChatNotifier(this._matchId, this._dio) : super(const ChatState()) {
     _connect();
   }
 
@@ -102,6 +105,29 @@ class ChatNotifier extends StateNotifier<ChatState> {
       onDone: () => state = state.copyWith(isConnected: false),
       onError: (_) => state = state.copyWith(isConnected: false),
     );
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final resp = await _dio.get(
+        ApiConstants.matchMessages(_matchId),
+        queryParameters: {'limit': 50},
+      );
+      final raw = resp.data is Map ? resp.data['data'] ?? resp.data : resp.data;
+      if (raw is! List) return;
+      final history = raw
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (history.isEmpty) return;
+      // Prepend history; deduplicate against any live messages already received
+      final liveIds = {for (final m in state.messages) m['id'] as String? ?? ''};
+      final deduped = history.where((m) => !liveIds.contains(m['id'])).toList();
+      state = state.copyWith(messages: [...deduped, ...state.messages]);
+    } catch (_) {
+      // History load is best-effort — don't disrupt the live chat.
+    }
   }
 
   void _onRaw(dynamic raw) {
@@ -177,5 +203,5 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
 final chatNotifierProvider =
     StateNotifierProvider.family<ChatNotifier, ChatState, String>(
-  (ref, matchId) => ChatNotifier(matchId),
+  (ref, matchId) => ChatNotifier(matchId, ref.watch(dioClientProvider).dio),
 );

@@ -9,6 +9,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/kyc_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
 
 enum _KycStatus { idle, uploading, pending, verified, banned }
