@@ -42,48 +42,52 @@ class _KycScreenState extends ConsumerState<KycScreen> {
   }
 
   Future<void> _submit() async {
-    if (_frontPhoto == null || _backPhoto == null) {
-      setState(() =>
-          _errorMessage = 'Жеке куәліктің екі жағын таңдаңыз');
-      return;
-    }
-
-    setState(() {
-      _status = _KycStatus.uploading;
-      _errorMessage = null;
-    });
-
-    try {
-      final dio = ref.read(dioClientProvider).dio;
-      final formData = FormData.fromMap({
-        'front': await MultipartFile.fromFile(_frontPhoto!.path,
-            filename: 'front.jpg'),
-        'back': await MultipartFile.fromFile(_backPhoto!.path,
-            filename: 'back.jpg'),
-      });
-      await dio.post(ApiConstants.kycSubmit, data: formData);
-      if (mounted) setState(() => _status = _KycStatus.pending);
-    } on DioException catch (e) {
-      if (!mounted) return;
-      final code = (e.response?.data as Map?)?['code'] as String?;
-      if (e.response?.statusCode == 403 && code == 'IIN_BANNED') {
-        setState(() => _status = _KycStatus.banned);
-      } else {
-        setState(() {
-          _status = _KycStatus.idle;
-          _errorMessage = 'Жүктеу қатесі: ${e.message}';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _status = _KycStatus.idle;
-          _errorMessage = 'Жүктеу қатесі: ${e.toString()}';
-        });
-      }
-    }
+  if (_frontPhoto == null || _backPhoto == null) {
+    setState(() => _errorMessage = 'Жеке куәліктің екі жағын таңдаңыз');
+    return;
   }
 
+  setState(() {
+    _status = _KycStatus.uploading;
+    _errorMessage = null;
+  });
+
+  try {
+    final dio = ref.read(dioClientProvider).dio;
+
+    final formData = FormData.fromMap({
+      'document': await MultipartFile.fromFile(
+        _frontPhoto!.path, // пока используем front как документ
+        filename: 'document.jpg',
+      ),
+    });
+
+    await dio.post(
+      ApiConstants.kycSubmit,
+      data: formData,
+      options: Options(
+        headers: {
+          // НЕ обязательно, если у тебя interceptor
+          // 'Authorization': 'Bearer $token',
+        },
+        contentType: 'multipart/form-data',
+      ),
+    );
+
+    if (mounted) {
+      setState(() => _status = _KycStatus.pending);
+    }
+  } on DioException catch (e) {
+    final data = e.response?.data;
+
+    setState(() {
+      _status = _KycStatus.idle;
+      _errorMessage = data is Map && data['error'] != null
+          ? data['error']['message']
+          : e.message ?? 'Ошибка загрузки';
+    });
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
