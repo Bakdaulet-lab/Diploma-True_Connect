@@ -161,21 +161,27 @@ final routerProvider = Provider<GoRouter>((ref) {
           roomId: state.pathParameters['roomId'] ?? '',
         ),
       ),
+
+      // 1. Сначала точный маршрут
       GoRoute(
-        path: '/profile/:userId',
-        builder: (_, state) => ProfileDetailScreen(
-          profile: {'id': state.pathParameters['userId'] ?? ''},
-        ),
+        path: '/profile/edit',
+        builder: (_, __) => const EditProfileScreen(),
       ),
+
+      // 2. Затем маршрут для первой встречи (он не конфликтует)
       GoRoute(
         path: '/first-meeting/:matchId',
         builder: (_, state) => FirstMeetingScreen(
           matchId: state.pathParameters['matchId'] ?? '',
         ),
       ),
+
+      // 3. Динамический маршрут В САМОМ КОНЦЕ
       GoRoute(
-        path: '/profile/edit',
-        builder: (_, __) => const EditProfileScreen(),
+        path: '/profile/:userId',
+        builder: (_, state) => ProfileDetailScreen(
+          profile: {'id': state.pathParameters['userId'] ?? ''},
+        ),
       ),
       GoRoute(
         path: '/kyc',
