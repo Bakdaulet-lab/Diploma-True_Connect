@@ -74,17 +74,36 @@ pnpm-debug.log*
 .pub-cache/
 .pub/
 **/build/
+
+# Android специфичные
 **/.gradle/
 **/local.properties
 **/key.properties
-**/GeneratedPluginRegistrant.*
-**/Flutter/Generated.xcconfig
-**/Flutter/flutter_export_environment.sh
-**/Pods/
-**/Podfile.lock
-**/*.iml
 android/app/release/
 android/app/debug/
+
+# Сгенерированные файлы регистрации плагинов (все платформы)
+**/generated_plugin_registrant.*
+**/generated_plugins.cmake
+
+# iOS / macOS (Swift & Xcode)
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/DerivedData/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+**/xcuserdata/
+**/Pods/
+**/Podfile.lock
+# Если ты хочешь, чтобы Swift-пакеты (SPM) тоже игнорировались:
+**/.swiftpm/
+
+# Прочее
+**/*.iml
 
 # ─────────────────────────────────────────────
 # Logs & temp
