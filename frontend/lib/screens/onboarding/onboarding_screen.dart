@@ -240,8 +240,10 @@ class _OnboardingSlide3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // ЗАМЕНИЛИ Padding НА SingleChildScrollView
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(32, 80, 32, 24),
+      physics: const ClampingScrollPhysics(), // Добавили физику как на других слайдах
       child: Column(
         children: [
           SizedBox(
