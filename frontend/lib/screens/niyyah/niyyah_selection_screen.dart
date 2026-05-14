@@ -220,27 +220,33 @@ class _NiyyahCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            children: [
-                              Text(
-                                title,
-                                style: GoogleFonts.nunito(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              if (subtitle.isNotEmpty) ...[
-                                const SizedBox(width: 6),
-                                Text(
-                                  subtitle,
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+  children: [
+    Flexible( // <-- Обернули title в Flexible
+      child: Text(
+        title,
+        style: GoogleFonts.nunito(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        overflow: TextOverflow.ellipsis, // <-- Добавили троеточие, если текст слишком длинный
+      ),
+    ),
+    if (subtitle.isNotEmpty) ...[
+      const SizedBox(width: 6),
+      Flexible( // <-- Обернули subtitle в Flexible
+        child: Text(
+          subtitle,
+          style: GoogleFonts.nunito(
+            fontSize: 12,
+            color: Colors.white70,
+          ),
+          overflow: TextOverflow.ellipsis, // <-- Добавили троеточие
+        ),
+      ),
+    ],
+  ],
+),
                           const SizedBox(height: 4),
                           Text(
                             description,
