@@ -33,6 +33,7 @@ abstract final class ApiConstants {
   static const matchLike = '/matching/like';
   static const matchPass = '/matching/pass';
   static const matches = '/matches';
+  static const String interactions = '/v1/interactions';
 
   // KYC
   static const kycSubmit = '/kyc/submit';

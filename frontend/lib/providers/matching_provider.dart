@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/dio_error_message.dart';
 import 'auth_provider.dart';
+import 'package:trueconnect/models/interaction.dart';// Убедитесь, что путь к вашей модели правильный
 
 // ─── Swipe / Candidates ───────────────────────────────────────────────────────
 
@@ -42,9 +44,33 @@ class MatchingNotifier
       return false;
     }
   }
+
+  // ─── Отправка отзыва (Interaction) ───
+  Future<void> submitInteraction({
+  required String matchId,
+  required int rating,
+  required InteractionContext context,
+  String? comment,
+}) async {
+  final body = <String, dynamic>{
+    'match_id': matchId,
+    'rating': rating,
+    'context': context.value,
+  };
+
+  if (comment != null && comment.trim().isNotEmpty) {
+    body['comment'] = comment.trim();
+  }
+
+  await _dio.post(
+    ApiConstants.interactions,
+    data: body, 
+  );
+}
 }
 
-final matchingNotifierProvider = StateNotifierProvider<MatchingNotifier,
+final matchingNotifierProvider = StateNotifierProvider<
+    MatchingNotifier,
     AsyncValue<List<Map<String, dynamic>>>>((ref) {
   return MatchingNotifier(ref.watch(dioClientProvider).dio);
 });

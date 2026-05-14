@@ -45,24 +45,25 @@ class Interaction {
 
   factory Interaction.fromJson(Map<String, dynamic> json) {
     final raw = json['data'] is Map
-        ? Map<String, dynamic>.from(json['data'] as Map)
+        ? Map<String, dynamic>.from(json['data'])
         : Map<String, dynamic>.from(json);
 
-    final ctxStr = raw['context'] as String? ?? 'date';
+    final ctxStr = raw['context']?.toString() ?? 'date';
+
     final ctx = InteractionContext.values.firstWhere(
       (e) => e.value == ctxStr,
       orElse: () => InteractionContext.date,
     );
 
     return Interaction(
-      id: raw['id'] as String? ?? '',
-      fromUserId: raw['from_user_id'] as String? ?? '',
-      toUserId: raw['to_user_id'] as String? ?? '',
+      id: raw['id']?.toString() ?? '',
+      fromUserId: raw['from_user_id']?.toString() ?? '',
+      toUserId: raw['to_user_id']?.toString() ?? '',
       context: ctx,
-      rating: raw['rating'] as int? ?? 3,
-      comment: raw['comment'] as String?,
-      confirmedAt: raw['confirmed_at'] is String
-          ? DateTime.tryParse(raw['confirmed_at'] as String)
+      rating: (raw['rating'] ?? 3) as int,
+      comment: raw['comment']?.toString(),
+      confirmedAt: raw['confirmed_at'] != null
+          ? DateTime.tryParse(raw['confirmed_at'].toString())
           : null,
     );
   }
