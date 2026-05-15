@@ -13,9 +13,12 @@ type MatchRepository interface {
 	// Returns (matched=true, matchID) when both parties have now liked each other.
 	RecordLike(ctx context.Context, userID, targetID uuid.UUID) (matched bool, matchID uuid.UUID, err error)
 
-	// RecordPass records that userID passed on targetID (no DB persistence needed,
-	// handled via Redis seen-set; this method is a no-op stub for audit logging).
+	// RecordPass persists that userID swiped left on targetID so they never
+	// reappear in discovery even after Redis TTL expiry.
 	RecordPass(ctx context.Context, userID, targetID uuid.UUID) error
+
+	// GetRejectedIDs returns all target IDs that userID has ever passed on.
+	GetRejectedIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 
 	// ListMatches returns all mutual matches for a user, newest first.
 	// Uses cursor-based pagination (matched_at or created_at).
@@ -36,4 +39,16 @@ type MatchRepository interface {
 
 	// MarkImamConfirmed sets imam_confirmed = true on the given match.
 	MarkImamConfirmed(ctx context.Context, matchID uuid.UUID) error
+
+	// BlockUser records blockerID blocking blockedID.
+	BlockUser(ctx context.Context, blockerID, blockedID uuid.UUID) error
+
+	// GetBlockedIDs returns all user IDs that blockerID has blocked.
+	GetBlockedIDs(ctx context.Context, blockerID uuid.UUID) ([]uuid.UUID, error)
+
+	// Unmatch deletes a mutual match row (both parties lose the match).
+	Unmatch(ctx context.Context, matchID, callerID uuid.UUID) error
+
+	// GetPendingLikes returns user IDs who liked userID but haven't been liked back yet.
+	GetPendingLikes(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 }

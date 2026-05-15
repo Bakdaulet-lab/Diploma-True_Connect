@@ -24,6 +24,7 @@ type AuthService struct {
 	tokenRepo     repository.RefreshTokenRepository
 	sessionStore  repository.SessionStore
 	graphRepo     repository.TrustGraphRepository
+	uow           repository.UnitOfWork
 	jwt           *tcjwt.Manager
 	encryptionKey []byte
 	refreshExpiry time.Duration
@@ -37,6 +38,7 @@ func NewAuthService(
 	tokenRepo repository.RefreshTokenRepository,
 	sessionStore repository.SessionStore,
 	graphRepo repository.TrustGraphRepository,
+	uow repository.UnitOfWork,
 	jwtManager *tcjwt.Manager,
 	encryptionKey []byte,
 	refreshExpiry time.Duration,
@@ -48,6 +50,7 @@ func NewAuthService(
 		tokenRepo:     tokenRepo,
 		sessionStore:  sessionStore,
 		graphRepo:     graphRepo,
+		uow:           uow,
 		jwt:           jwtManager,
 		encryptionKey: encryptionKey,
 		refreshExpiry: refreshExpiry,
@@ -100,25 +103,35 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 		IsActive:          true,
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
-		if errors.Is(err, domain.ErrAlreadyExists) {
+	// Write user + profile atomically so there is never a user without a profile.
+	txErr := s.uow.Do(ctx, func(txCtx context.Context) error {
+		if err := s.userRepo.Create(txCtx, user); err != nil {
+			if errors.Is(err, domain.ErrAlreadyExists) {
+				return domain.ErrAlreadyExists
+			}
+			return fmt.Errorf("creating user: %w", err)
+		}
+		profile := &domain.Profile{
+			UserID:        user.ID,
+			DisplayName:   input.DisplayName,
+			MaritalStatus: domain.MaritalSingle,
+		}
+		if err := s.profileRepo.Upsert(txCtx, profile); err != nil {
+			return fmt.Errorf("creating profile: %w", err)
+		}
+		return nil
+	})
+	if txErr != nil {
+		if errors.Is(txErr, domain.ErrAlreadyExists) {
 			return nil, fmt.Errorf("register: %w", domain.ErrAlreadyExists)
 		}
-		return nil, fmt.Errorf("register: creating user: %w", err)
+		return nil, fmt.Errorf("register: %w", txErr)
 	}
 
-	profile := &domain.Profile{
-		UserID:        user.ID,
-		DisplayName:   input.DisplayName,
-		MaritalStatus: domain.MaritalSingle,
-	}
-	if err := s.profileRepo.Upsert(ctx, profile); err != nil {
-		return nil, fmt.Errorf("register: creating profile: %w", err)
-	}
-
-	// Create user node in Neo4j trust graph; non-fatal if it fails.
+	// Create user node in Neo4j trust graph (MERGE, so idempotent). Non-fatal —
+	// the trust engine worker will retry on its next cycle via EnsureUserNode.
 	if err := s.graphRepo.CreateUserNode(ctx, user.ID, user.VerificationLevel); err != nil {
-		s.log.Error("failed to create Neo4j user node; trust graph may be incomplete",
+		s.log.Error("failed to create Neo4j user node; will be retried by trust engine",
 			slog.String("user_id", user.ID.String()),
 			slog.String("error", err.Error()),
 		)

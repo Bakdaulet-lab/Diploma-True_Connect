@@ -114,12 +114,14 @@ func run() error {
 
 	// в”Ђв”Ђ Services в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
+	uowAuth := postgres.NewUoW(pgPool)
 	authSvc := service.NewAuthService(
 		userRepo,
 		profileRepo,
 		tokenRepo,
 		sessionStore,
 		graphRepo,
+		uowAuth,
 		jwtManager,
 		encryptionKey,
 		cfg.Auth.RefreshTokenExpiry,

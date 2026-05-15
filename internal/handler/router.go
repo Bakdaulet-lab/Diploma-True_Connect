@@ -110,10 +110,13 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		// в"Ђв"Ђ Matching в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 		protected.GET("/matching/candidates", deps.Matching.GetCandidates)
 		protected.GET("/matching/graph-candidates", deps.Matching.GetGraphCandidates)
+		protected.GET("/matching/likes", deps.Matching.GetPendingLikes)
 		protected.POST("/matching/like", userRL, deps.Matching.Like)
 		protected.POST("/matching/pass", userRL, deps.Matching.Pass)
 		protected.GET("/matches", deps.Matching.ListMatches)
 		protected.POST("/matches/:id/family-intro", userRL, deps.Matching.FamilyIntro)
+		protected.POST("/matches/:id/unmatch", userRL, deps.Matching.Unmatch)
+		protected.POST("/users/:id/block", userRL, deps.Matching.BlockUser)
 
 		// в"Ђв"Ђ Settings в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 		protected.GET("/settings", deps.Settings.GetSettings)

@@ -3,16 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dio/dio.dart';
+import '../../core/constants/api_constants.dart';
+import '../../core/network/dio_error_message.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/matching_provider.dart';
 import '../../services/websocket_service.dart';
 import 'call_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String matchId;
+  final String otherUserId;
 
-  const ChatScreen({super.key, required this.matchId});
+  const ChatScreen({super.key, required this.matchId, this.otherUserId = ''});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -79,9 +85,67 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Future<void> _unmatch() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text('Мэтчті жою', style: GoogleFonts.nunito(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        content: Text('Бұл мэтчті жойғыңыз келе ме? Хабарламалар жойылады.', style: GoogleFonts.nunito(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Болдырмау')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Жою', style: GoogleFonts.nunito(color: AppColors.accent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      await dio.post(ApiConstants.unmatch(widget.matchId));
+      ref.invalidate(matchesListProvider);
+      if (mounted) context.go('/matches');
+    } on DioException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(dioErrorMessage(e))));
+    }
+  }
+
+  Future<void> _blockUser(String userId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text('Блоктау', style: GoogleFonts.nunito(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        content: Text('Пайдаланушыны блоктағыңыз келе ме? Ол сізді ленталарда көрмейді.', style: GoogleFonts.nunito(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Болдырмау')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Блоктау', style: GoogleFonts.nunito(color: AppColors.accent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      await dio.post(ApiConstants.blockUser(userId));
+      ref.invalidate(matchesListProvider);
+      if (mounted) context.go('/matches');
+    } on DioException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(dioErrorMessage(e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatNotifierProvider(widget.matchId));
+    final currentUserId =
+        ref.watch(authStateProvider).valueOrNull?.id ?? '';
     _scrollToBottom();
 
     return Scaffold(
@@ -121,7 +185,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   return const _TypingIndicator();
                 }
                 final msg = chatState.messages[index];
-                return _MessageBubble(msg: msg);
+                return _MessageBubble(msg: msg, currentUserId: currentUserId);
               },
             ),
           ),
@@ -170,8 +234,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           icon: const Icon(Icons.location_on_outlined,
               color: AppColors.secondary, size: 22),
           tooltip: 'Бірінші кездесу',
-          onPressed: () =>
-              context.push('/first-meeting/${widget.matchId}'),
+          onPressed: () => context.push(
+              '/first-meeting/${widget.matchId}?userId=${widget.otherUserId}'),
         ),
         // Invite Mahram button
         TextButton.icon(
@@ -185,6 +249,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
+        ),
+        // Unmatch / Block overflow menu
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: Colors.white),
+          color: AppColors.surface,
+          onSelected: (value) {
+            if (value == 'unmatch') _unmatch();
+            if (value == 'block') _blockUser(widget.otherUserId);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'unmatch',
+              child: Row(
+                children: [
+                  const Icon(Icons.link_off, size: 18, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  Text('Мэтчті жою', style: GoogleFonts.nunito(color: AppColors.textPrimary)),
+                ],
+              ),
+            ),
+            if (widget.otherUserId.isNotEmpty)
+              PopupMenuItem(
+                value: 'block',
+                child: Row(
+                  children: [
+                    const Icon(Icons.block, size: 18, color: AppColors.accent),
+                    const SizedBox(width: 8),
+                    Text('Блоктау', style: GoogleFonts.nunito(color: AppColors.accent)),
+                  ],
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -255,11 +351,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> msg;
-  const _MessageBubble({required this.msg});
+  final String currentUserId;
+  const _MessageBubble({required this.msg, required this.currentUserId});
 
   @override
   Widget build(BuildContext context) {
-    final isMe = msg['sender_id'] == 'me';
+    final isMe = currentUserId.isNotEmpty
+        ? msg['sender_id'] == currentUserId
+        : msg['sender_id'] == 'me';
     final content = msg['content'] as String? ?? '';
     final isWarning = msg['is_toxic'] as bool? ?? false;
     final time = _formatTime(msg['created_at'] as String? ?? '');

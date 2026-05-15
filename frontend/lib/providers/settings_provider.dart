@@ -6,13 +6,15 @@ import '../core/constants/api_constants.dart';
 import '../core/network/dio_error_message.dart';
 import '../models/settings.dart';
 import 'auth_provider.dart';
+import 'profile_provider.dart';
 
 class SettingsNotifier extends StateNotifier<AsyncValue<UserSettings>> {
   final Dio _dio;
+  final Ref _ref;
   Timer? _saveTimer;
   int _saveVersion = 0;
 
-  SettingsNotifier(this._dio) : super(const AsyncValue.loading()) {
+  SettingsNotifier(this._dio, this._ref) : super(const AsyncValue.loading()) {
     _load();
   }
 
@@ -47,6 +49,7 @@ class SettingsNotifier extends StateNotifier<AsyncValue<UserSettings>> {
         final data = resp.data as Map<String, dynamic>;
         final payload = data['data'] as Map<String, dynamic>? ?? data;
         state = AsyncValue.data(UserSettings.fromJson(payload));
+        _ref.invalidate(ownProfileProvider);
       } on DioException catch (e, st) {
         if (currentVersion == _saveVersion) {
           state = AsyncValue.error(dioErrorMessage(e), st);
@@ -62,5 +65,7 @@ class SettingsNotifier extends StateNotifier<AsyncValue<UserSettings>> {
 
 final settingsNotifierProvider =
     StateNotifierProvider<SettingsNotifier, AsyncValue<UserSettings>>((ref) {
-  return SettingsNotifier(ref.watch(dioClientProvider).dio);
+  // Re-create whenever the logged-in user changes so settings are not shared between accounts.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
+  return SettingsNotifier(ref.watch(dioClientProvider).dio, ref);
 });

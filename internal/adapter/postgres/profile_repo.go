@@ -190,14 +190,15 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			COALESCE(p.niyyah::text, '')  AS niyyah,
 			COALESCE(p.madhab::text, '')  AS madhab,
 			COALESCE(p.languages, '{}')   AS languages,
-			p.no_photo_mode
+			p.no_photo_mode,
+			(u.verification_level IN ('id_verified', 'photo_verified')) AS is_kyc_verified
 		FROM social.profiles p
 		JOIN social.users u ON u.id = p.user_id
 		WHERE
 			u.is_active    = true
 			AND u.trust_status  = 'normal'
 			AND p.marital_status = 'single'
-			AND ($1::text = '' OR p.gender::text = $1)
+			AND ($1::text = '' OR p.gender IS NULL OR p.gender::text = $1)
 			AND p.user_id != $2
 			AND NOT (p.user_id::text = ANY($3))
 			AND (
@@ -209,9 +210,9 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 				(p.location IS NULL OR ST_DWithin(p.location, ST_SetSRID(ST_MakePoint($8, $9), 4326)::geography, $10))
 			)
 			AND ($11::text[] IS NULL OR p.niyyah IS NULL OR p.niyyah::text = ANY($11))
-			AND ($12::text IS NULL OR p.madhab::text = $12)
+			AND ($12::text IS NULL OR $12::text = '' OR p.madhab IS NULL OR p.madhab::text = $12)
 			AND ($13::text[] IS NULL OR p.languages && $13)
-		ORDER BY u.trust_score DESC, u.last_login_at DESC NULLS LAST
+		ORDER BY u.created_at DESC, u.last_login_at DESC NULLS LAST, u.trust_score DESC
 		LIMIT $6`
 
 	useSpatial := false
@@ -253,7 +254,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 		if err := rows.Scan(
 			&c.UserID, &c.DisplayName, &c.AvatarURL,
 			&c.City, &promptsJSON, &c.TrustScore,
-			&c.Niyyah, &c.Madhab, &c.Languages, &c.NoPhotoMode,
+			&c.Niyyah, &c.Madhab, &c.Languages, &c.NoPhotoMode, &c.IsKYCVerified,
 		); err != nil {
 			return nil, fmt.Errorf("scanning candidate: %w", err)
 		}

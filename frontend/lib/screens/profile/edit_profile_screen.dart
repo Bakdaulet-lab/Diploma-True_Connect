@@ -114,12 +114,24 @@ class _EditFormState extends ConsumerState<_EditForm> {
   late final TextEditingController _bioCtr;
   late final TextEditingController _ageCtr;
 
+  late String? _gender;
+  late String? _lookingFor;
   late String? _niyyah;
   late String? _madhab;
   late Set<String> _languages;
   late bool _noPhotoMode;
   bool _saving = false;
   String? _error;
+
+  static const _genderOptions = [
+    ('male', '♂', 'Ер'),
+    ('female', '♀', 'Әйел'),
+  ];
+
+  static const _lookingForOptions = [
+    ('male', '♂', 'Ер іздеймін'),
+    ('female', '♀', 'Әйел іздеймін'),
+  ];
 
   static const _niyyahOptions = [
     ('nikah_year', '🌙', 'Никях'),
@@ -149,6 +161,8 @@ class _EditFormState extends ConsumerState<_EditForm> {
     _bioCtr = TextEditingController(text: p.bio ?? '');
     _ageCtr =
         TextEditingController(text: p.age != null ? p.age.toString() : '');
+    _gender = p.gender;
+    _lookingFor = p.lookingFor;
     _niyyah = p.niyyah;
     _madhab = p.madhab;
     _languages = Set.from(p.languages);
@@ -179,6 +193,8 @@ class _EditFormState extends ConsumerState<_EditForm> {
         if (_cityCtr.text.trim().isNotEmpty) 'city': _cityCtr.text.trim(),
         if (_bioCtr.text.trim().isNotEmpty) 'bio': _bioCtr.text.trim(),
         if (ageVal != null) 'age': ageVal,
+        if (_gender != null) 'gender': _gender,
+        if (_lookingFor != null) 'looking_for': _lookingFor,
         if (_niyyah != null) 'niyyah': _niyyah,
         if (_madhab != null) 'madhab': _madhab,
         'languages': _languages.toList(),
@@ -285,6 +301,86 @@ class _EditFormState extends ConsumerState<_EditForm> {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Gender ────────────────────────────────────────────────
+              _Section(
+                label: 'Жынысыңыз',
+                child: Row(
+                  children: _genderOptions.map((opt) {
+                    final (value, emoji, label) = opt;
+                    final selected = _gender == value;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _gender = value),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primary : AppColors.surfaceVariant,
+                            borderRadius: AppRadius.chip,
+                            border: selected
+                                ? Border.all(color: AppColors.goldBorder, width: 1.5)
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(emoji, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Text(label, style: GoogleFonts.nunito(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: selected ? Colors.white : AppColors.textSecondary,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Looking For ───────────────────────────────────────────
+              _Section(
+                label: 'Кімді іздейсіз',
+                child: Row(
+                  children: _lookingForOptions.map((opt) {
+                    final (value, emoji, label) = opt;
+                    final selected = _lookingFor == value;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _lookingFor = value),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primaryDark : AppColors.surfaceVariant,
+                            borderRadius: AppRadius.chip,
+                            border: selected
+                                ? Border.all(color: AppColors.goldBorder, width: 1.5)
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(emoji, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Text(label, style: GoogleFonts.nunito(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: selected ? Colors.white : AppColors.textSecondary,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
 

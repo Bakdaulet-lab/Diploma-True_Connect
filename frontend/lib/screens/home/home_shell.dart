@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/notification_provider.dart';
 
@@ -44,56 +43,60 @@ class HomeShell extends ConsumerWidget {
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 12,
-              offset: Offset(0, -3),
-            ),
-          ],
+          border: Border(
+            top: BorderSide(color: AppColors.divider, width: 0.5),
+          ),
         ),
-        child: BottomNavigationBar(
-          currentIndex: index,
-          onTap: (i) => _onTabTap(context, i),
-          elevation: 0,
+        child: NavigationBar(
+          selectedIndex: index,
+          onDestinationSelected: (i) => _onTabTap(context, i),
           backgroundColor: AppColors.surface,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.textHint,
-          selectedLabelStyle: GoogleFonts.nunito(
-              fontSize: 11, fontWeight: FontWeight.w600),
-          unselectedLabelStyle: GoogleFonts.nunito(fontSize: 11),
-          type: BottomNavigationBarType.fixed,
-          items: [
-            const BottomNavigationBarItem(
-              icon: _NavIcon(icon: Icons.explore_outlined),
-              activeIcon: _NavIcon(icon: Icons.explore, active: true),
+          surfaceTintColor: Colors.transparent,
+          indicatorColor: AppColors.primaryLight,
+          elevation: 0,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: [
+            _dest(
+              icon: Icons.explore_outlined,
+              activeIcon: Icons.explore,
               label: 'Табу',
             ),
-            const BottomNavigationBarItem(
-              icon: _NavIcon(icon: Icons.article_outlined),
-              activeIcon: _NavIcon(icon: Icons.article, active: true),
+            _dest(
+              icon: Icons.article_outlined,
+              activeIcon: Icons.article,
               label: 'Жаңалық',
             ),
-            BottomNavigationBarItem(
-              icon: _BadgedNavIcon(
-                icon: Icons.favorite_border,
-                count: unreadCount,
+            NavigationDestination(
+              icon: Badge(
+                isLabelVisible: unreadCount > 0,
+                label: Text(
+                  unreadCount > 99 ? '99+' : '$unreadCount',
+                  style: const TextStyle(fontSize: 9),
+                ),
+                backgroundColor: AppColors.accent,
+                textColor: Colors.white,
+                child: const Icon(Icons.favorite_border),
               ),
-              activeIcon: _BadgedNavIcon(
-                icon: Icons.favorite,
-                count: unreadCount,
-                active: true,
+              selectedIcon: Badge(
+                isLabelVisible: unreadCount > 0,
+                label: Text(
+                  unreadCount > 99 ? '99+' : '$unreadCount',
+                  style: const TextStyle(fontSize: 9),
+                ),
+                backgroundColor: AppColors.accent,
+                textColor: Colors.white,
+                child: const Icon(Icons.favorite, color: AppColors.primary),
               ),
               label: 'Сәйкестік',
             ),
-            const BottomNavigationBarItem(
-              icon: _NavIcon(icon: Icons.person_outline),
-              activeIcon: _NavIcon(icon: Icons.person, active: true),
+            _dest(
+              icon: Icons.person_outline,
+              activeIcon: Icons.person,
               label: 'Профиль',
             ),
-            const BottomNavigationBarItem(
-              icon: _NavIcon(icon: Icons.tune_outlined),
-              activeIcon: _NavIcon(icon: Icons.tune, active: true),
+            _dest(
+              icon: Icons.tune_outlined,
+              activeIcon: Icons.tune,
               label: 'Баптаулар',
             ),
           ],
@@ -101,62 +104,16 @@ class HomeShell extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _NavIcon extends StatelessWidget {
-  final IconData icon;
-  final bool active;
-
-  const _NavIcon({required this.icon, this.active = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(icon,
-        size: 24,
-        color: active ? AppColors.primary : AppColors.textHint);
-  }
-}
-
-class _BadgedNavIcon extends StatelessWidget {
-  final IconData icon;
-  final int count;
-  final bool active;
-
-  const _BadgedNavIcon({
-    required this.icon,
-    required this.count,
-    this.active = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Icon(icon,
-            size: 24,
-            color: active ? AppColors.primary : AppColors.textHint),
-        if (count > 0)
-          Positioned(
-            top: -4,
-            right: -6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: const BoxDecoration(
-                color: AppColors.accent,
-                borderRadius: BorderRadius.all(Radius.circular(8)),
-              ),
-              child: Text(
-                count > 99 ? '99+' : '$count',
-                style: const TextStyle(
-                  fontSize: 9,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-      ],
+  NavigationDestination _dest({
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+  }) {
+    return NavigationDestination(
+      icon: Icon(icon),
+      selectedIcon: Icon(activeIcon, color: AppColors.primary),
+      label: label,
     );
   }
 }

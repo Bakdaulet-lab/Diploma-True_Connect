@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme/app_colors.dart';
@@ -23,44 +24,44 @@ class PostCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-          boxShadow: AppShadows.soft,
-        ),
+        color: AppColors.surface,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _AuthorRow(post: post),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              child: Text(
-                post.content,
-                style: GoogleFonts.nunito(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                  height: 1.55,
+            if (post.content.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.sm),
+                child: Text(
+                  post.content,
+                  style: GoogleFonts.nunito(
+                    fontSize: 14,
+                    color: AppColors.textPrimary,
+                    height: 1.55,
+                  ),
                 ),
               ),
-            ),
             if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-                child: Image.network(
-                  post.mediaUrl!,
-                  width: double.infinity,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.all(Radius.circular(12)),
+                  child: CachedNetworkImage(
+                    imageUrl: post.mediaUrl!,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      height: 200,
+                      color: AppColors.surfaceVariant,
+                    ),
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  ),
                 ),
               ),
             _ActionRow(post: post, onLike: onLike, onComment: onComment),
+            const Divider(height: 1, thickness: 0.5, color: AppColors.divider),
           ],
         ),
       ),
@@ -76,29 +77,14 @@ class _AuthorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.primaryLight,
-            backgroundImage: post.authorAvatarUrl != null
-                ? NetworkImage(post.authorAvatarUrl!)
-                : null,
-            child: post.authorAvatarUrl == null
-                ? Text(
-                    post.authorName.isNotEmpty
-                        ? post.authorName[0].toUpperCase()
-                        : '?',
-                    style: GoogleFonts.nunito(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  )
-                : null,
+          _Avatar(
+            avatarUrl: post.authorAvatarUrl,
+            name: post.authorName,
           ),
-          const SizedBox(width: AppSpacing.sm),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +92,7 @@ class _AuthorRow extends StatelessWidget {
                 Text(
                   post.authorName,
                   style: GoogleFonts.nunito(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
@@ -136,6 +122,34 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
+class _Avatar extends StatelessWidget {
+  final String? avatarUrl;
+  final String name;
+  const _Avatar({this.avatarUrl, required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage:
+          avatarUrl != null && avatarUrl!.isNotEmpty
+              ? CachedNetworkImageProvider(avatarUrl!)
+              : null,
+      child: avatarUrl == null || avatarUrl!.isEmpty
+          ? Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: GoogleFonts.nunito(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
 class _ActionRow extends StatelessWidget {
   final Post post;
   final VoidCallback? onLike;
@@ -150,56 +164,133 @@ class _ActionRow extends StatelessWidget {
           horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       child: Row(
         children: [
-          _ActionButton(
-            icon: post.isLiked ? Icons.favorite : Icons.favorite_border,
-            color: post.isLiked ? AppColors.accent : AppColors.textHint,
+          _AnimatedLikeButton(
+            isLiked: post.isLiked,
             count: post.likeCount,
             onTap: onLike,
           ),
-          const SizedBox(width: AppSpacing.sm),
-          _ActionButton(
-            icon: Icons.chat_bubble_outline,
-            color: AppColors.textHint,
-            count: post.commentCount,
-            onTap: onComment,
-          ),
+          const SizedBox(width: AppSpacing.md),
+          _CommentButton(count: post.commentCount, onTap: onComment),
         ],
       ),
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
+class _AnimatedLikeButton extends StatefulWidget {
+  final bool isLiked;
   final int count;
   final VoidCallback? onTap;
 
-  const _ActionButton(
-      {required this.icon,
-      required this.color,
-      required this.count,
-      this.onTap});
+  const _AnimatedLikeButton({
+    required this.isLiked,
+    required this.count,
+    this.onTap,
+  });
+
+  @override
+  State<_AnimatedLikeButton> createState() => _AnimatedLikeButtonState();
+}
+
+class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 350));
+    _scale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 40),
+      TweenSequenceItem(
+          tween: Tween(begin: 1.4, end: 0.9)
+              .chain(CurveTween(curve: Curves.easeOut)),
+          weight: 30),
+      TweenSequenceItem(
+          tween: Tween(begin: 0.9, end: 1.0)
+              .chain(CurveTween(curve: Curves.easeIn)),
+          weight: 30),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedLikeButton old) {
+    super.didUpdateWidget(old);
+    if (!old.isLiked && widget.isLiked) {
+      _ctrl.forward(from: 0);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      onTap: onTap,
+    return GestureDetector(
+      onTap: () {
+        if (!widget.isLiked) _ctrl.forward(from: 0);
+        widget.onTap?.call();
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+            horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(width: 4),
+            ScaleTransition(
+              scale: _scale,
+              child: Icon(
+                widget.isLiked ? Icons.favorite : Icons.favorite_border,
+                size: 22,
+                color: widget.isLiked ? Colors.red : AppColors.textHint,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              '${widget.count}',
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: widget.isLiked ? Colors.red : AppColors.textHint,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentButton extends StatelessWidget {
+  final int count;
+  final VoidCallback? onTap;
+  const _CommentButton({required this.count, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.chat_bubble_outline,
+                size: 20, color: AppColors.textHint),
+            const SizedBox(width: 5),
             Text(
               '$count',
               style: GoogleFonts.nunito(
-                  fontSize: 12,
-                  color: color,
-                  fontWeight: FontWeight.w600),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHint,
+              ),
             ),
           ],
         ),

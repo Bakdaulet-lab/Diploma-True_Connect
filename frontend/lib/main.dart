@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/services/push_service.dart';
+import 'core/services/snack_bar_service.dart';
 import 'core/theme/app_theme.dart';
 
 void main() async {
@@ -35,6 +36,7 @@ class TrueConnectApp extends ConsumerWidget {
       title: 'TrueConnect',
       theme: AppTheme.light,
       routerConfig: router,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
     );
   }

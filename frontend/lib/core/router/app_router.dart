@@ -153,6 +153,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/:matchId',
         builder: (_, state) => ChatScreen(
           matchId: state.pathParameters['matchId'] ?? '',
+          otherUserId: state.uri.queryParameters['userId'] ?? '',
         ),
       ),
       GoRoute(
@@ -173,6 +174,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/first-meeting/:matchId',
         builder: (_, state) => FirstMeetingScreen(
           matchId: state.pathParameters['matchId'] ?? '',
+          otherUserId: state.uri.queryParameters['userId'] ?? '',
         ),
       ),
 

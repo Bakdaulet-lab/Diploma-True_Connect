@@ -69,9 +69,36 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
 	return isMatch, matchID, nil
 }
 
-// RecordPass is a no-op in PostgreSQL (the seen-set lives in Redis).
-func (r *MatchRepo) RecordPass(_ context.Context, _, _ uuid.UUID) error {
+// RecordPass persists the pass so the candidate never reappears after Redis TTL.
+func (r *MatchRepo) RecordPass(ctx context.Context, userID, targetID uuid.UUID) error {
+	const q = `
+		INSERT INTO social.swipe_rejections (user_id, target_id)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`
+	if _, err := runner(ctx, r.pool).Exec(ctx, q, userID, targetID); err != nil {
+		return fmt.Errorf("recording pass: %w", err)
+	}
 	return nil
+}
+
+// GetRejectedIDs returns all target IDs the user has ever passed on.
+func (r *MatchRepo) GetRejectedIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	const q = `SELECT target_id FROM social.swipe_rejections WHERE user_id = $1`
+	rows, err := runner(ctx, r.pool).Query(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting rejected IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning rejected ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*domain.Match, string, error) {
@@ -210,6 +237,83 @@ func (r *MatchRepo) MarkImamConfirmed(ctx context.Context, matchID uuid.UUID) er
 		return fmt.Errorf("marking imam confirmed: %w", err)
 	}
 	return nil
+}
+
+// BlockUser records that blockerID has blocked blockedID.
+func (r *MatchRepo) BlockUser(ctx context.Context, blockerID, blockedID uuid.UUID) error {
+	const q = `
+		INSERT INTO social.blocked_users (blocker_id, blocked_id)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`
+	if _, err := runner(ctx, r.pool).Exec(ctx, q, blockerID, blockedID); err != nil {
+		return fmt.Errorf("blocking user: %w", err)
+	}
+	return nil
+}
+
+// GetBlockedIDs returns all user IDs that blockerID has blocked.
+func (r *MatchRepo) GetBlockedIDs(ctx context.Context, blockerID uuid.UUID) ([]uuid.UUID, error) {
+	const q = `SELECT blocked_id FROM social.blocked_users WHERE blocker_id = $1`
+	rows, err := runner(ctx, r.pool).Query(ctx, q, blockerID)
+	if err != nil {
+		return nil, fmt.Errorf("getting blocked IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning blocked ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// Unmatch removes a mutual match. callerID must be one of the participants.
+func (r *MatchRepo) Unmatch(ctx context.Context, matchID, callerID uuid.UUID) error {
+	const q = `
+		DELETE FROM social.matches
+		WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2)`
+	tag, err := runner(ctx, r.pool).Exec(ctx, q, matchID, callerID)
+	if err != nil {
+		return fmt.Errorf("unmatching: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("unmatching: %w", domain.ErrNotFound)
+	}
+	return nil
+}
+
+// GetPendingLikes returns IDs of users who liked userID but haven't been liked back.
+func (r *MatchRepo) GetPendingLikes(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	const q = `
+		SELECT
+			CASE WHEN user_b_id = $1 THEN user_a_id ELSE user_b_id END AS liker_id
+		FROM social.matches
+		WHERE
+			(user_b_id = $1 AND user_a_liked = true AND user_b_liked = false)
+			OR
+			(user_a_id = $1 AND user_b_liked = true AND user_a_liked = false)
+		ORDER BY created_at DESC
+		LIMIT 50`
+
+	rows, err := runner(ctx, r.pool).Query(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting pending likes: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning liker id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // orderPair returns (smaller, larger) UUID so the pair is always consistently ordered.

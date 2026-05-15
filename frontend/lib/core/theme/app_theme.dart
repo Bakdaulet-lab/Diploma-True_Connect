@@ -246,6 +246,27 @@ class AppTheme {
         side: BorderSide.none,
       ),
 
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.primaryLight,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.primary, size: 24);
+          }
+          return const IconThemeData(color: AppColors.textHint, size: 24);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final base = GoogleFonts.nunito(fontSize: 11);
+          if (states.contains(WidgetState.selected)) {
+            return base.copyWith(
+                fontWeight: FontWeight.w700, color: AppColors.primary);
+          }
+          return base.copyWith(color: AppColors.textHint);
+        }),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+
       dividerTheme: const DividerThemeData(
         color: AppColors.divider,
         thickness: 1,

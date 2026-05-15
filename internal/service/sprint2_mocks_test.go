@@ -263,6 +263,18 @@ func (m *mockMatchRepo) MarkFamilyIntroDone(_ context.Context, _ uuid.UUID) erro
 
 func (m *mockMatchRepo) MarkImamConfirmed(_ context.Context, _ uuid.UUID) error { return nil }
 
+func (m *mockMatchRepo) GetRejectedIDs(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
+func (m *mockMatchRepo) BlockUser(_ context.Context, _, _ uuid.UUID) error { return nil }
+
+func (m *mockMatchRepo) GetBlockedIDs(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
+func (m *mockMatchRepo) Unmatch(_ context.Context, _ uuid.UUID, _ uuid.UUID) error { return nil }
+
 // ── mockSettingsRepo ──────────────────────────────────────────────────────────
 
 type mockSettingsRepo struct {

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -22,6 +21,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _phoneCtr = TextEditingController();
   final _passCtr = TextEditingController();
   String? _madhab;
+  String? _gender;
   bool _obscure = true;
   bool _loading = false;
 
@@ -61,16 +61,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    if (authState.valueOrNull != null && _madhab != null) {
-      // Save madhab to profile immediately after account creation.
+    if (authState.valueOrNull != null && (_madhab != null || _gender != null)) {
+      // Save gender + madhab to profile immediately after account creation.
       try {
         final dio = ref.read(dioClientProvider).dio;
+        // Auto-set looking_for to the opposite gender so the discovery feed
+        // immediately filters correctly without a separate settings step.
+        final lookingFor = _gender == 'male'
+            ? 'female'
+            : _gender == 'female'
+                ? 'male'
+                : null;
         await dio.put(ApiConstants.profile, data: {
           'display_name': _nameCtr.text.trim(),
-          'madhab': _madhab,
+          if (_gender != null) 'gender': _gender,
+          if (lookingFor != null) 'looking_for': lookingFor,
+          if (_madhab != null) 'madhab': _madhab,
         });
       } catch (_) {
-        // Non-blocking — user can update madhab later in profile edit.
+        // Non-blocking — user can update these later in profile edit.
       }
     }
 
@@ -208,6 +217,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                           const SizedBox(height: AppSpacing.md),
 
+                          // Gender (required for discovery to work correctly)
+                          FormField<String>(
+                            validator: (_) => null,
+                            builder: (_) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      left: 4, bottom: 8),
+                                  child: Text(
+                                    'Жынысыңыз',
+                                    style: GoogleFonts.nunito(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    _GenderChip(
+                                      label: 'Ер',
+                                      icon: Icons.male,
+                                      selected: _gender == 'male',
+                                      onTap: () =>
+                                          setState(() => _gender = 'male'),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    _GenderChip(
+                                      label: 'Әйел',
+                                      icon: Icons.female,
+                                      selected: _gender == 'female',
+                                      onTap: () =>
+                                          setState(() => _gender = 'female'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
                           // Madhab (optional)
                           DropdownButtonFormField<String>(
                             value: _madhab,
@@ -268,6 +318,58 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GenderChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _GenderChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : AppColors.surfaceVariant,
+            borderRadius: AppRadius.input,
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.divider,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 18,
+                  color: selected ? Colors.white : AppColors.textHint),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.nunito(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

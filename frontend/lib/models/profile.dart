@@ -1,3 +1,5 @@
+import '../core/constants/api_constants.dart';
+
 class Profile {
   final String userId;
   final String displayName;
@@ -8,6 +10,10 @@ class Profile {
   final bool avatarBlurred;
   final int trustScore;
   final bool isKycVerified;
+
+  // Gender fields (male | female | other)
+  final String? gender;
+  final String? lookingFor;
 
   // Halal identity fields
   final String? niyyah;       // nikah_year | serious_marriage | friendship
@@ -27,6 +33,8 @@ class Profile {
     this.avatarBlurred = false,
     this.trustScore = 0,
     this.isKycVerified = false,
+    this.gender,
+    this.lookingFor,
     this.niyyah,
     this.madhab,
     this.languages = const [],
@@ -49,14 +57,16 @@ class Profile {
       age: _readInt(data, ['age']),
       city: _readString(data, ['city']),
       bio: _readString(data, ['bio']),
-      avatarUrl:
-          _readString(data, ['avatar_url', 'avatarUrl', 'imageUrl']),
+      avatarUrl: ApiConstants.fixImageUrl(
+          _readString(data, ['avatar_url', 'avatarUrl', 'imageUrl'])),
       avatarBlurred: _readBool(data, ['avatar_blurred', 'avatarBlurred']),
       trustScore: _readInt(data, ['trust_score', 'trustScore']) ?? 0,
       isKycVerified: _readBool(
         data,
         ['is_kyc_verified', 'isKycVerified'],
       ) || verificationLevel != 'none',
+      gender: _readString(data, ['gender']),
+      lookingFor: _readString(data, ['looking_for', 'lookingFor']),
       niyyah: _readString(data, ['niyyah']),
       madhab: _readString(data, ['madhab']),
       languages: _readStringList(data, ['languages']),
@@ -75,6 +85,8 @@ class Profile {
         if (bio != null) 'bio': bio,
         if (avatarUrl != null) 'avatar_url': avatarUrl,
         'no_photo_mode': noPhotoMode,
+        if (gender != null) 'gender': gender,
+        if (lookingFor != null) 'looking_for': lookingFor,
         if (niyyah != null) 'niyyah': niyyah,
         if (madhab != null) 'madhab': madhab,
         'languages': languages,
@@ -88,6 +100,8 @@ class Profile {
     String? city,
     String? bio,
     String? avatarUrl,
+    String? gender,
+    String? lookingFor,
     String? niyyah,
     String? madhab,
     List<String>? languages,
@@ -104,6 +118,8 @@ class Profile {
         avatarBlurred: avatarBlurred,
         trustScore: trustScore,
         isKycVerified: isKycVerified,
+        gender: gender ?? this.gender,
+        lookingFor: lookingFor ?? this.lookingFor,
         niyyah: niyyah ?? this.niyyah,
         madhab: madhab ?? this.madhab,
         languages: languages ?? this.languages,

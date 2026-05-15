@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -309,10 +310,9 @@ class _ProfileCard extends ConsumerWidget {
     final imageUrl = candidate['avatar_url'] as String? ??
         candidate['imageUrl'] as String? ?? '';
 
-    final userMadhabFilter = ref
-        .watch(settingsNotifierProvider)
-        .valueOrNull
-        ?.madhabFilter;
+    final userMadhabFilter = ref.watch(
+      settingsNotifierProvider.select((s) => s.valueOrNull?.madhabFilter),
+    );
     final isMadhabBoost = madhab.isNotEmpty &&
         userMadhabFilter != null &&
         madhab.toLowerCase() == userMadhabFilter.toLowerCase();
@@ -403,10 +403,10 @@ class _CardPhoto extends StatelessWidget {
             ),
           )
         else
-          Image.network(
-            imageUrl,
+          CachedNetworkImage(
+            imageUrl: imageUrl,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
+            errorWidget: (_, __, ___) => Container(
               color: AppColors.surfaceVariant,
               child: const Icon(Icons.person,
                   size: 80, color: AppColors.textHint),

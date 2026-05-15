@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/api_constants.dart';
+import '../services/snack_bar_service.dart';
 
 class DioClient {
   late final Dio _dio;
@@ -26,6 +27,7 @@ class DioClient {
     ));
 
     _dio.interceptors.add(_AuthInterceptor(_storage, _refreshDio, _dio));
+    _dio.interceptors.add(_ErrorInterceptor());
 
     if (kDebugMode) {
       _dio.interceptors.add(LogInterceptor(
@@ -84,10 +86,14 @@ class _AuthInterceptor extends Interceptor {
         final data = resp.data as Map<String, dynamic>;
         final authData = data['data'] ?? data;
 
-        final newAccess = authData['access_token'];
+        final newAccess = authData['access_token'] as String?;
+        final newRefresh = authData['refresh_token'] as String?;
 
         if (newAccess != null) {
           await _storage.write(key: 'access_token', value: newAccess);
+        }
+        if (newRefresh != null) {
+          await _storage.write(key: 'refresh_token', value: newRefresh);
         }
 
         final opts = err.requestOptions;
@@ -104,5 +110,33 @@ class _AuthInterceptor extends Interceptor {
     } else {
       handler.next(err);
     }
+  }
+}
+
+class _ErrorInterceptor extends Interceptor {
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    // 401 is handled by _AuthInterceptor; skip it here.
+    final status = err.response?.statusCode;
+    if (status == 401) {
+      handler.next(err);
+      return;
+    }
+
+    final String message;
+    if (err.type == DioExceptionType.connectionError ||
+        err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.sendTimeout) {
+      message = 'Интернет байланысы жоқ';
+    } else if (status != null && status >= 500) {
+      message = 'Сервер қатесі ($status). Кейінірек қайталаңыз';
+    } else {
+      handler.next(err);
+      return;
+    }
+
+    showErrorSnackBar(message);
+    handler.next(err);
   }
 }

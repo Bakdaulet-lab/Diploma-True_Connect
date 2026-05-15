@@ -45,14 +45,15 @@ type FindCandidatesOpts struct {
 
 // CandidateRow is the minimal data returned per matching candidate.
 type CandidateRow struct {
-	UserID      uuid.UUID             `json:"user_id"`
-	DisplayName string                `json:"display_name"`
-	AvatarURL   string                `json:"avatar_url"`
-	City        string                `json:"city"`
-	Prompts     []domain.PromptAnswer `json:"prompts"`
-	TrustScore  int                   `json:"trust_score"`
-	Niyyah      string                `json:"niyyah"`
-	Madhab      string                `json:"madhab"`
-	Languages   []string              `json:"languages"`
-	NoPhotoMode bool                  `json:"no_photo_mode"`
+	UserID         uuid.UUID             `json:"user_id"`
+	DisplayName    string                `json:"display_name"`
+	AvatarURL      string                `json:"avatar_url"`
+	City           string                `json:"city"`
+	Prompts        []domain.PromptAnswer `json:"prompts"`
+	TrustScore     int                   `json:"trust_score"`
+	Niyyah         string                `json:"niyyah"`
+	Madhab         string                `json:"madhab"`
+	Languages      []string              `json:"languages"`
+	NoPhotoMode    bool                  `json:"no_photo_mode"`
+	IsKYCVerified  bool                  `json:"is_kyc_verified"`
 }

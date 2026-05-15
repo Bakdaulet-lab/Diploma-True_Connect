@@ -36,6 +36,9 @@ type CandidateView struct {
 	AvatarBlurred bool      `json:"avatar_blurred,omitempty"`
 	City          string    `json:"city,omitempty"`
 	TrustScore    int       `json:"trust_score"`
+	Niyyah        string    `json:"niyyah,omitempty"`
+	Madhab        string    `json:"madhab,omitempty"`
+	IsKYCVerified bool      `json:"is_kyc_verified"`
 }
 
 // MatchView is a match card with user profile data for the frontend.
@@ -135,6 +138,18 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		}
 	}
 
+	// Exclude users the requester has previously rejected (persistent dislikes).
+	rejectedIDs, err := s.matchRepo.GetRejectedIDs(ctx, userID)
+	if err != nil {
+		rejectedIDs = []uuid.UUID{}
+	}
+
+	// Exclude users the requester has blocked.
+	blockedIDs, err := s.matchRepo.GetBlockedIDs(ctx, userID)
+	if err != nil {
+		blockedIDs = []uuid.UUID{}
+	}
+
 	maxDistMeters := settings.MaxDistanceKm * 1000
 
 	// B1: compute niyyah compatibility filter from requester's own niyyah.
@@ -142,10 +157,24 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 
 	excludeIDs := append([]uuid.UUID{}, seenIDs...)
 	excludeIDs = append(excludeIDs, matchedIDs...)
+	excludeIDs = append(excludeIDs, rejectedIDs...)
+	excludeIDs = append(excludeIDs, blockedIDs...)
+
+	// Auto-infer LookingFor from gender when the user hasn't set it explicitly.
+	// Male users see only females and vice versa — this is the Islamic halal default.
+	lookingFor := requesterProfile.LookingFor
+	if lookingFor == "" {
+		switch requesterProfile.Gender {
+		case domain.GenderMale:
+			lookingFor = domain.GenderFemale
+		case domain.GenderFemale:
+			lookingFor = domain.GenderMale
+		}
+	}
 
 	opts := repository.FindCandidatesOpts{
 		RequesterID:       userID,
-		LookingFor:        requesterProfile.LookingFor,
+		LookingFor:        lookingFor,
 		AgeRangeMin:       settings.AgeRangeMin,
 		AgeRangeMax:       settings.AgeRangeMax,
 		MaxDistanceMeters: &maxDistMeters,
@@ -208,6 +237,9 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 			AvatarBlurred: blurred,
 			City:          row.City,
 			TrustScore:    score,
+			Niyyah:        row.Niyyah,
+			Madhab:        row.Madhab,
+			IsKYCVerified: row.IsKYCVerified,
 		})
 	}
 
@@ -254,16 +286,31 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 	return &LikeResult{Matched: matched, MatchID: matchID}, nil
 }
 
-// Pass records that userID passes on targetID.
+// Pass records that userID passes on targetID (persisted to DB + Redis cache).
 func (s *MatchingService) Pass(ctx context.Context, userID, targetID uuid.UUID) error {
 	if userID == targetID {
 		return fmt.Errorf("pass: %w", domain.ErrInvalidInput)
 	}
 
-	_ = s.matchRepo.RecordPass(ctx, userID, targetID)
+	if err := s.matchRepo.RecordPass(ctx, userID, targetID); err != nil {
+		return fmt.Errorf("pass: %w", err)
+	}
 	_ = s.matchingCache.AddSeen(ctx, userID, []uuid.UUID{targetID}, seenSetTTL)
 
 	return nil
+}
+
+// BlockUser records that callerID is blocking targetID and removes any existing match.
+func (s *MatchingService) BlockUser(ctx context.Context, callerID, targetID uuid.UUID) error {
+	if callerID == targetID {
+		return fmt.Errorf("block: %w", domain.ErrInvalidInput)
+	}
+	return s.matchRepo.BlockUser(ctx, callerID, targetID)
+}
+
+// Unmatch removes a mutual match between two users.
+func (s *MatchingService) Unmatch(ctx context.Context, matchID, callerID uuid.UUID) error {
+	return s.matchRepo.Unmatch(ctx, matchID, callerID)
 }
 
 // Остальные методы (GetMatchByID, ListMatches) остаются без изменений
@@ -344,6 +391,43 @@ func (s *MatchingService) FamilyIntroductionDone(ctx context.Context, matchID, c
 		}
 	}
 	return nil
+}
+
+// GetPendingLikes returns the profiles of users who liked the caller but haven't been liked back.
+func (s *MatchingService) GetPendingLikes(ctx context.Context, userID uuid.UUID) ([]*CandidateView, error) {
+	likerIDs, err := s.matchRepo.GetPendingLikes(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get pending likes: %w", err)
+	}
+
+	views := make([]*CandidateView, 0, len(likerIDs))
+	for _, id := range likerIDs {
+		prof, err := s.profileRepo.GetByUserID(ctx, id)
+		if err != nil {
+			continue
+		}
+		user, err := s.userRepo.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		avatarURL := fixAvatarURL(prof.AvatarURL)
+		if prof.NoPhotoMode {
+			avatarURL = ""
+		}
+		views = append(views, &CandidateView{
+			UserID:        id,
+			DisplayName:   prof.DisplayName,
+			AvatarURL:     avatarURL,
+			AvatarBlurred: prof.NoPhotoMode,
+			City:          prof.City,
+			TrustScore:    user.TrustScore,
+			Niyyah:        string(prof.Niyyah),
+			Madhab:        string(prof.Madhab),
+			IsKYCVerified: user.VerificationLevel == domain.VerificationIDVerified ||
+				user.VerificationLevel == domain.VerificationPhotoVerified,
+		})
+	}
+	return views, nil
 }
 
 // GetGraphCandidates returns a batch of profiles from Neo4j (friends-of-friends).

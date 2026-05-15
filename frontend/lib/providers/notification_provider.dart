@@ -51,12 +51,16 @@ class NotificationNotifier
 
 final notificationsProvider = StateNotifierProvider<NotificationNotifier,
     AsyncValue<List<AppNotification>>>((ref) {
+  // Re-create whenever the logged-in user changes.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   return NotificationNotifier(ref.watch(dioClientProvider).dio);
 });
 
 // ─── Unread count ─────────────────────────────────────────────────────────────
 
 final unreadCountProvider = FutureProvider<int>((ref) async {
+  // Re-fetch whenever the logged-in user changes.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   final dio = ref.watch(dioClientProvider).dio;
   try {
     final resp = await dio.get('${ApiConstants.notifications}/unread-count');

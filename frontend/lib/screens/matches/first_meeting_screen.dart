@@ -40,7 +40,12 @@ final _venuesProvider =
 
 class FirstMeetingScreen extends ConsumerStatefulWidget {
   final String matchId;
-  const FirstMeetingScreen({super.key, required this.matchId});
+  final String otherUserId;
+  const FirstMeetingScreen({
+    super.key,
+    required this.matchId,
+    this.otherUserId = '',
+  });
 
   @override
   ConsumerState<FirstMeetingScreen> createState() => _FirstMeetingScreenState();
@@ -71,7 +76,10 @@ class _FirstMeetingScreenState extends ConsumerState<FirstMeetingScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: AppRadius.bottomSheet),
-      builder: (_) => _RateMeetingSheet(matchId: widget.matchId),
+      builder: (_) => _RateMeetingSheet(
+        matchId: widget.matchId,
+        otherUserId: widget.otherUserId,
+      ),
     );
   }
 
@@ -450,7 +458,8 @@ class _VenueCard extends StatelessWidget {
 
 class _RateMeetingSheet extends ConsumerStatefulWidget {
   final String matchId;
-  const _RateMeetingSheet({required this.matchId});
+  final String otherUserId;
+  const _RateMeetingSheet({required this.matchId, required this.otherUserId});
 
   @override
   ConsumerState<_RateMeetingSheet> createState() => _RateMeetingSheetState();
@@ -473,10 +482,13 @@ class _RateMeetingSheetState extends ConsumerState<_RateMeetingSheet> {
     setState(() => _loading = true);
     try {
       final dio = ref.read(dioClientProvider).dio;
+      if (widget.otherUserId.isEmpty) {
+        throw Exception('Пайдаланушы ID анықталмады');
+      }
       await dio.post(
-        '/interactions',
+        ApiConstants.interactions,
         data: {
-          'match_id': widget.matchId,
+          'rated_id': widget.otherUserId,
           'rating': _rating,
           'context': _ctx.value,
           if (_commentCtrl.text.trim().isNotEmpty)
