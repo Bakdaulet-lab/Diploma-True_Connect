@@ -7,6 +7,9 @@ import 'auth_provider.dart';
 // Returns:
 // none | id_verified
 final kycStatusProvider = FutureProvider<String>((ref) async {
+  // Re-fetch whenever the logged-in user changes so KYC status isn't leaked
+  // between accounts on the same device.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   final dio = ref.watch(dioClientProvider).dio;
 
   try {

@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:haptic_feedback/haptic_feedback.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/settings.dart';
 import '../../providers/matching_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
@@ -613,14 +614,14 @@ class _MatchBanner extends StatelessWidget {
 
 // ─── Filter Sheet ─────────────────────────────────────────────────────────────
 
-class _FilterSheet extends StatefulWidget {
+class _FilterSheet extends ConsumerStatefulWidget {
   const _FilterSheet();
 
   @override
-  State<_FilterSheet> createState() => _FilterSheetState();
+  ConsumerState<_FilterSheet> createState() => _FilterSheetState();
 }
 
-class _FilterSheetState extends State<_FilterSheet> {
+class _FilterSheetState extends ConsumerState<_FilterSheet> {
   String? _niyyah;
   String? _madhab;
 
@@ -636,6 +637,38 @@ class _FilterSheetState extends State<_FilterSheet> {
     ('maliki', 'Маликий'),
     ('hanbali', 'Ханбали'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-populate from current saved settings.
+    final current = ref.read(settingsNotifierProvider).valueOrNull;
+    if (current != null) {
+      _niyyah = (current.niyyahFilter?.isNotEmpty == true) ? current.niyyahFilter : null;
+      _madhab = (current.madhabFilter?.isNotEmpty == true) ? current.madhabFilter : null;
+    }
+  }
+
+  void _apply() {
+    final current = ref.read(settingsNotifierProvider).valueOrNull;
+    if (current == null) {
+      Navigator.pop(context);
+      return;
+    }
+    final updated = UserSettings(
+      minAge: current.minAge,
+      maxAge: current.maxAge,
+      maxDistanceKm: current.maxDistanceKm,
+      showMe: current.showMe,
+      modestyLevel: current.modestyLevel,
+      niyyahFilter: _niyyah ?? '',  // '' = clear filter on the backend
+      madhabFilter: _madhab ?? '',
+    );
+    ref.read(settingsNotifierProvider.notifier).update(updated);
+    // Reload candidates immediately so the new filter takes effect.
+    ref.read(matchingNotifierProvider.notifier).load();
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -719,7 +752,7 @@ class _FilterSheetState extends State<_FilterSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _apply,
               child: const Text('Қолдану'),
             ),
           ),

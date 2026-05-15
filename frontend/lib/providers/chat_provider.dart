@@ -87,6 +87,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _typingTimer;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _disposed = false; // set in dispose(), cannot be final
+  static const _maxReconnectAttempts = 5;
   static const _storage = FlutterSecureStorage();
 
   final _eventBus = StreamController<ChatEvent>.broadcast();
@@ -98,6 +102,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   Future<void> _connect() async {
+    if (_disposed) return;
     final token = await _storage.read(key: 'access_token') ?? '';
     final uri = Uri.parse(ApiConstants.chatWs);
     _channel = WebSocketChannel.connect(uri);
@@ -107,9 +112,34 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     _sub = _channel!.stream.listen(
       _onRaw,
-      onDone: () => state = state.copyWith(isConnected: false),
-      onError: (_) => state = state.copyWith(isConnected: false),
+      onDone: _onDisconnected,
+      onError: (_) => _onDisconnected(),
     );
+  }
+
+  void _onDisconnected() {
+    if (_disposed) return;
+    state = state.copyWith(isConnected: false);
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed || _reconnectAttempts >= _maxReconnectAttempts) return;
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+    final delay = Duration(seconds: 1 << _reconnectAttempts);
+    _reconnectAttempts++;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delay, () async {
+      await _sub?.cancel();
+      await _connect();
+    });
+  }
+
+  // Call after successful auth_ok to reset the backoff counter.
+  void _onConnected() {
+    _reconnectAttempts = 0;
+    state = state.copyWith(isConnected: true);
+    _loadHistory();
   }
 
   Future<void> _loadHistory() async {
@@ -140,8 +170,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       // Handle auth handshake response — load history once authenticated.
       if (json['type'] == 'auth_ok') {
-        state = state.copyWith(isConnected: true);
-        _loadHistory();
+        _onConnected();
         return;
       }
 
@@ -218,6 +247,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   @override
   void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
     _typingTimer?.cancel();
     _sub?.cancel();
     _channel?.sink.close();

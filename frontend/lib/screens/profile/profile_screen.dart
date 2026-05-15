@@ -68,6 +68,9 @@ class ProfileScreen extends ConsumerWidget {
           // Header with avatar
           _ProfileHeader(profile: profile),
 
+          // Completeness progress bar
+          _ProfileCompletenessBar(profile: profile),
+
           const SizedBox(height: AppSpacing.lg),
 
           // Trust Score section
@@ -663,6 +666,101 @@ class _CreateProfileSheetState extends ConsumerState<_CreateProfileSheet> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Profile Completeness Bar ─────────────────────────────────────────────────
+
+class _ProfileCompletenessBar extends StatelessWidget {
+  final Profile profile;
+  const _ProfileCompletenessBar({required this.profile});
+
+  // Returns (filledCount, totalCount, firstMissingHint)
+  (int, int, String?) _compute() {
+    final checks = [
+      (profile.displayName.isNotEmpty,         'Аты-жөн'),
+      (profile.avatarUrl?.isNotEmpty == true,  'Фото'),
+      (profile.bio?.isNotEmpty == true,        'Қысқаша таныстыру'),
+      (profile.gender?.isNotEmpty == true,     'Жыныс'),
+      (profile.niyyah?.isNotEmpty == true,     'Ниет'),
+      (profile.city?.isNotEmpty == true,       'Қала'),
+      (profile.madhab?.isNotEmpty == true,     'Мазхаб'),
+      (profile.languages.isNotEmpty,           'Тілдер'),
+    ];
+    final filled = checks.where((c) => c.$1).length;
+    final hint = checks.firstWhere((c) => !c.$1, orElse: () => (true, '')).$2;
+    return (filled, checks.length, filled == checks.length ? null : hint);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (filled, total, hint) = _compute();
+    final pct = filled / total;
+    if (pct == 1.0) return const SizedBox.shrink(); // 100% — hide the bar
+
+    final color = pct < 0.5
+        ? AppColors.accent
+        : pct < 0.8
+            ? AppColors.secondary
+            : AppColors.primary;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.card,
+        boxShadow: AppShadows.soft,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Профиль толықтығы',
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${(pct * 100).round()}%',
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              backgroundColor: AppColors.divider,
+              // ignore: prefer_const_constructors — color is a runtime variable
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              minHeight: 6,
+            ),
+          ),
+          if (hint != null && hint.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Кеңес: "$hint" қосыңыз — сәйкестіктер артады',
+              style: GoogleFonts.nunito(
+                fontSize: 11,
+                color: AppColors.textHint,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

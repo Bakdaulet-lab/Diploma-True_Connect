@@ -24,8 +24,9 @@ func NewMatchRepo(pool *pgxpool.Pool) *MatchRepo {
 	return &MatchRepo{pool: pool}
 }
 
-// RecordLike records a like from userID → targetID.
-// The matches table enforces user_a_id < user_b_id so we always sort the pair.
+// RecordLike records a like from userID → targetID inside an explicit transaction
+// with a row-level lock to prevent the race where two concurrent likes both see
+// matched_at IS NULL before either has committed, causing duplicate match events.
 // Returns matched=true and the match ID when both users have now liked each other.
 func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) (bool, uuid.UUID, error) {
 	// Sort the pair so user_a_id < user_b_id (UUID lexicographic order).
@@ -39,32 +40,47 @@ func (r *MatchRepo) RecordLike(ctx context.Context, userID, targetID uuid.UUID) 
 		setCol, checkCol = "user_b_liked", "user_a_liked"
 	}
 
-	query := fmt.Sprintf(`
-                INSERT INTO social.matches (user_a_id, user_b_id, %[1]s)
-                VALUES ($1, $2, true)
-                ON CONFLICT (user_a_id, user_b_id) DO UPDATE
-                        SET %[1]s = true,
-                            matched_at = CASE
-                                WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.matched_at, NOW())
-                                ELSE social.matches.matched_at
-                            END,
-                            niyyah_timer_ends_at = CASE
-                                WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.niyyah_timer_ends_at, NOW() + INTERVAL '90 days')
-                                ELSE social.matches.niyyah_timer_ends_at
-                            END
-                RETURNING id, %[2]s, matched_at`, setCol, checkCol)
+	// Use an advisory lock keyed on the sorted UUID pair to serialize concurrent
+	// likes for the same user pair without blocking unrelated pairs.
+	lockKey := int64(userA[0])<<56 | int64(userA[1])<<48 | int64(userB[0])<<8 | int64(userB[1])
+
+	upsertQuery := fmt.Sprintf(`
+		INSERT INTO social.matches (user_a_id, user_b_id, %[1]s)
+		VALUES ($1, $2, true)
+		ON CONFLICT (user_a_id, user_b_id) DO UPDATE
+			SET %[1]s = true,
+			    matched_at = CASE
+			        WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.matched_at, NOW())
+			        ELSE social.matches.matched_at
+			    END,
+			    niyyah_timer_ends_at = CASE
+			        WHEN social.matches.%[2]s = true THEN COALESCE(social.matches.niyyah_timer_ends_at, NOW() + INTERVAL '90 days')
+			        ELSE social.matches.niyyah_timer_ends_at
+			    END
+		RETURNING id, %[2]s, matched_at`, setCol, checkCol)
 
 	var matchID uuid.UUID
 	var otherLiked bool
-	var matchedAt interface{} // may be null
+	var matchedAt interface{}
 
-	err := runner(ctx, r.pool).QueryRow(ctx, query, userA, userB).Scan(&matchID, &otherLiked, &matchedAt)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return false, uuid.Nil, fmt.Errorf("recording like: %w", err)
+		return false, uuid.Nil, fmt.Errorf("recording like: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, lockKey); err != nil {
+		return false, uuid.Nil, fmt.Errorf("recording like: advisory lock: %w", err)
 	}
 
-	// The query atomically updates matched_at if both have liked.
-	// We consider it a "new mutual match" if both have liked and matchedAt is NOT nil.
+	if err := tx.QueryRow(ctx, upsertQuery, userA, userB).Scan(&matchID, &otherLiked, &matchedAt); err != nil {
+		return false, uuid.Nil, fmt.Errorf("recording like: upsert: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, uuid.Nil, fmt.Errorf("recording like: commit: %w", err)
+	}
+
 	isMatch := otherLiked && matchedAt != nil
 	return isMatch, matchID, nil
 }
@@ -146,6 +162,64 @@ func (r *MatchRepo) ListMatches(ctx context.Context, userID uuid.UUID, cursor st
 	}
 
 	return matches, nextCursor, nil
+}
+
+// ListMatchViews returns matches joined with the other user's profile in one query.
+func (r *MatchRepo) ListMatchViews(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*repository.MatchViewRow, string, error) {
+	query := `
+		SELECT
+			m.id                              AS match_id,
+			CASE WHEN m.user_a_id = $1 THEN m.user_b_id ELSE m.user_a_id END AS other_user_id,
+			COALESCE(p.display_name, '')      AS display_name,
+			COALESCE(p.avatar_url, '')        AS avatar_url,
+			COALESCE(u.trust_score, 0)        AS trust_score,
+			u.public_key,
+			m.niyyah_timer_ends_at,
+			m.matched_at
+		FROM social.matches m
+		JOIN social.users u
+			ON u.id = CASE WHEN m.user_a_id = $1 THEN m.user_b_id ELSE m.user_a_id END
+		LEFT JOIN social.profiles p
+			ON p.user_id = u.id
+		WHERE (m.user_a_id = $1 OR m.user_b_id = $1)
+		  AND m.matched_at IS NOT NULL
+		  AND ($3::timestamptz IS NULL OR m.matched_at < $3::timestamptz)
+		ORDER BY m.matched_at DESC
+		LIMIT $2`
+
+	var cursorArg interface{}
+	if cursor != "" {
+		cursorArg = cursor
+	}
+
+	rows, err := runner(ctx, r.pool).Query(ctx, query, userID, limit, cursorArg)
+	if err != nil {
+		return nil, "", fmt.Errorf("listing match views: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*repository.MatchViewRow
+	for rows.Next() {
+		row := &repository.MatchViewRow{}
+		if err := rows.Scan(
+			&row.MatchID, &row.OtherUserID,
+			&row.DisplayName, &row.AvatarURL,
+			&row.TrustScore, &row.PublicKey,
+			&row.NiyyahTimerEndsAt, &row.MatchedAt,
+		); err != nil {
+			return nil, "", fmt.Errorf("scanning match view: %w", err)
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("iterating match views: %w", err)
+	}
+
+	nextCursor := ""
+	if len(result) == limit && result[len(result)-1].MatchedAt != nil {
+		nextCursor = result[len(result)-1].MatchedAt.Format("2006-01-02T15:04:05.999999Z07:00")
+	}
+	return result, nextCursor, nil
 }
 
 func (r *MatchRepo) GetMatch(ctx context.Context, matchID uuid.UUID, userID uuid.UUID) (*domain.Match, error) {
@@ -251,10 +325,15 @@ func (r *MatchRepo) BlockUser(ctx context.Context, blockerID, blockedID uuid.UUI
 	return nil
 }
 
-// GetBlockedIDs returns all user IDs that blockerID has blocked.
-func (r *MatchRepo) GetBlockedIDs(ctx context.Context, blockerID uuid.UUID) ([]uuid.UUID, error) {
-	const q = `SELECT blocked_id FROM social.blocked_users WHERE blocker_id = $1`
-	rows, err := runner(ctx, r.pool).Query(ctx, q, blockerID)
+// GetBlockedIDs returns all user IDs in any block relationship with userID:
+// users that userID blocked AND users who blocked userID.
+// Both directions are excluded from the discovery feed.
+func (r *MatchRepo) GetBlockedIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	const q = `
+		SELECT blocked_id FROM social.blocked_users WHERE blocker_id = $1
+		UNION
+		SELECT blocker_id FROM social.blocked_users WHERE blocked_id = $1`
+	rows, err := runner(ctx, r.pool).Query(ctx, q, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting blocked IDs: %w", err)
 	}
@@ -269,6 +348,17 @@ func (r *MatchRepo) GetBlockedIDs(ctx context.Context, blockerID uuid.UUID) ([]u
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+// UnmatchByUsers removes any match row between the two users regardless of order.
+func (r *MatchRepo) UnmatchByUsers(ctx context.Context, userA, userB uuid.UUID) error {
+	a, b := orderPair(userA, userB)
+	const q = `DELETE FROM social.matches WHERE user_a_id = $1 AND user_b_id = $2`
+	_, err := runner(ctx, r.pool).Exec(ctx, q, a, b)
+	if err != nil {
+		return fmt.Errorf("unmatching by users: %w", err)
+	}
+	return nil
 }
 
 // Unmatch removes a mutual match. callerID must be one of the participants.

@@ -270,17 +270,23 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 
 	_ = s.matchingCache.AddSeen(ctx, userID, []uuid.UUID{targetID}, seenSetTTL)
 
-	if matched {
-		// New match! Notify the target user
-		if s.notifSvc != nil {
+	if s.notifSvc != nil {
+		if matched {
+			// Mutual match — notify the target that they have a new match.
 			_ = s.notifSvc.Create(ctx, &domain.Notification{
 				UserID:   targetID,
 				ActorID:  &userID,
 				Type:     domain.NotificationTypeMatch,
 				EntityID: &matchID,
 			})
+		} else {
+			// One-sided like — notify the target that someone liked them.
+			_ = s.notifSvc.Create(ctx, &domain.Notification{
+				UserID:  targetID,
+				ActorID: &userID,
+				Type:    domain.NotificationTypeLike,
+			})
 		}
-		// We could optionally notify the current user too, but usually the current user knows since they just swiped "Like"
 	}
 
 	return &LikeResult{Matched: matched, MatchID: matchID}, nil
@@ -305,6 +311,9 @@ func (s *MatchingService) BlockUser(ctx context.Context, callerID, targetID uuid
 	if callerID == targetID {
 		return fmt.Errorf("block: %w", domain.ErrInvalidInput)
 	}
+	// Remove any existing match so the blocked user immediately disappears from
+	// the matches tab. Best-effort — don't fail the block if there's no match.
+	_ = s.matchRepo.UnmatchByUsers(ctx, callerID, targetID)
 	return s.matchRepo.BlockUser(ctx, callerID, targetID)
 }
 
@@ -323,38 +332,24 @@ func (s *MatchingService) GetMatchByID(ctx context.Context, matchID, userID uuid
 }
 
 func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]*MatchView, string, error) {
-	matches, nextCursor, err := s.matchRepo.ListMatches(ctx, userID, cursor, limit)
+	// ListMatchViews joins users+profiles in a single query, avoiding N+1 lookups.
+	rows, nextCursor, err := s.matchRepo.ListMatchViews(ctx, userID, cursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
 
-	views := make([]*MatchView, 0, len(matches))
-	for _, m := range matches {
-		otherID := m.UserAID
-		if otherID == userID {
-			otherID = m.UserBID
-		}
-
-		profile, err := s.profileRepo.GetByUserID(ctx, otherID)
-		if err != nil {
-			continue
-		}
-
-		user, err := s.userRepo.GetByID(ctx, otherID)
-		if err != nil {
-			continue
-		}
-
+	views := make([]*MatchView, 0, len(rows))
+	for _, row := range rows {
 		views = append(views, &MatchView{
-			ID: m.ID,
+			ID: row.MatchID,
 			OtherUser: &MatchUserView{
-				UserID:      otherID,
-				DisplayName: profile.DisplayName,
-				AvatarURL:   fixAvatarURL(profile.AvatarURL),
-				TrustScore:  user.TrustScore,
-				PublicKey:   user.PublicKey,
+				UserID:      row.OtherUserID,
+				DisplayName: row.DisplayName,
+				AvatarURL:   fixAvatarURL(row.AvatarURL),
+				TrustScore:  row.TrustScore,
+				PublicKey:   row.PublicKey,
 			},
-			NiyyahTimerEndsAt: m.NiyyahTimerEndsAt,
+			NiyyahTimerEndsAt: row.NiyyahTimerEndsAt,
 		})
 	}
 	return views, nextCursor, nil
@@ -443,12 +438,16 @@ func (s *MatchingService) GetGraphCandidates(ctx context.Context, userID uuid.UU
 		if err != nil {
 			continue
 		}
+		user, err := s.userRepo.GetByID(ctx, targetID)
+		if err != nil {
+			continue
+		}
 		views = append(views, &CandidateView{
 			UserID:      prof.UserID,
 			DisplayName: prof.DisplayName,
 			AvatarURL:   fixAvatarURL(prof.AvatarURL),
 			City:        prof.City,
-			TrustScore:  50, // Default for now
+			TrustScore:  user.TrustScore,
 		})
 	}
 
