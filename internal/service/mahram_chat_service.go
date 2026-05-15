@@ -68,6 +68,11 @@ func (s *MahramChatService) CreateRoom(ctx context.Context, matchID, callerID, m
 		return nil, fmt.Errorf("create mahram room: match not finalized: %w", domain.ErrForbidden)
 	}
 
+	// Mahram must be a third party — not one of the two match participants.
+	if mahramUserID == match.UserAID || mahramUserID == match.UserBID {
+		return nil, fmt.Errorf("create mahram room: mahram must be a third party, not a match participant: %w", domain.ErrInvalidInput)
+	}
+
 	room, err := s.repo.CreateRoom(ctx, matchID, mahramUserID)
 	if err != nil {
 		return nil, fmt.Errorf("create mahram room: %w", err)

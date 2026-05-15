@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/dio_error_message.dart';
+import '../core/services/snack_bar_service.dart';
 import '../models/settings.dart';
 import 'auth_provider.dart';
 import 'profile_provider.dart';
@@ -37,6 +38,8 @@ class SettingsNotifier extends StateNotifier<AsyncValue<UserSettings>> {
   }
 
   Future<void> update(UserSettings updated) async {
+    // Capture previous known-good state before optimistic update.
+    final previous = state.valueOrNull;
     state = AsyncValue.data(updated);
 
     _saveVersion += 1;
@@ -50,13 +53,17 @@ class SettingsNotifier extends StateNotifier<AsyncValue<UserSettings>> {
         final payload = data['data'] as Map<String, dynamic>? ?? data;
         state = AsyncValue.data(UserSettings.fromJson(payload));
         _ref.invalidate(ownProfileProvider);
-      } on DioException catch (e, st) {
-        if (currentVersion == _saveVersion) {
-          state = AsyncValue.error(dioErrorMessage(e), st);
+      } on DioException catch (e) {
+        if (currentVersion != _saveVersion) return;
+        // Revert to previous snapshot so the UI stays consistent.
+        if (previous != null) {
+          state = AsyncValue.data(previous);
         }
-      } catch (e, st) {
-        if (currentVersion == _saveVersion) {
-          state = AsyncValue.error(e, st);
+        showErrorSnackBar(dioErrorMessage(e));
+      } catch (_) {
+        if (currentVersion != _saveVersion) return;
+        if (previous != null) {
+          state = AsyncValue.data(previous);
         }
       }
     });

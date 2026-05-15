@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/domain"
@@ -120,7 +121,10 @@ func (s *ChatService) GetMessages(ctx context.Context, matchID, userID uuid.UUID
 		content := string(plaintext)
 		if decErr != nil {
 			// Skip corrupted messages gracefully rather than aborting the whole fetch.
-			fmt.Printf("warning: chat: message decryption failed message_id=%s err=%v\n", m.ID, decErr)
+			slog.Default().Warn("chat: message decryption failed",
+				slog.String("message_id", m.ID.String()),
+				slog.String("error", decErr.Error()),
+			)
 			content = "[Хабарлама зақымдалған]"
 		}
 

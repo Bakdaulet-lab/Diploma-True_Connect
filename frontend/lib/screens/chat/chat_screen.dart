@@ -146,6 +146,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final chatState = ref.watch(chatNotifierProvider(widget.matchId));
     final currentUserId =
         ref.watch(authStateProvider).valueOrNull?.id ?? '';
+
+    // Send read receipt whenever a new message from the other user arrives.
+    ref.listen(chatNotifierProvider(widget.matchId), (prev, next) {
+      if (!next.isConnected) return;
+      final prevCount = prev?.messages.length ?? 0;
+      if (next.messages.length <= prevCount) return;
+      final newMsgs = next.messages.sublist(prevCount);
+      for (final msg in newMsgs.reversed) {
+        final senderId = msg['sender_id'] as String? ?? '';
+        final msgId = msg['id'] as String? ?? '';
+        if (senderId != currentUserId && !msgId.startsWith('temp_')) {
+          ref
+              .read(chatNotifierProvider(widget.matchId).notifier)
+              .sendReadReceipt(msgId);
+          break;
+        }
+      }
+    });
+
     _scrollToBottom();
 
     return Scaffold(

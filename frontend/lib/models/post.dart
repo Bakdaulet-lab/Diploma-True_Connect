@@ -46,13 +46,19 @@ class Post {
     );
   }
 
-  Post copyWith({int? likeCount, bool? isLiked}) => Post(
+  Post copyWith({
+    int? likeCount,
+    int? commentCount,
+    bool? isLiked,
+    String? content,
+  }) =>
+      Post(
         id: id,
         authorId: authorId,
-        content: content,
+        content: content ?? this.content,
         mediaUrl: mediaUrl,
         likeCount: likeCount ?? this.likeCount,
-        commentCount: commentCount,
+        commentCount: commentCount ?? this.commentCount,
         createdAt: createdAt,
         authorName: authorName,
         authorAvatarUrl: authorAvatarUrl,

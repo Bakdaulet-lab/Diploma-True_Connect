@@ -36,7 +36,12 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	// Feature A: Reputation Gate — fail-closed: if score unavailable treat as 0.
 	score, err := h.reputeSvc.GetScore(c.Request.Context(), userID)
 	effectiveScore := 0
-	if err == nil && score != nil {
+	if err != nil {
+		h.log.Warn("reputation gate: score fetch failed, treating as 0",
+			slog.String("user_id", userID.String()),
+			slog.String("error", err.Error()),
+		)
+	} else if score != nil {
 		effectiveScore = score.Score
 	}
 	if effectiveScore < 30 {

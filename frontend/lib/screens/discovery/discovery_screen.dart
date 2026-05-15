@@ -56,6 +56,12 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       ref.read(matchingNotifierProvider.notifier).pass(id);
     }
 
+    // Prefetch next batch when approaching the end of the stack.
+    final remaining = (currentIndex != null) ? candidates.length - currentIndex : 0;
+    if (remaining <= 2) {
+      ref.read(matchingNotifierProvider.notifier).load();
+    }
+
     if (mounted) setState(() {});
   }
 

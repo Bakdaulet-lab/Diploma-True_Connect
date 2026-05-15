@@ -134,6 +134,12 @@ func (h *InteractionHandler) GetReputation(c *gin.Context) {
 	// Also fetch recent ratings for the summary.
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	ratings, err := h.interactionSvc.GetByRatedUser(c.Request.Context(), targetID, limit, offset)
 	if err != nil {

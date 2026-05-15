@@ -151,10 +151,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat/:matchId',
-        builder: (_, state) => ChatScreen(
-          matchId: state.pathParameters['matchId'] ?? '',
-          otherUserId: state.uri.queryParameters['userId'] ?? '',
-        ),
+        builder: (_, state) {
+          final matchId = state.pathParameters['matchId'] ?? '';
+          if (matchId.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Match ID жоқ')));
+          }
+          return ChatScreen(
+            matchId: matchId,
+            otherUserId: state.uri.queryParameters['userId'] ?? '',
+          );
+        },
       ),
       GoRoute(
         path: '/mahram-chat/:roomId',
@@ -172,10 +178,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 2. Затем маршрут для первой встречи (он не конфликтует)
       GoRoute(
         path: '/first-meeting/:matchId',
-        builder: (_, state) => FirstMeetingScreen(
-          matchId: state.pathParameters['matchId'] ?? '',
-          otherUserId: state.uri.queryParameters['userId'] ?? '',
-        ),
+        builder: (_, state) {
+          final matchId = state.pathParameters['matchId'] ?? '';
+          if (matchId.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Match ID жоқ')));
+          }
+          return FirstMeetingScreen(
+            matchId: matchId,
+            otherUserId: state.uri.queryParameters['userId'] ?? '',
+          );
+        },
       ),
 
       // 3. Динамический маршрут В САМОМ КОНЦЕ

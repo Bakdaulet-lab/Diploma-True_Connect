@@ -73,6 +73,7 @@ type MatchingService struct {
 	matchingCache  repository.MatchingCache
 	trustGraphRepo repository.TrustGraphRepository
 	notifSvc       *NotificationService
+	pushCh         chan<- domain.PushEvent
 }
 
 // NewMatchingService creates a new matching service.
@@ -84,6 +85,7 @@ func NewMatchingService(
 	matchingCache repository.MatchingCache,
 	trustGraphRepo repository.TrustGraphRepository,
 	notifSvc *NotificationService,
+	pushCh chan<- domain.PushEvent,
 ) *MatchingService {
 	return &MatchingService{
 		profileRepo:    profileRepo,
@@ -93,6 +95,7 @@ func NewMatchingService(
 		matchingCache:  matchingCache,
 		trustGraphRepo: trustGraphRepo,
 		notifSvc:       notifSvc,
+		pushCh:         pushCh,
 	}
 }
 
@@ -286,6 +289,25 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 				ActorID: &userID,
 				Type:    domain.NotificationTypeLike,
 			})
+		}
+	}
+
+	// FCM push notification (non-blocking; drop if channel full).
+	if s.pushCh != nil {
+		title := "Сізге ұнады!"
+		body := "Бір адам сізді жақсы көреді. Оны тексеріңіз."
+		if matched {
+			title = "Жаңа мэтч!"
+			body = "Сізде жаңа мэтч бар. Сөйлесуді бастаңыз."
+		}
+		select {
+		case s.pushCh <- domain.PushEvent{
+			UserID: targetID,
+			Title:  title,
+			Body:   body,
+			Data:   map[string]string{"type": "like", "actor_id": userID.String()},
+		}:
+		default:
 		}
 	}
 

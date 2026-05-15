@@ -39,6 +39,12 @@ func (h *AdminHandler) SearchUsers(c *gin.Context) {
 	query := c.Query("q")
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	users, err := h.adminSvc.SearchUsers(c.Request.Context(), query, limit, offset)
 	if err != nil {
@@ -52,6 +58,12 @@ func (h *AdminHandler) SearchUsers(c *gin.Context) {
 func (h *AdminHandler) ListUnderReview(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	users, err := h.userSvc.ListUsersUnderReview(c.Request.Context(), limit, offset)
 	if err != nil {
@@ -116,6 +128,12 @@ func (h *AdminHandler) GetSybilClusters(c *gin.Context) {
 func (h *AdminHandler) GetPendingKYC(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	reqs, err := h.adminSvc.GetPendingKYC(c.Request.Context(), limit, offset)
 	if err != nil {
@@ -182,6 +200,12 @@ func (h *AdminHandler) ReviewKYC(c *gin.Context) {
 func (h *AdminHandler) GetPendingSybilClusters(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	clusters, err := h.adminSvc.GetPendingSybilClusters(c.Request.Context(), limit, offset)
 	if err != nil {

@@ -185,8 +185,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
             final msgs = List<Map<String, dynamic>>.from(state.messages);
             final content = event.payload['content'] as String?;
             final senderId = event.payload['sender_id'] as String?;
+            // Use indexWhere (first match) so the oldest pending temp message is
+            // confirmed first, preserving chronological order in the message list.
             final tempIdx = senderId == _currentUserId
-                ? msgs.lastIndexWhere((m) =>
+                ? msgs.indexWhere((m) =>
                     (m['id'] as String? ?? '').startsWith('temp_') &&
                     m['content'] == content)
                 : -1;

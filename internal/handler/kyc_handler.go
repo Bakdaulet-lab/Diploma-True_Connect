@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -22,11 +23,12 @@ type KYCHandler struct {
 	userRepo    repository.UserRepository
 	kycProvider provider.KYCProvider
 	log         *slog.Logger
+	serverCtx   context.Context
 }
 
 // NewKYCHandler creates a new KYC handler.
-func NewKYCHandler(mediaStore repository.MediaStore, userRepo repository.UserRepository, kycProvider provider.KYCProvider, log *slog.Logger) *KYCHandler {
-	return &KYCHandler{mediaStore: mediaStore, userRepo: userRepo, kycProvider: kycProvider, log: log}
+func NewKYCHandler(mediaStore repository.MediaStore, userRepo repository.UserRepository, kycProvider provider.KYCProvider, log *slog.Logger, serverCtx context.Context) *KYCHandler {
+	return &KYCHandler{mediaStore: mediaStore, userRepo: userRepo, kycProvider: kycProvider, log: log, serverCtx: serverCtx}
 }
 
 // SubmitKYC handles POST /v1/kyc/submit — accepts a document upload.
@@ -91,7 +93,8 @@ func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 
 	// In a real system, this could be triggered via a worker task. For now, running in a goroutine.
 	go func(uid uuid.UUID, key string, docData []byte, mime string) {
-		ctx := context.Background() // new context for async task
+		ctx, cancel := context.WithTimeout(h.serverCtx, 2*time.Minute)
+		defer cancel()
 		level, verifyErr := h.kycProvider.VerifyDocument(ctx, uid, key, docData, mime)
 		if verifyErr != nil {
 			h.log.Error("external kyc verification failed", slog.String("error", verifyErr.Error()))

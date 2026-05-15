@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -27,6 +28,7 @@ class DioClient {
     ));
 
     _dio.interceptors.add(_AuthInterceptor(_storage, _refreshDio, _dio));
+    _dio.interceptors.add(_RetryInterceptor(_dio));
     _dio.interceptors.add(_ErrorInterceptor());
 
     if (kDebugMode) {
@@ -109,6 +111,50 @@ class _AuthInterceptor extends Interceptor {
       }
     } else {
       handler.next(err);
+    }
+  }
+}
+
+class _RetryInterceptor extends Interceptor {
+  final Dio _dio;
+  static const _maxRetries = 3;
+  static const _retryKey = '_retryCount';
+
+  _RetryInterceptor(this._dio);
+
+  bool _isRetryable(DioException err) {
+    final status = err.response?.statusCode;
+    return err.type == DioExceptionType.connectionError ||
+        err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.sendTimeout ||
+        (status != null && status >= 500);
+  }
+
+  @override
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    if (!_isRetryable(err)) {
+      handler.next(err);
+      return;
+    }
+
+    final retryCount = (err.requestOptions.extra[_retryKey] as int?) ?? 0;
+    if (retryCount >= _maxRetries) {
+      handler.next(err);
+      return;
+    }
+
+    final delay = Duration(milliseconds: 100 * (1 << retryCount));
+    await Future.delayed(delay);
+
+    final opts = err.requestOptions;
+    opts.extra[_retryKey] = retryCount + 1;
+
+    try {
+      final response = await _dio.fetch(opts);
+      handler.resolve(response);
+    } on DioException catch (e) {
+      handler.next(e);
     }
   }
 }

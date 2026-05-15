@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -93,9 +94,11 @@ func (s *InteractionService) SubmitRating(
 	// Run Neo4j updates ONLY after successful PG commit (avoids split-brain).
 	// A better approach would be the Outbox pattern, but this is a solid mitigation here.
 	if err := s.graphRepo.AddRating(ctx, raterID, ratedID, rating, interactionContext, false); err != nil {
-		// Log the error but don't fail the request since primary DB succeeded
-		// In a production system, this could go into a retry queue
-		fmt.Printf("warning: failed to update neo4j graph rating: %v\n", err)
+		slog.Default().Warn("failed to update neo4j graph rating",
+			slog.String("rater_id", raterID.String()),
+			slog.String("rated_id", ratedID.String()),
+			slog.String("error", err.Error()),
+		)
 	}
 	select {
 	case s.eventCh <- ratedID:
@@ -132,12 +135,18 @@ func (s *InteractionService) ConfirmInteraction(ctx context.Context, interaction
 
 	// Add a verified rating edge in Neo4j (after PG commit).
 	if err := s.graphRepo.AddRating(ctx, interaction.RaterID, interaction.RatedID, interaction.Rating, interaction.Context, true); err != nil {
-		fmt.Printf("warning: failed to add verified graph rating: %v\n", err)
+		slog.Default().Warn("failed to add verified graph rating",
+			slog.String("interaction_id", interactionID.String()),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// Record the confirmed meeting in Neo4j.
 	if err := s.graphRepo.AddMeeting(ctx, interaction.RaterID, interaction.RatedID, true); err != nil {
-		fmt.Printf("warning: failed to add meeting edge: %v\n", err)
+		slog.Default().Warn("failed to add meeting edge",
+			slog.String("interaction_id", interactionID.String()),
+			slog.String("error", err.Error()),
+		)
 	}
 	select {
 	case s.eventCh <- interaction.RatedID:

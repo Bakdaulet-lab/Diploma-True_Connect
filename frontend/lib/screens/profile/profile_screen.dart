@@ -710,7 +710,7 @@ class _ProfileCompletenessBar extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(
           AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.card,
         boxShadow: AppShadows.soft,

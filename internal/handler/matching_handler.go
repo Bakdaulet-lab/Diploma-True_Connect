@@ -130,8 +130,10 @@ func (h *MatchingHandler) ListMatches(c *gin.Context) {
 	cursor := c.Query("cursor")
 	limit := 20 // default
 	if c.Query("limit") != "" {
-		// normally parse this safely, here just fallback
 		fmt.Sscanf(c.Query("limit"), "%d", &limit)
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
 
 	matches, nextCursor, err := h.matchingSvc.ListMatches(c.Request.Context(), userID, cursor, limit)
