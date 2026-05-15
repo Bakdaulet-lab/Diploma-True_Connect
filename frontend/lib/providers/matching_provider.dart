@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/dio_error_message.dart';
 import 'auth_provider.dart';
-import 'package:trueconnect/models/interaction.dart';// Убедитесь, что путь к вашей модели правильный
+import 'package:trueconnect/models/interaction.dart';
 
 // ─── Swipe / Candidates ───────────────────────────────────────────────────────
 
@@ -72,7 +72,23 @@ class MatchingNotifier
 final matchingNotifierProvider = StateNotifierProvider<
     MatchingNotifier,
     AsyncValue<List<Map<String, dynamic>>>>((ref) {
+  // Re-create whenever the logged-in user changes so stale candidates are cleared.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   return MatchingNotifier(ref.watch(dioClientProvider).dio);
+});
+
+// ─── Pending likes (users who liked you but you haven't responded) ────────────
+
+final pendingLikesProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
+  final dio = ref.watch(dioClientProvider).dio;
+  try {
+    final resp = await dio.get(ApiConstants.pendingLikes);
+    return _extractList(resp.data);
+  } on DioException catch (e) {
+    throw dioErrorMessage(e);
+  }
 });
 
 // ─── Family Introduction ──────────────────────────────────────────────────────
@@ -86,6 +102,8 @@ Future<void> markFamilyIntro(WidgetRef ref, String matchId) async {
 
 final matchesListProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  // Re-fetch whenever the logged-in user changes.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   final dio = ref.watch(dioClientProvider).dio;
   try {
     final resp = await dio.get(ApiConstants.matches);
@@ -124,9 +142,14 @@ Map<String, dynamic> _normalizeMatch(Map<String, dynamic> raw) {
   return {
     ...raw,
     'id': rawId?.toString() ?? '',
+    // Fix localhost:9000 → correct host for flat candidate maps
+    if (raw['avatar_url'] != null)
+      'avatar_url': ApiConstants.fixImageUrl(raw['avatar_url'] as String?),
     'other_user': otherUser,
+    'other_user_id': _readString(otherUser, ['user_id', 'userId']) ?? '',
     'other_user_name': displayName,
-    'other_user_avatar_url': avatarUrl != null && avatarUrl.isNotEmpty ? avatarUrl : null,
+    'other_user_avatar_url': ApiConstants.fixImageUrl(
+        avatarUrl != null && avatarUrl.isNotEmpty ? avatarUrl : null),
     'other_user_trust_score': trustScore,
     'other_user_public_key': _readString(otherUser, ['public_key', 'publicKey']),
     'imam_confirmed': raw['imam_confirmed'] ?? raw['imamConfirmed'] ?? false,

@@ -15,6 +15,9 @@ import '../../widgets/niyyah_badge.dart';
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 final _editProfileProvider = FutureProvider<Profile>((ref) async {
+  // Re-fetch when the logged-in user changes so a freshly logged-in user
+  // never sees the previous user's cached data.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   final dio = ref.watch(dioClientProvider).dio;
   try {
     final resp = await dio.get(ApiConstants.profile);
@@ -114,12 +117,24 @@ class _EditFormState extends ConsumerState<_EditForm> {
   late final TextEditingController _bioCtr;
   late final TextEditingController _ageCtr;
 
+  late String? _gender;
+  late String? _lookingFor;
   late String? _niyyah;
   late String? _madhab;
   late Set<String> _languages;
   late bool _noPhotoMode;
   bool _saving = false;
   String? _error;
+
+  static const _genderOptions = [
+    ('male', '♂', 'Ер'),
+    ('female', '♀', 'Әйел'),
+  ];
+
+  static const _lookingForOptions = [
+    ('male', '♂', 'Ер іздеймін'),
+    ('female', '♀', 'Әйел іздеймін'),
+  ];
 
   static const _niyyahOptions = [
     ('nikah_year', '🌙', 'Никях'),
@@ -129,7 +144,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
 
   static const _madhabOptions = [
     ('hanafi', 'Ханафи'),
-    ('shafi', 'Шафии'),
+    ('shafii', 'Шафии'),
     ('maliki', 'Маликий'),
     ('hanbali', 'Ханбали'),
   ];
@@ -149,6 +164,8 @@ class _EditFormState extends ConsumerState<_EditForm> {
     _bioCtr = TextEditingController(text: p.bio ?? '');
     _ageCtr =
         TextEditingController(text: p.age != null ? p.age.toString() : '');
+    _gender = p.gender;
+    _lookingFor = p.lookingFor;
     _niyyah = p.niyyah;
     _madhab = p.madhab;
     _languages = Set.from(p.languages);
@@ -174,11 +191,17 @@ class _EditFormState extends ConsumerState<_EditForm> {
     try {
       final dio = ref.read(dioClientProvider).dio;
       final ageVal = int.tryParse(_ageCtr.text.trim());
+      // Backend accepts birth_date (YYYY-MM-DD), not a bare age integer.
+      final birthDate = ageVal != null
+          ? '${DateTime.now().year - ageVal}-01-01'
+          : null;
       await dio.put(ApiConstants.profile, data: {
         'display_name': _nameCtr.text.trim(),
         if (_cityCtr.text.trim().isNotEmpty) 'city': _cityCtr.text.trim(),
         if (_bioCtr.text.trim().isNotEmpty) 'bio': _bioCtr.text.trim(),
-        if (ageVal != null) 'age': ageVal,
+        if (birthDate != null) 'birth_date': birthDate,
+        if (_gender != null) 'gender': _gender,
+        if (_lookingFor != null) 'looking_for': _lookingFor,
         if (_niyyah != null) 'niyyah': _niyyah,
         if (_madhab != null) 'madhab': _madhab,
         'languages': _languages.toList(),
@@ -285,6 +308,86 @@ class _EditFormState extends ConsumerState<_EditForm> {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Gender ────────────────────────────────────────────────
+              _Section(
+                label: 'Жынысыңыз',
+                child: Row(
+                  children: _genderOptions.map((opt) {
+                    final (value, emoji, label) = opt;
+                    final selected = _gender == value;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _gender = value),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primary : AppColors.surfaceVariant,
+                            borderRadius: AppRadius.chip,
+                            border: selected
+                                ? Border.all(color: AppColors.goldBorder, width: 1.5)
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(emoji, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Text(label, style: GoogleFonts.nunito(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: selected ? Colors.white : AppColors.textSecondary,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Looking For ───────────────────────────────────────────
+              _Section(
+                label: 'Кімді іздейсіз',
+                child: Row(
+                  children: _lookingForOptions.map((opt) {
+                    final (value, emoji, label) = opt;
+                    final selected = _lookingFor == value;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _lookingFor = value),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primaryDark : AppColors.surfaceVariant,
+                            borderRadius: AppRadius.chip,
+                            border: selected
+                                ? Border.all(color: AppColors.goldBorder, width: 1.5)
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(emoji, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Text(label, style: GoogleFonts.nunito(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: selected ? Colors.white : AppColors.textSecondary,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
 

@@ -209,7 +209,7 @@ func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (
 // DeleteUserNode completely removes a user and their edges from the graph.
 func (r *TrustGraphRepo) DeleteUserNode(ctx context.Context, uid uuid.UUID) error {
 	query := `
-		MATCH (u:User {id: $uid})
+		MATCH (u:User {uid: $uid})
 		DETACH DELETE u
 	`
 	params := map[string]any{"uid": uid.String()}

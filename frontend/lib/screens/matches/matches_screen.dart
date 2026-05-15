@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,10 @@ class MatchesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncMatches = ref.watch(matchesListProvider);
+    final asyncLikes = ref.watch(pendingLikesProvider);
+
+    final likeCount =
+        asyncLikes.valueOrNull?.length ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -22,36 +27,76 @@ class MatchesScreen extends ConsumerWidget {
         centerTitle: true,
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
-          child:
-              Divider(height: 1, thickness: 1, color: AppColors.goldBorder),
+          child: Divider(height: 1, thickness: 1, color: AppColors.goldBorder),
         ),
-        title: Text(
-          'Сәйкестіктер',
-          style: GoogleFonts.nunito(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ),
-      body: asyncMatches.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-        error: (e, _) => _buildError(context, ref, e.toString()),
-        data: (matches) => matches.isEmpty
-            ? _buildEmpty()
-            : RefreshIndicator(
-                color: AppColors.primary,
-                onRefresh: () => ref.refresh(matchesListProvider.future),
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  itemCount: matches.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: AppSpacing.sm),
-                  itemBuilder: (context, index) =>
-                      _MatchCard(match: matches[index]),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Сәйкестіктер',
+              style: GoogleFonts.nunito(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            if (likeCount > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$likeCount',
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
+            ],
+          ],
+        ),
+      ),
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () => Future.wait([
+          ref.refresh(matchesListProvider.future),
+          ref.refresh(pendingLikesProvider.future),
+        ]),
+        child: asyncMatches.when(
+          loading: () => const Center(
+              child: CircularProgressIndicator(color: AppColors.primary)),
+          error: (e, _) => _buildError(context, ref, e.toString()),
+          data: (matches) => CustomScrollView(
+            slivers: [
+              // ── "Liked You" section ──────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _LikedYouSection(asyncLikes: asyncLikes),
+              ),
+
+              // ── Matches list ─────────────────────────────────────────────
+              if (matches.isEmpty)
+                SliverFillRemaining(child: _buildEmpty())
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, 0, AppSpacing.md, AppSpacing.xxl),
+                  sliver: SliverList.separated(
+                    itemCount: matches.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.sm),
+                    itemBuilder: (context, index) =>
+                        _MatchCard(match: matches[index]),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -74,8 +119,8 @@ class MatchesScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'Жаңа адамдарды танып, Ұнайды батырмасын басыңыз',
-            style: GoogleFonts.nunito(
-                fontSize: 14, color: AppColors.textSecondary),
+            style:
+                GoogleFonts.nunito(fontSize: 14, color: AppColors.textSecondary),
             textAlign: TextAlign.center,
           ),
         ],
@@ -99,6 +144,226 @@ class MatchesScreen extends ConsumerWidget {
             child: const Text('Қайтадан көру'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Liked You Section ────────────────────────────────────────────────────────
+
+class _LikedYouSection extends ConsumerWidget {
+  final AsyncValue<List<Map<String, dynamic>>> asyncLikes;
+  const _LikedYouSection({required this.asyncLikes});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final likers = asyncLikes.valueOrNull;
+    if (likers == null || likers.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+          child: Row(
+            children: [
+              const Icon(Icons.favorite,
+                  size: 16, color: AppColors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'Сізді ұнатқандар',
+                style: GoogleFonts.nunito(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${likers.length}',
+                  style: GoogleFonts.nunito(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 160,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            itemCount: likers.length,
+            itemBuilder: (context, i) =>
+                _LikerCard(liker: likers[i]),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: Divider(color: AppColors.divider, height: 1),
+        ),
+        if (asyncLikes.valueOrNull?.isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+            child: Text(
+              'Сәйкестіктер',
+              style: GoogleFonts.nunito(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LikerCard extends ConsumerWidget {
+  final Map<String, dynamic> liker;
+  const _LikerCard({required this.liker});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = liker['id'] as String? ?? '';
+    final name = liker['display_name'] as String? ??
+        liker['other_user_name'] as String? ?? '';
+    final avatarUrl = liker['avatar_url'] as String? ??
+        liker['other_user_avatar_url'] as String?;
+    final trustScore =
+        (liker['trust_score'] as num?)?.toInt() ??
+        (liker['other_user_trust_score'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.only(right: AppSpacing.sm),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.card,
+        boxShadow: AppShadows.soft,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              CircleAvatar(
+                radius: 34,
+                backgroundColor: AppColors.primaryLight,
+                backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? CachedNetworkImageProvider(avatarUrl)
+                    : null,
+                child: avatarUrl == null || avatarUrl.isEmpty
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: GoogleFonts.nunito(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : null,
+              ),
+              TrustScoreBadge(score: trustScore, size: 20),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              name,
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Pass
+              _IconAction(
+                icon: Icons.close,
+                color: AppColors.accent,
+                onTap: () async {
+                  await ref
+                      .read(matchingNotifierProvider.notifier)
+                      .pass(userId);
+                  ref.invalidate(pendingLikesProvider);
+                },
+              ),
+              const SizedBox(width: 8),
+              // Like back
+              _IconAction(
+                icon: Icons.favorite,
+                color: AppColors.primary,
+                onTap: () async {
+                  final matched = await ref
+                      .read(matchingNotifierProvider.notifier)
+                      .like(userId);
+                  ref.invalidate(pendingLikesProvider);
+                  if (matched && context.mounted) {
+                    ref.invalidate(matchesListProvider);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '🎉 $name — жаңа сәйкестік!',
+                          style: GoogleFonts.nunito(
+                              fontWeight: FontWeight.w600),
+                        ),
+                        backgroundColor: AppColors.primary,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _IconAction(
+      {required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Icon(icon, size: 16, color: color),
       ),
     );
   }
@@ -146,6 +411,7 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
     final trustScore =
         (widget.match['other_user_trust_score'] as num?)?.toInt() ?? 0;
     final matchId = widget.match['id'] as String? ?? '';
+    final otherUserId = widget.match['other_user_id'] as String? ?? '';
     final imamConfirmed = widget.match['imam_confirmed'] as bool? ?? false;
     final familyIntroDone =
         widget.match['family_intro_done'] as bool? ?? false;
@@ -156,7 +422,7 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
     final daysLeft = timerEndsAt?.difference(DateTime.now()).inDays;
 
     return GestureDetector(
-      onTap: () => context.push('/chat/$matchId'),
+      onTap: () => context.push('/chat/$matchId?userId=$otherUserId'),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: const BoxDecoration(
@@ -169,14 +435,14 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
           children: [
             Row(
               children: [
-                // Avatar
                 Stack(
                   children: [
                     CircleAvatar(
                       radius: 32,
                       backgroundColor: AppColors.surfaceVariant,
-                      backgroundImage:
-                          avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      backgroundImage: avatarUrl != null
+                          ? CachedNetworkImageProvider(avatarUrl)
+                          : null,
                       child: avatarUrl == null
                           ? const Icon(Icons.person,
                               size: 32, color: AppColors.textHint)
@@ -189,10 +455,7 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
                     ),
                   ],
                 ),
-
                 const SizedBox(width: AppSpacing.md),
-
-                // Name + status
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,22 +473,17 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
                     ],
                   ),
                 ),
-
-                // Niyyah timer
                 if (daysLeft != null && !imamConfirmed)
                   _TimerChip(daysLeft: daysLeft),
               ],
             ),
-
-            // Family Introduction button — shown when not done and not nikah confirmed
             if (!familyIntroDone && !imamConfirmed) ...[
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: _introLoading
-                      ? null
-                      : () => _doFamilyIntro(matchId),
+                  onPressed:
+                      _introLoading ? null : () => _doFamilyIntro(matchId),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.secondary,
                     side: const BorderSide(
@@ -276,16 +534,15 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
           const SizedBox(width: 4),
           Text(
             'Отбасы таныстырылды',
-            style: GoogleFonts.nunito(
-                fontSize: 12, color: AppColors.textSecondary),
+            style:
+                GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
           ),
         ],
       );
     }
     return Text(
       'Хабарлама жіберіңіз',
-      style:
-          GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
+      style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
     );
   }
 }
@@ -317,10 +574,7 @@ class _TimerChip extends StatelessWidget {
               color: color,
             ),
           ),
-          Text(
-            'күн',
-            style: GoogleFonts.nunito(fontSize: 10, color: color),
-          ),
+          Text('күн', style: GoogleFonts.nunito(fontSize: 10, color: color)),
         ],
       ),
     );

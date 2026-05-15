@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/domain"
@@ -116,16 +117,22 @@ func (s *ChatService) GetMessages(ctx context.Context, matchID, userID uuid.UUID
 
 	result := make([]DecryptedMessage, 0, len(messages))
 	for _, m := range messages {
-		plaintext, err := crypto.Decrypt(m.ContentEncrypted, s.encryptionKey)
-		if err != nil {
-			return nil, "", fmt.Errorf("get messages: decrypting: %w", err)
+		plaintext, decErr := crypto.Decrypt(m.ContentEncrypted, s.encryptionKey)
+		content := string(plaintext)
+		if decErr != nil {
+			// Skip corrupted messages gracefully rather than aborting the whole fetch.
+			slog.Default().Warn("chat: message decryption failed",
+				slog.String("message_id", m.ID.String()),
+				slog.String("error", decErr.Error()),
+			)
+			content = "[Хабарлама зақымдалған]"
 		}
 
 		dm := DecryptedMessage{
 			ID:        m.ID,
 			MatchID:   m.MatchID,
 			SenderID:  m.SenderID,
-			Content:   string(plaintext),
+			Content:   content,
 			IsToxic:   m.IsToxic,
 			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}

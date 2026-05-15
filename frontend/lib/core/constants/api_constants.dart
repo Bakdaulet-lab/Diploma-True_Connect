@@ -33,7 +33,7 @@ abstract final class ApiConstants {
   static const matchLike = '/matching/like';
   static const matchPass = '/matching/pass';
   static const matches = '/matches';
-  static const String interactions = '/v1/interactions';
+  static const String interactions = '/interactions';
 
   // KYC
   static const kycSubmit = '/kyc/submit';
@@ -54,6 +54,9 @@ abstract final class ApiConstants {
   // Halal venues
   static const venues = '/venues';
 
+  // Pending likes (users who liked you)
+  static const pendingLikes = '/matching/likes';
+
   // Social feed
   static const posts = '/posts';
 
@@ -63,6 +66,25 @@ abstract final class ApiConstants {
   // Chat history
   static String matchMessages(String matchId) => '/matches/$matchId/messages';
 
+  // Unmatch / Block
+  static String unmatch(String matchId) => '/matches/$matchId/unmatch';
+  static String blockUser(String userId) => '/users/$userId/block';
+
   // Push notifications
   static const fcmToken = '/users/me/fcm-token';
+
+  // Fix image URLs: backend generates localhost:9000 URLs which are
+  // unreachable from Android emulator (needs 10.0.2.2) or real devices.
+  // Also handles bare object keys (e.g. "users/uuid/photos/uuid.jpg") returned
+  // by some endpoints that don't pre-build a full URL on the backend.
+  static String? fixImageUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (!url.startsWith('http')) {
+      final key = url.replaceAll(RegExp(r'^/+'), '');
+      return 'http://$_host:9000/trueconnect/$key';
+    }
+    return url
+        .replaceFirst('localhost:9000', '$_host:9000')
+        .replaceFirst('minio:9000', '$_host:9000');
+  }
 }

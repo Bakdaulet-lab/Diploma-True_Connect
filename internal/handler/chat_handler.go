@@ -280,6 +280,14 @@ func (h *Hub) pingLoop(ctx context.Context, conn *websocket.Conn, userID uuid.UU
 }
 
 func (h *Hub) readLoop(ctx context.Context, conn *websocket.Conn, userID uuid.UUID) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.log.Error("ws readLoop panic recovered",
+				slog.Any("panic", r),
+				slog.String("user_id", userID.String()),
+			)
+		}
+	}()
 	for {
 		var msg wsIncoming
 		if err := wsjson.Read(ctx, conn, &msg); err != nil {

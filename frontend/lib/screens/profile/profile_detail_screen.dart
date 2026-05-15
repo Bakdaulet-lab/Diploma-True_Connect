@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -243,10 +244,10 @@ class _ProfileSliverAppBar extends StatelessWidget {
             Hero(
               tag: 'profile-img-${profile["id"]}',
               child: avatarUrl != null
-                  ? Image.network(
-                      avatarUrl,
+                  ? CachedNetworkImage(
+                      imageUrl: avatarUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorWidget: (_, __, ___) => Container(
                         color: AppColors.surfaceVariant,
                         child: const Icon(Icons.person,
                             size: 120, color: AppColors.textHint),

@@ -232,12 +232,10 @@ func (s *ProfileService) UploadPhoto(ctx context.Context, userID uuid.UUID, data
 		return nil, fmt.Errorf("upload photo: saving record: %w", err)
 	}
 
-	// First photo becomes the avatar automatically.
-	if count == 0 {
-		if err := s.mediaRepo.UpdateAvatar(ctx, userID, objectKey); err != nil {
-			// Non-fatal: avatar can be set manually later.
-			_ = err
-		}
+	// Every uploaded photo updates the avatar so the most recent photo is always shown.
+	if err := s.mediaRepo.UpdateAvatar(ctx, userID, objectKey); err != nil {
+		// Non-fatal: existing avatar remains if this fails.
+		_ = err
 	}
 
 	return media, nil

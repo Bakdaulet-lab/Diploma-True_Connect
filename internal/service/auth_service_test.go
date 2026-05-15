@@ -246,6 +246,12 @@ func (m *mockGraphRepo) DeleteUserNode(ctx context.Context, uid uuid.UUID) error
 
 // ?? Test helpers ??????????????????????????????????????????????????????????????
 
+type mockUoW struct{}
+
+func (m *mockUoW) Do(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
 func testEncryptionKey() []byte {
 	return bytes.Repeat([]byte("k"), 32)
 }
@@ -258,6 +264,7 @@ func newTestAuthService() *service.AuthService {
 		newMockTokenRepo(),
 		newMockSessionStore(),
 		&mockGraphRepo{},
+		&mockUoW{},
 		jwtMgr,
 		testEncryptionKey(),
 		7*24*time.Hour,
@@ -277,6 +284,7 @@ func TestRegister_Success(t *testing.T) {
 		newMockTokenRepo(),
 		newMockSessionStore(),
 		&mockGraphRepo{},
+		&mockUoW{},
 		tcjwt.NewManager("test-secret-which-is-32-chars-longg", 15*time.Minute),
 		testEncryptionKey(),
 		7*24*time.Hour,
@@ -498,6 +506,7 @@ func TestLogin_SuspendedAccount(t *testing.T) {
 		newMockTokenRepo(),
 		newMockSessionStore(),
 		&mockGraphRepo{},
+		&mockUoW{},
 		jwtMgr,
 		testEncryptionKey(),
 		7*24*time.Hour,
@@ -538,6 +547,7 @@ func TestRefresh_TokenReuse_RevokesAllTokens(t *testing.T) {
 		tokenRepo,
 		newMockSessionStore(),
 		&mockGraphRepo{},
+		&mockUoW{},
 		jwtMgr,
 		testEncryptionKey(),
 		7*24*time.Hour,

@@ -11,6 +11,7 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
   final Dio _dio;
   String? _cursor;
   bool _hasMore = true;
+  bool _loadingMore = false;
 
   FeedNotifier(this._dio) : super(const AsyncValue.loading()) {
     load();
@@ -34,7 +35,8 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
   }
 
   Future<void> loadMore() async {
-    if (!_hasMore || _cursor == null) return;
+    if (!_hasMore || _cursor == null || _loadingMore) return;
+    _loadingMore = true;
     final current = state.valueOrNull ?? [];
     try {
       final resp =
@@ -45,10 +47,34 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
       state = AsyncValue.data([...current, ...more]);
     } catch (_) {
       // Keep current state on load-more failure
+    } finally {
+      _loadingMore = false;
     }
   }
 
   Future<void> refresh() => load();
+
+  void incrementCommentCount(String postId) {
+    final posts = state.valueOrNull;
+    if (posts == null) return;
+    final idx = posts.indexWhere((p) => p.id == postId);
+    if (idx == -1) return;
+    final updated = List<Post>.from(posts);
+    final p = updated[idx];
+    updated[idx] = Post(
+      id: p.id,
+      authorId: p.authorId,
+      content: p.content,
+      mediaUrl: p.mediaUrl,
+      likeCount: p.likeCount,
+      commentCount: p.commentCount + 1,
+      createdAt: p.createdAt,
+      authorName: p.authorName,
+      authorAvatarUrl: p.authorAvatarUrl,
+      isLiked: p.isLiked,
+    );
+    state = AsyncValue.data(updated);
+  }
 
   Future<void> likePost(String postId) async {
     final posts = state.valueOrNull;
@@ -80,22 +106,17 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
     }
   }
 
-  Future<Post?> createPost({
+  Future<void> createPost({
     required String content,
     String? mediaUrl,
   }) async {
     try {
-      final resp = await _dio.post(ApiConstants.posts, data: {
+      await _dio.post(ApiConstants.posts, data: {
         'content': content,
         if (mediaUrl != null) 'media_url': mediaUrl,
       });
-      final post = Post.fromJson(resp.data is Map
-          ? Map<String, dynamic>.from(resp.data as Map)
-          : <String, dynamic>{});
-      // Prepend to feed
-      final current = state.valueOrNull ?? [];
-      state = AsyncValue.data([post, ...current]);
-      return post;
+      // Refresh the full feed so the new post has author_name from the SQL JOIN.
+      await load();
     } on DioException catch (e) {
       throw dioErrorMessage(e);
     }
@@ -104,6 +125,8 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
 
 final feedProvider =
     StateNotifierProvider<FeedNotifier, AsyncValue<List<Post>>>((ref) {
+  // Re-create (and reload) whenever the logged-in user changes.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   return FeedNotifier(ref.watch(dioClientProvider).dio);
 });
 
@@ -136,6 +159,11 @@ Future<void> addComment(
   final dio = ref.read(dioClientProvider).dio;
   await dio.post('${ApiConstants.posts}/$postId/comments',
       data: {'content': content});
+
+  // Optimistically bump comment count on the feed card.
+  ref.read(feedProvider.notifier).incrementCommentCount(postId);
+
+  // Trigger a fresh fetch of the comment list.
   ref.invalidate(postCommentsProvider(postId));
 }
 
@@ -164,8 +192,11 @@ List<Post> _parsePosts(dynamic payload) {
 String? _extractCursor(dynamic payload) {
   if (payload is Map) {
     final meta = payload['meta'] ?? payload['cursor'];
-    if (meta is Map) return meta['next_cursor'] as String?;
-    if (meta is String) return meta;
+    if (meta is Map) {
+      final cursor = meta['next_cursor'] as String?;
+      return (cursor != null && cursor.isNotEmpty) ? cursor : null;
+    }
+    if (meta is String && meta.isNotEmpty) return meta;
   }
   return null;
 }

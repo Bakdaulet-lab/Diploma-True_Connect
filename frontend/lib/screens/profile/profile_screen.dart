@@ -1,34 +1,27 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_error_message.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/profile.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
 import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
-
-final _ownProfileProvider = FutureProvider<Profile>((ref) async {
-  final dio = ref.watch(dioClientProvider).dio;
-  try {
-    final resp = await dio.get(ApiConstants.profile);
-    return Profile.fromJson(resp.data as Map<String, dynamic>);
-  } on DioException catch (e) {
-    throw dioErrorMessage(e);
-  }
-});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final asyncProfile = ref.watch(_ownProfileProvider);
+    final asyncProfile = ref.watch(ownProfileProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -74,6 +67,9 @@ class ProfileScreen extends ConsumerWidget {
         children: [
           // Header with avatar
           _ProfileHeader(profile: profile),
+
+          // Completeness progress bar
+          _ProfileCompletenessBar(profile: profile),
 
           const SizedBox(height: AppSpacing.lg),
 
@@ -282,7 +278,7 @@ class ProfileScreen extends ConsumerWidget {
                 onPressed: () async {
                   final created = await _showCreateProfileSheet(context);
                   if (created == true) {
-                    ref.invalidate(_ownProfileProvider);
+                    ref.invalidate(ownProfileProvider);
                   }
                 },
                 child: const Text('Профиль жасау'),
@@ -290,7 +286,7 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(height: 12),
             ],
             ElevatedButton(
-              onPressed: () => ref.refresh(_ownProfileProvider.future),
+              onPressed: () => ref.refresh(ownProfileProvider.future),
               child: const Text('Қайтадан'),
             ),
           ],
@@ -321,12 +317,62 @@ class ProfileScreen extends ConsumerWidget {
 
 // ─── Profile Header ───────────────────────────────────────────────────────────
 
-class _ProfileHeader extends StatelessWidget {
+class _ProfileHeader extends ConsumerStatefulWidget {
   final Profile profile;
   const _ProfileHeader({required this.profile});
 
   @override
+  ConsumerState<_ProfileHeader> createState() => _ProfileHeaderState();
+}
+
+class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
+  bool _uploading = false;
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _uploading = true);
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      final bytes = await picked.readAsBytes();
+      final formData = FormData.fromMap({
+        'photo': MultipartFile.fromBytes(
+          bytes,
+          filename: picked.name,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      });
+      await dio.post(ApiConstants.profilePhoto, data: formData);
+      ref.invalidate(ownProfileProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Фото жүктелді'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(dioErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
     return Container(
       width: double.infinity,
       color: AppColors.primaryDark,
@@ -342,7 +388,7 @@ class _ProfileHeader extends StatelessWidget {
                 backgroundImage: profile.avatarUrl != null &&
                         profile.avatarUrl!.isNotEmpty &&
                         !profile.avatarBlurred
-                    ? NetworkImage(profile.avatarUrl!)
+                    ? CachedNetworkImageProvider(profile.avatarUrl!)
                     : null,
                 child: profile.avatarUrl == null ||
                         profile.avatarUrl!.isEmpty ||
@@ -351,20 +397,33 @@ class _ProfileHeader extends StatelessWidget {
                         size: 56, color: AppColors.primary)
                     : null,
               ),
-              if (profile.noPhotoMode)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
+              // Camera button to upload avatar
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: GestureDetector(
+                  onTap: _uploading ? null : _pickAndUploadAvatar,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: AppColors.secondary,
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _uploading ? AppColors.textHint : AppColors.secondary,
                       shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.primaryDark, width: 2),
                     ),
-                    child: const Icon(Icons.lock,
-                        color: Colors.white, size: 14),
+                    child: _uploading
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.camera_alt,
+                            color: Colors.white, size: 14),
                   ),
                 ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -607,6 +666,101 @@ class _CreateProfileSheetState extends ConsumerState<_CreateProfileSheet> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Profile Completeness Bar ─────────────────────────────────────────────────
+
+class _ProfileCompletenessBar extends StatelessWidget {
+  final Profile profile;
+  const _ProfileCompletenessBar({required this.profile});
+
+  // Returns (filledCount, totalCount, firstMissingHint)
+  (int, int, String?) _compute() {
+    final checks = [
+      (profile.displayName.isNotEmpty,         'Аты-жөн'),
+      (profile.avatarUrl?.isNotEmpty == true,  'Фото'),
+      (profile.bio?.isNotEmpty == true,        'Қысқаша таныстыру'),
+      (profile.gender?.isNotEmpty == true,     'Жыныс'),
+      (profile.niyyah?.isNotEmpty == true,     'Ниет'),
+      (profile.city?.isNotEmpty == true,       'Қала'),
+      (profile.madhab?.isNotEmpty == true,     'Мазхаб'),
+      (profile.languages.isNotEmpty,           'Тілдер'),
+    ];
+    final filled = checks.where((c) => c.$1).length;
+    final hint = checks.firstWhere((c) => !c.$1, orElse: () => (true, '')).$2;
+    return (filled, checks.length, filled == checks.length ? null : hint);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (filled, total, hint) = _compute();
+    final pct = filled / total;
+    if (pct == 1.0) return const SizedBox.shrink(); // 100% — hide the bar
+
+    final color = pct < 0.5
+        ? AppColors.accent
+        : pct < 0.8
+            ? AppColors.secondary
+            : AppColors.primary;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.card,
+        boxShadow: AppShadows.soft,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Профиль толықтығы',
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${(pct * 100).round()}%',
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              backgroundColor: AppColors.divider,
+              // ignore: prefer_const_constructors — color is a runtime variable
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              minHeight: 6,
+            ),
+          ),
+          if (hint != null && hint.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Кеңес: "$hint" қосыңыз — сәйкестіктер артады',
+              style: GoogleFonts.nunito(
+                fontSize: 11,
+                color: AppColors.textHint,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

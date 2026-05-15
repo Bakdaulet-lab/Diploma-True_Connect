@@ -27,7 +27,7 @@ services:
       neo4j:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
   worker:
@@ -52,7 +52,7 @@ services:
     environment:
       POSTGRES_DB: trueconnect
       POSTGRES_USER: tc_app
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-devpass123}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD env var is required}
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -64,7 +64,7 @@ services:
   neo4j:
     image: neo4j:5-community
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-devpass123}
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD env var is required}
       NEO4J_PLUGINS: '["graph-data-science"]'
     volumes:
       - neo4j_data:/data
@@ -74,7 +74,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 30m
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
@@ -92,12 +92,17 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-devpass1234}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY env var is required}
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   nginx:
     image: nginx:alpine

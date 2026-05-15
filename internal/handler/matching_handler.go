@@ -130,8 +130,10 @@ func (h *MatchingHandler) ListMatches(c *gin.Context) {
 	cursor := c.Query("cursor")
 	limit := 20 // default
 	if c.Query("limit") != "" {
-		// normally parse this safely, here just fallback
 		fmt.Sscanf(c.Query("limit"), "%d", &limit)
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
 
 	matches, nextCursor, err := h.matchingSvc.ListMatches(c.Request.Context(), userID, cursor, limit)
@@ -176,6 +178,79 @@ func (h *MatchingHandler) FamilyIntro(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusNoContent, nil)
+}
+
+// Unmatch handles POST /v1/matches/:id/unmatch
+func (h *MatchingHandler) Unmatch(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	matchID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		errorResponse(c, http.StatusBadRequest, "INVALID_ID", "id must be a valid UUID", nil)
+		return
+	}
+
+	if err := h.matchingSvc.Unmatch(c.Request.Context(), matchID, userID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			errorResponse(c, http.StatusNotFound, "NOT_FOUND", "match not found", nil)
+			return
+		}
+		h.log.Error("unmatch error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not unmatch", nil)
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
+}
+
+// BlockUser handles POST /v1/users/:id/block
+func (h *MatchingHandler) BlockUser(c *gin.Context) {
+	callerID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	targetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		errorResponse(c, http.StatusBadRequest, "INVALID_ID", "id must be a valid UUID", nil)
+		return
+	}
+
+	if err := h.matchingSvc.BlockUser(c.Request.Context(), callerID, targetID); err != nil {
+		if errors.Is(err, domain.ErrInvalidInput) {
+			errorResponse(c, http.StatusBadRequest, "INVALID_INPUT", "cannot block yourself", nil)
+			return
+		}
+		h.log.Error("block user error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not block user", nil)
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
+}
+
+// GetPendingLikes handles GET /v1/matching/likes
+// Returns profiles of users who have liked the caller but haven't been liked back.
+func (h *MatchingHandler) GetPendingLikes(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	likers, err := h.matchingSvc.GetPendingLikes(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("get pending likes error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not load likes", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": likers})
 }
 
 // GetGraphCandidates handles GET /v1/matching/graph-candidates

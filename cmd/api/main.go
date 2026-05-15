@@ -114,12 +114,14 @@ func run() error {
 
 	// в”Ђв”Ђ Services в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
+	uowAuth := postgres.NewUoW(pgPool)
 	authSvc := service.NewAuthService(
 		userRepo,
 		profileRepo,
 		tokenRepo,
 		sessionStore,
 		graphRepo,
+		uowAuth,
 		jwtManager,
 		encryptionKey,
 		cfg.Auth.RefreshTokenExpiry,
@@ -132,12 +134,15 @@ func run() error {
 	notifRepo := postgres.NewNotificationRepo(pgPool)
 	notifSvc := service.NewNotificationService(notifRepo, redisClient, log)
 
-	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo, notifSvc)
+	// pushCh is created here so matching service can enqueue FCM push events on Like().
+	pushCh := make(chan domain.PushEvent, 100)
+
+	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo, notifSvc, pushCh)
 	settingsSvc := service.NewSettingsService(settingsRepo)
 
 	// Sprint 3 repos, services, and trust engine
 	interactionRepo := postgres.NewInteractionRepo(pgPool)
-	eventCh := make(chan uuid.UUID, 100)
+	eventCh := make(chan uuid.UUID, 1000)
 	uow := postgres.NewUoW(pgPool)
 	interactionSvc := service.NewInteractionService(
 		interactionRepo,
@@ -152,7 +157,6 @@ func run() error {
 	go trustEngine.Run(ctx)
 
 	// Push Notifications
-	pushCh := make(chan domain.PushEvent, 100)
 	var pushProvider provider.PushProvider
 	if cfg.Firebase.CredentialsFile != "" {
 		pushProvider, err = provider.NewFCMPushProvider(ctx, cfg.Firebase.CredentialsFile)
@@ -167,6 +171,24 @@ func run() error {
 
 	pushWorker := worker.NewPushWorker(pushProvider, userRepo, pushCh, log)
 	go pushWorker.Run(ctx)
+
+	// Periodic cleanup: remove expired refresh tokens every hour.
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n, err := tokenRepo.DeleteExpired(ctx); err != nil {
+					log.Error("token cleanup failed", slog.String("error", err.Error()))
+				} else if n > 0 {
+					log.Info("token cleanup", slog.Int64("deleted", n))
+				}
+			}
+		}
+	}()
 
 	// Sprint 4 repos and services
 	postRepo := postgres.NewPostRepo(pgPool)
@@ -197,7 +219,7 @@ func run() error {
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
 	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)
-	kycHandler := handler.NewKYCHandler(mediaStore, userRepo, kycProvider, log)
+	kycHandler := handler.NewKYCHandler(mediaStore, userRepo, kycProvider, log, ctx)
 
 	// Sprint 5 service and handler
 	userSvc := service.NewUserService(userRepo, tokenRepo, sessionStore, graphRepo, encryptionKey)

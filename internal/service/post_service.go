@@ -122,6 +122,7 @@ func (s *PostService) ListFeed(ctx context.Context, cursor string, limit int, fi
 
 	for i := range posts {
 		posts[i].MediaURL = fixMediaURL(posts[i].MediaURL)
+		posts[i].AuthorAvatar = fixAvatarURL(posts[i].AuthorAvatar)
 	}
 
 	return posts, nextCursor, nil
@@ -197,6 +198,10 @@ func (s *PostService) ListComments(ctx context.Context, postID uuid.UUID, cursor
 	comments, nextCursor, err := s.postRepo.ListComments(ctx, postID, cursor, limit)
 	if err != nil {
 		return nil, "", fmt.Errorf("list comments: %w", err)
+	}
+
+	for i := range comments {
+		comments[i].AuthorAvatar = fixAvatarURL(comments[i].AuthorAvatar)
 	}
 
 	return comments, nextCursor, nil

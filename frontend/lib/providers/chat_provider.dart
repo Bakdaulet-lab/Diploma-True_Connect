@@ -83,28 +83,62 @@ class ChatState {
 class ChatNotifier extends StateNotifier<ChatState> {
   final String _matchId;
   final Dio _dio;
+  final String _currentUserId;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _typingTimer;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _disposed = false; // set in dispose(), cannot be final
+  static const _maxReconnectAttempts = 5;
   static const _storage = FlutterSecureStorage();
 
   final _eventBus = StreamController<ChatEvent>.broadcast();
   Stream<ChatEvent> get events => _eventBus.stream;
 
-  ChatNotifier(this._matchId, this._dio) : super(const ChatState()) {
+  ChatNotifier(this._matchId, this._dio, this._currentUserId)
+      : super(const ChatState()) {
     _connect();
   }
 
   Future<void> _connect() async {
+    if (_disposed) return;
     final token = await _storage.read(key: 'access_token') ?? '';
-    final uri = Uri.parse('${ApiConstants.chatWs}?token=$token');
+    final uri = Uri.parse(ApiConstants.chatWs);
     _channel = WebSocketChannel.connect(uri);
-    state = state.copyWith(isConnected: true);
+
+    // Backend requires first message to be auth handshake before anything else.
+    _channel!.sink.add(jsonEncode({'type': 'auth', 'token': token}));
+
     _sub = _channel!.stream.listen(
       _onRaw,
-      onDone: () => state = state.copyWith(isConnected: false),
-      onError: (_) => state = state.copyWith(isConnected: false),
+      onDone: _onDisconnected,
+      onError: (_) => _onDisconnected(),
     );
+  }
+
+  void _onDisconnected() {
+    if (_disposed) return;
+    state = state.copyWith(isConnected: false);
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed || _reconnectAttempts >= _maxReconnectAttempts) return;
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+    final delay = Duration(seconds: 1 << _reconnectAttempts);
+    _reconnectAttempts++;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delay, () async {
+      await _sub?.cancel();
+      await _connect();
+    });
+  }
+
+  // Call after successful auth_ok to reset the backoff counter.
+  void _onConnected() {
+    _reconnectAttempts = 0;
+    state = state.copyWith(isConnected: true);
     _loadHistory();
   }
 
@@ -133,6 +167,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _onRaw(dynamic raw) {
     try {
       final json = jsonDecode(raw as String) as Map<String, dynamic>;
+
+      // Handle auth handshake response — load history once authenticated.
+      if (json['type'] == 'auth_ok') {
+        _onConnected();
+        return;
+      }
+
       final event = ChatEvent.fromJson(json);
       _eventBus.add(event);
 
@@ -140,10 +181,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
         case ChatEventType.chatMsg:
         case ChatEventType.contentWarning:
           if (event.payload['match_id'] == _matchId) {
-            state = state.copyWith(
-              messages: [...state.messages, event.payload],
-              isOtherTyping: false,
-            );
+            // Replace optimistic temp message with confirmed one if content matches.
+            final msgs = List<Map<String, dynamic>>.from(state.messages);
+            final content = event.payload['content'] as String?;
+            final senderId = event.payload['sender_id'] as String?;
+            // Use indexWhere (first match) so the oldest pending temp message is
+            // confirmed first, preserving chronological order in the message list.
+            final tempIdx = senderId == _currentUserId
+                ? msgs.indexWhere((m) =>
+                    (m['id'] as String? ?? '').startsWith('temp_') &&
+                    m['content'] == content)
+                : -1;
+            if (tempIdx != -1) {
+              msgs[tempIdx] = Map<String, dynamic>.from(event.payload);
+            } else {
+              msgs.add(Map<String, dynamic>.from(event.payload));
+            }
+            state = state.copyWith(messages: msgs, isOtherTyping: false);
           }
         case ChatEventType.typing:
           if (event.payload['match_id'] == _matchId) {
@@ -160,16 +214,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void send(String content) {
+    if (!state.isConnected) return;
     _channel?.sink.add(jsonEncode({
       'type': 'chat_msg',
       'payload': {'match_id': _matchId, 'content': content},
     }));
-    // Optimistic local insert
+    // Optimistic local insert using actual user ID so bubbles render correctly.
     state = state.copyWith(messages: [
       ...state.messages,
       {
         'id': 'temp_${DateTime.now().millisecondsSinceEpoch}',
-        'sender_id': 'me',
+        'sender_id': _currentUserId,
+        'match_id': _matchId,
         'content': content,
         'is_read': false,
         'created_at': DateTime.now().toIso8601String(),
@@ -193,6 +249,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   @override
   void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
     _typingTimer?.cancel();
     _sub?.cancel();
     _channel?.sink.close();
@@ -203,5 +261,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
 final chatNotifierProvider =
     StateNotifierProvider.family<ChatNotifier, ChatState, String>(
-  (ref, matchId) => ChatNotifier(matchId, ref.watch(dioClientProvider).dio),
+  (ref, matchId) {
+    final userId = ref.watch(authStateProvider).valueOrNull?.id ?? '';
+    return ChatNotifier(matchId, ref.watch(dioClientProvider).dio, userId);
+  },
 );

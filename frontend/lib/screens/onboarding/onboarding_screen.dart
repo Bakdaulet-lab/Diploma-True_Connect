@@ -99,7 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     if (_currentPage < 2) ...[
                       const SizedBox(height: 12),
                       TextButton(
-                        onPressed: _next,
+                        onPressed: () => context.go('/auth/login'),
                         child: Text(
                           'Өткізіп жіберу',
                           style: GoogleFonts.nunito(
@@ -275,14 +275,32 @@ class _OnboardingSlide3 extends StatelessWidget {
 
           const SizedBox(height: 28),
 
-          const Wrap(
+          Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
             children: [
-              _FeatureChip(icon: '🇰🇿', label: 'Қазақша'),
-              _FeatureChip(icon: '🌐', label: 'Орысша'),
-              _FeatureChip(icon: '🕌', label: 'Арабша'),
+              _FeatureChip(
+                icon: '🇰🇿',
+                label: 'Қазақша',
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Тіл: Қазақша — жақында қосылады')),
+                ),
+              ),
+              _FeatureChip(
+                icon: '🌐',
+                label: 'Орысша',
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Язык: Русский — скоро будет добавлен')),
+                ),
+              ),
+              _FeatureChip(
+                icon: '🕌',
+                label: 'Арабша',
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Language: Arabic — coming soon')),
+                ),
+              ),
             ],
           ),
         ],
@@ -296,31 +314,35 @@ class _OnboardingSlide3 extends StatelessWidget {
 class _FeatureChip extends StatelessWidget {
   final String icon;
   final String label;
+  final VoidCallback? onTap;
 
-  const _FeatureChip({required this.icon, required this.label});
+  const _FeatureChip({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppColors.primaryLight,
-        borderRadius: AppRadius.chip,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(icon, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.nunito(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: const BoxDecoration(
+          color: AppColors.primaryLight,
+          borderRadius: AppRadius.chip,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

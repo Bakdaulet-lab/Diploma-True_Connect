@@ -37,8 +37,20 @@ func (e *TrustEngine) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			e.log.Info("trust engine stopped")
-			return
+			e.log.Info("trust engine stopped, draining remaining events")
+			for {
+				select {
+				case userID := <-e.eventCh:
+					if _, err := e.reputeSvc.RecalculateScore(context.Background(), userID); err != nil {
+						e.log.Error("trust engine drain: recalculation failed",
+							slog.String("user_id", userID.String()),
+							slog.String("error", err.Error()),
+						)
+					}
+				default:
+					return
+				}
+			}
 		case userID := <-e.eventCh:
 			score, err := e.reputeSvc.RecalculateScore(ctx, userID)
 			if err != nil {

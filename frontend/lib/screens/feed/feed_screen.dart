@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,17 +46,27 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        centerTitle: false,
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 0.5, color: AppColors.divider),
+        ),
         title: Text(
-          'Жаңалықтар',
+          'TrueConnect',
           style: GoogleFonts.nunito(
-            fontSize: 18,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.primary,
+            letterSpacing: -0.5,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined,
+                color: AppColors.textPrimary),
             onPressed: () => context.push('/notifications'),
             tooltip: 'Хабарландырулар',
           ),
@@ -81,16 +92,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             onRefresh: () => ref.read(feedProvider.notifier).refresh(),
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.only(
-                  top: AppSpacing.sm, bottom: AppSpacing.xxl),
+              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
               itemCount: posts.length,
               itemBuilder: (context, i) {
                 final post = posts[i];
-                return PostCard(
-                  post: post,
-                  onLike: () =>
-                      ref.read(feedProvider.notifier).likePost(post.id),
-                  onComment: () => _showComments(context, post.id),
+                return RepaintBoundary(
+                  child: PostCard(
+                    post: post,
+                    onLike: () =>
+                        ref.read(feedProvider.notifier).likePost(post.id),
+                    onComment: () => _showComments(context, post.id),
+                  ),
                 );
               },
             ),
@@ -191,6 +203,7 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
             const Divider(height: 1),
             Expanded(
               child: commentsAsync.when(
+                skipLoadingOnReload: true,
                 loading: () => const LoadingWidget(),
                 error: (e, _) => Center(child: Text(e.toString())),
                 data: (comments) {
@@ -213,7 +226,7 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                             radius: 14,
                             backgroundColor: AppColors.primaryLight,
                             backgroundImage: c.authorAvatarUrl != null
-                                ? NetworkImage(c.authorAvatarUrl!)
+                                ? CachedNetworkImageProvider(c.authorAvatarUrl!)
                                 : null,
                             child: c.authorAvatarUrl == null
                                 ? Text(

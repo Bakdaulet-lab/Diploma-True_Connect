@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -32,24 +34,66 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     _restoreSession();
   }
 
-  // On app start: try to restore tokens from secure storage
+  // On app start: restore from cached user JSON immediately (no network call),
+  // then silently refresh in background so stale data is corrected.
   Future<void> _restoreSession() async {
     final token = await _storage.read(key: 'access_token');
     if (token == null) {
       state = const AsyncValue.data(null);
       return;
     }
-    // Token exists — attempt to fetch own user from /v1/users/me
+
+    // Fast path: load cached user data from storage to unblock the UI immediately.
+    final cachedJson = await _storage.read(key: 'cached_user');
+    if (cachedJson != null) {
+      try {
+        final user = User.fromJson(
+            Map<String, dynamic>.from(jsonDecode(cachedJson) as Map));
+        state = AsyncValue.data(user);
+        // Background refresh — update stale fields without blocking UI.
+        _refreshUserInBackground();
+        return;
+      } catch (_) {
+        // Corrupt cache — fall through to network fetch.
+      }
+    }
+
+    // Slow path: no cache, must fetch from network.
     try {
       final resp = await _dio.get('/users/me');
       final data = resp.data as Map<String, dynamic>;
-      // Handle wrapped response
       final userData = data['data'] as Map<String, dynamic>? ?? data;
       final user = User.fromJson(userData);
+      await _storage.write(key: 'cached_user', value: jsonEncode(userData));
       state = AsyncValue.data(user);
     } catch (_) {
-      // Token invalid or server down — stay logged out
       state = const AsyncValue.data(null);
+    }
+  }
+
+  Future<void> _refreshUserInBackground() async {
+    // Use a plain Dio (no auth interceptor) to avoid the race condition where
+    // a 401 + failed token refresh triggers _storage.deleteAll() and wipes the
+    // access_token for all other in-flight requests (e.g. POST /posts).
+    try {
+      final token = await _storage.read(key: 'access_token');
+      if (token == null) return;
+      final plainDio = Dio(BaseOptions(
+        baseUrl: ApiConstants.baseUrl,
+        connectTimeout: ApiConstants.timeout,
+        receiveTimeout: ApiConstants.timeout,
+      ));
+      final resp = await plainDio.get(
+        '/users/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = resp.data as Map<String, dynamic>;
+      final userData = data['data'] as Map<String, dynamic>? ?? data;
+      final user = User.fromJson(userData);
+      await _storage.write(key: 'cached_user', value: jsonEncode(userData));
+      if (mounted) state = AsyncValue.data(user);
+    } catch (_) {
+      // Silently ignore — cached user stays, no token deletion.
     }
   }
 
@@ -119,13 +163,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     } catch (_) {
       // Best-effort — always clear local state
     }
-    await _storage.deleteAll();
+    await _storage.deleteAll(); // also clears cached_user
     state = const AsyncValue.data(null);
   }
 
   Future<void> _saveTokens(Map<String, dynamic> data) async {
     await _persistAuthTokens(data);
     final tokens = AuthTokens.fromJson(data);
+    // Cache user JSON so the next cold start doesn't need a network call.
+    if (data['user'] is Map) {
+      await _storage.write(
+          key: 'cached_user', value: jsonEncode(data['user']));
+    }
     state = AsyncValue.data(tokens.user);
   }
 

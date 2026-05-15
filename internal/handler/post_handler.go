@@ -33,10 +33,20 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	// Feature A: Reputation Gate
+	// Feature A: Reputation Gate — fail-closed: if score unavailable treat as 0.
 	score, err := h.reputeSvc.GetScore(c.Request.Context(), userID)
-	if err == nil && score != nil && score.Score < 30 {
+	effectiveScore := 0
+	if err != nil {
+		h.log.Warn("reputation gate: score fetch failed, treating as 0",
+			slog.String("user_id", userID.String()),
+			slog.String("error", err.Error()),
+		)
+	} else if score != nil {
+		effectiveScore = score.Score
+	}
+	if effectiveScore < 30 {
 		errorResponse(c, http.StatusForbidden, "LOW_REPUTATION", "You need a Silver badge (30+ trust score) to create public posts", nil)
+		return
 	}
 
 	// 1. Пытаемся достать текст (из формы или из JSON)

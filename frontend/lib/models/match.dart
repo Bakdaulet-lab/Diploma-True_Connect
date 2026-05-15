@@ -41,6 +41,7 @@ class Match {
 
   int? get daysLeftOnTimer {
     if (niyyahTimerEndsAt == null) return null;
-    return niyyahTimerEndsAt!.difference(DateTime.now()).inDays;
+    final diff = niyyahTimerEndsAt!.difference(DateTime.now()).inDays;
+    return diff > 0 ? diff : 0;
   }
 }
