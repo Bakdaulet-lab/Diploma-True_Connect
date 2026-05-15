@@ -293,6 +293,7 @@ func (s *MatchingService) Like(ctx context.Context, userID, targetID uuid.UUID) 
 }
 
 // Pass records that userID passes on targetID (persisted to DB + Redis cache).
+// Also removes any one-sided like row so the target disappears from pending likes immediately.
 func (s *MatchingService) Pass(ctx context.Context, userID, targetID uuid.UUID) error {
 	if userID == targetID {
 		return fmt.Errorf("pass: %w", domain.ErrInvalidInput)
@@ -301,6 +302,9 @@ func (s *MatchingService) Pass(ctx context.Context, userID, targetID uuid.UUID) 
 	if err := s.matchRepo.RecordPass(ctx, userID, targetID); err != nil {
 		return fmt.Errorf("pass: %w", err)
 	}
+	// Remove the one-sided match row so the passer no longer appears in pending likes.
+	// Best-effort — don't fail the pass if there was no match row.
+	_ = s.matchRepo.UnmatchByUsers(ctx, userID, targetID)
 	_ = s.matchingCache.AddSeen(ctx, userID, []uuid.UUID{targetID}, seenSetTTL)
 
 	return nil

@@ -15,6 +15,9 @@ import '../../widgets/niyyah_badge.dart';
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 final _editProfileProvider = FutureProvider<Profile>((ref) async {
+  // Re-fetch when the logged-in user changes so a freshly logged-in user
+  // never sees the previous user's cached data.
+  ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
   final dio = ref.watch(dioClientProvider).dio;
   try {
     final resp = await dio.get(ApiConstants.profile);
@@ -141,7 +144,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
 
   static const _madhabOptions = [
     ('hanafi', 'Ханафи'),
-    ('shafi', 'Шафии'),
+    ('shafii', 'Шафии'),
     ('maliki', 'Маликий'),
     ('hanbali', 'Ханбали'),
   ];
@@ -188,11 +191,15 @@ class _EditFormState extends ConsumerState<_EditForm> {
     try {
       final dio = ref.read(dioClientProvider).dio;
       final ageVal = int.tryParse(_ageCtr.text.trim());
+      // Backend accepts birth_date (YYYY-MM-DD), not a bare age integer.
+      final birthDate = ageVal != null
+          ? '${DateTime.now().year - ageVal}-01-01'
+          : null;
       await dio.put(ApiConstants.profile, data: {
         'display_name': _nameCtr.text.trim(),
         if (_cityCtr.text.trim().isNotEmpty) 'city': _cityCtr.text.trim(),
         if (_bioCtr.text.trim().isNotEmpty) 'bio': _bioCtr.text.trim(),
-        if (ageVal != null) 'age': ageVal,
+        if (birthDate != null) 'birth_date': birthDate,
         if (_gender != null) 'gender': _gender,
         if (_lookingFor != null) 'looking_for': _lookingFor,
         if (_niyyah != null) 'niyyah': _niyyah,

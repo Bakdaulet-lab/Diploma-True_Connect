@@ -496,10 +496,11 @@ class _RateMeetingSheetState extends ConsumerState<_RateMeetingSheet> {
         },
       );
       setState(() => _done = true);
-    } on DioException catch (e) {
+    } catch (e) {
       if (mounted) {
+        final msg = e is DioException ? dioErrorMessage(e) : e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(dioErrorMessage(e))),
+          SnackBar(content: Text(msg)),
         );
       }
     } finally {

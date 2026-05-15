@@ -146,6 +146,7 @@ Map<String, dynamic> _normalizeMatch(Map<String, dynamic> raw) {
     if (raw['avatar_url'] != null)
       'avatar_url': ApiConstants.fixImageUrl(raw['avatar_url'] as String?),
     'other_user': otherUser,
+    'other_user_id': _readString(otherUser, ['user_id', 'userId']) ?? '',
     'other_user_name': displayName,
     'other_user_avatar_url': ApiConstants.fixImageUrl(
         avatarUrl != null && avatarUrl.isNotEmpty ? avatarUrl : null),
