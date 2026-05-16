@@ -72,24 +72,26 @@ class _AuthInterceptor extends Interceptor {
     if (err.response?.statusCode == 401) {
       final refreshToken = await _storage.read(key: 'refresh_token');
 
-      if (refreshToken == null) {
+      // 'cookie' is the stale placeholder stored before this fix was applied.
+      if (refreshToken == null || refreshToken == 'cookie') {
+        await _storage.deleteAll();
         handler.next(err);
         return;
       }
 
       try {
+        // The backend expects the refresh token as an HTTP cookie, not a JSON body.
         final resp = await _refreshDio.post(
           ApiConstants.authRefresh,
-          data: {
-            'refresh_token': refreshToken, // 🔥 ВАЖНО
-          },
+          options: Options(headers: {'Cookie': 'refresh_token=$refreshToken'}),
         );
 
         final data = resp.data as Map<String, dynamic>;
         final authData = data['data'] ?? data;
 
         final newAccess = authData['access_token'] as String?;
-        final newRefresh = authData['refresh_token'] as String?;
+        // The rotated refresh token is returned as a Set-Cookie header, not in the body.
+        final newRefresh = _extractCookieValue(resp.headers, 'refresh_token');
 
         if (newAccess != null) {
           await _storage.write(key: 'access_token', value: newAccess);
@@ -99,11 +101,9 @@ class _AuthInterceptor extends Interceptor {
         }
 
         final opts = err.requestOptions;
-
         opts.headers['Authorization'] = 'Bearer $newAccess';
 
-        final retryResp = await _mainDio.fetch(opts); // 🔥 FIX
-
+        final retryResp = await _mainDio.fetch(opts);
         handler.resolve(retryResp);
       } on DioException catch (e) {
         await _storage.deleteAll();
@@ -112,6 +112,17 @@ class _AuthInterceptor extends Interceptor {
     } else {
       handler.next(err);
     }
+  }
+
+  /// Extracts a named cookie value from the Set-Cookie response headers.
+  String? _extractCookieValue(Headers headers, String name) {
+    final cookies = headers['set-cookie'];
+    if (cookies == null) return null;
+    for (final cookie in cookies) {
+      final match = RegExp('$name=([^;]+)').firstMatch(cookie);
+      if (match != null) return match.group(1);
+    }
+    return null;
   }
 }
 
