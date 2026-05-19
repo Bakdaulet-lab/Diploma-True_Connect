@@ -130,6 +130,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       final data = resp.data as Map<String, dynamic>;
       final authData = data['data'] as Map<String, dynamic>? ?? data;
 
+      // Extract the real refresh token from the Set-Cookie response header.
+      final refreshToken = _extractRefreshTokenFromHeaders(resp.headers);
+      if (refreshToken != null) authData['refresh_token'] = refreshToken;
+
       await _persistAuthTokens(authData);
 
       // Fetch user data separately after the bearer token is stored.
@@ -137,7 +141,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       final userData = userResp.data is Map ? userResp.data : {};
       final userDataMap = userData['data'] as Map<String, dynamic>? ?? userData;
       authData['user'] = userDataMap;
-      authData['refresh_token'] = 'cookie'; // Set via HTTP-only cookie
 
       await _saveTokens(authData);
       await _patchFcmToken();
@@ -160,6 +163,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       final data = resp.data as Map<String, dynamic>;
       final authData = data['data'] as Map<String, dynamic>? ?? data;
 
+      // Extract the real refresh token from the Set-Cookie response header.
+      final refreshToken = _extractRefreshTokenFromHeaders(resp.headers);
+      if (refreshToken != null) authData['refresh_token'] = refreshToken;
+
       await _persistAuthTokens(authData);
 
       // Fetch user data separately after the bearer token is stored.
@@ -167,7 +174,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       final userData = userResp.data is Map ? userResp.data : {};
       final userDataMap = userData['data'] as Map<String, dynamic>? ?? userData;
       authData['user'] = userDataMap;
-      authData['refresh_token'] = 'cookie';
 
       await _saveTokens(authData);
       await _patchFcmToken();
@@ -175,6 +181,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       AppLogger.warn('Login failed', e);
       state = AsyncValue.error(_dioMessage(e), st);
     }
+  }
+
+  /// Parses the Set-Cookie response header to extract the refresh_token value.
+  String? _extractRefreshTokenFromHeaders(Headers headers) {
+    final cookies = headers['set-cookie'];
+    if (cookies == null) return null;
+    for (final cookie in cookies) {
+      final match = RegExp(r'refresh_token=([^;]+)').firstMatch(cookie);
+      if (match != null) return match.group(1);
+    }
+    return null;
   }
 
   Future<void> logout() async {
@@ -200,10 +217,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
 
   Future<void> _persistAuthTokens(Map<String, dynamic> data) async {
     final accessToken = data['access_token'] as String;
-    final refreshToken = data['refresh_token'] as String? ?? 'cookie';
+    final refreshToken = data['refresh_token'] as String?;
 
     await _storage.write(key: 'access_token', value: accessToken);
-    await _storage.write(key: 'refresh_token', value: refreshToken);
+    // Only store the refresh token when we have the real value (not a placeholder).
+    if (refreshToken != null && refreshToken != 'cookie') {
+      await _storage.write(key: 'refresh_token', value: refreshToken);
+    }
   }
 
   Future<void> _patchFcmToken() async {

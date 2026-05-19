@@ -55,6 +55,8 @@ services:
 
   postgres:
     image: postgis/postgis:16-3.4-alpine
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: trueconnect
       POSTGRES_USER: tc_app
