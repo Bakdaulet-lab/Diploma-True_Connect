@@ -2,17 +2,28 @@ import 'package:flutter/foundation.dart';
 import 'platform_stub.dart' if (dart.library.io) 'platform_io.dart';
 
 abstract final class ApiConstants {
+  // Build-time overrides for production:
+  //   flutter build ... --dart-define=API_HOST=api.trueconnect.kz \
+  //                      --dart-define=API_SCHEME=https
+  static const String _envHost = String.fromEnvironment('API_HOST');
+  static const String _envScheme = String.fromEnvironment('API_SCHEME');
+
   static String get _host {
+    if (_envHost.isNotEmpty) return _envHost;
     if (kIsWeb) return 'localhost';
     return isAndroid ? '10.0.2.2' : 'localhost';
   }
 
+  static String get _scheme => _envScheme.isNotEmpty ? _envScheme : 'http';
+
+  static String get _wsScheme => _scheme == 'https' ? 'wss' : 'ws';
+
   static String get baseUrl {
-    return 'http://$_host:8080/v1';
+    return '$_scheme://$_host:8080/v1';
   }
 
   static String get chatWs {
-    return 'ws://$_host:8080/v1/ws';
+    return '$_wsScheme://$_host:8080/v1/ws';
   }
 
   static const timeout = Duration(seconds: 10);
@@ -81,7 +92,7 @@ abstract final class ApiConstants {
     if (url == null || url.isEmpty) return null;
     if (!url.startsWith('http')) {
       final key = url.replaceAll(RegExp(r'^/+'), '');
-      return 'http://$_host:9000/trueconnect/$key';
+      return '$_scheme://$_host:9000/trueconnect/$key';
     }
     return url
         .replaceFirst('localhost:9000', '$_host:9000')

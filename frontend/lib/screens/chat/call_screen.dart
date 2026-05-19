@@ -198,6 +198,8 @@ class _CallScreenState extends State<CallScreen> {
     _localStream?.getTracks().forEach((track) => track.stop());
     _localStream?.dispose();
     _peerConnection?.dispose();
+    // Close the call WebSocket so it doesn't leak after the screen is gone.
+    widget.wsService.disconnect();
     super.dispose();
   }
 

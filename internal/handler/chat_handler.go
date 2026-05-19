@@ -70,8 +70,10 @@ type Hub struct {
 	isDev           bool
 }
 
-// NewHub creates a new WebSocket hub.
+// NewHub creates a new WebSocket hub. ctx is the application lifecycle
+// context; the background ban listener stops when it is cancelled.
 func NewHub(
+	ctx context.Context,
 	chatSvc *service.ChatService,
 	matchSvc *service.MatchingService,
 	reputationSvc *service.ReputationService,
@@ -95,29 +97,36 @@ func NewHub(
 		isDev:          isDev,
 	}
 
-	go hub.listenForBans()
+	go hub.listenForBans(ctx)
 	return hub
 }
 
-func (h *Hub) listenForBans() {
-	ctx := context.Background()
+func (h *Hub) listenForBans(ctx context.Context) {
 	pubsub := h.rdb.Subscribe(ctx, "user:banned")
 	defer pubsub.Close()
 
 	ch := pubsub.Channel()
-	for msg := range ch {
-		uid, err := uuid.Parse(msg.Payload)
-		if err != nil {
-			continue
-		}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			uid, err := uuid.Parse(msg.Payload)
+			if err != nil {
+				continue
+			}
 
-		h.mu.Lock()
-		if conn, ok := h.connections[uid]; ok {
-			h.log.Info("ws disconnecting banned user", slog.String("user_id", msg.Payload))
-			conn.Close(websocket.StatusPolicyViolation, "account restricted")
-			delete(h.connections, uid)
+			h.mu.Lock()
+			if conn, ok := h.connections[uid]; ok {
+				h.log.Info("ws disconnecting banned user", slog.String("user_id", msg.Payload))
+				conn.Close(websocket.StatusPolicyViolation, "account restricted")
+				delete(h.connections, uid)
+			}
+			h.mu.Unlock()
 		}
-		h.mu.Unlock()
 	}
 }
 

@@ -66,6 +66,20 @@ make run-worker
 make test
 ```
 
+## Production Deployment Notes
+
+> **TLS is not configured and must be added before any production deployment.**
+> The bundled `deployments/nginx/nginx.conf` listens on plain HTTP (`:80`)
+> only. Auth tokens (JWT + refresh) and all PII would travel unencrypted.
+> Before deploying:
+>
+> - Terminate HTTPS at nginx (`listen 443 ssl;` + certificate/key, e.g. via
+>   Let's Encrypt) and redirect `:80` → `:443`.
+> - Build the Flutter app pointing at the secure origin:
+>   `flutter build apk --dart-define=API_HOST=api.yourdomain.kz --dart-define=API_SCHEME=https`
+>   (the client derives `wss://` for the chat socket from `API_SCHEME=https`).
+> - Consider certificate pinning in the Flutter client for defence in depth.
+
 ## Project Structure
 
 ```

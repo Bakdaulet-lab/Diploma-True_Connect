@@ -225,6 +225,27 @@ trueconnect/
 | WebSocket library | **coder/websocket** (formerly nhooyr) | Standards-compliant, context-aware, lighter than gorilla (archived). |
 | Structured logging | **log/slog** (stdlib, Go 1.21+) | Zero-dependency, JSON output, sufficient for MVP. |
 
+### 1.x Observability & Logging
+
+Every HTTP request is correlated via an `X-Request-ID` header (generated if
+absent) by `middleware.RequestID`, and surfaced on every log line as
+`request_id`. Middleware chain order: `RequestID → Logger → Recovery → CORS`.
+
+Standard log fields:
+
+| Field | Emitted by | Notes |
+|---|---|---|
+| `request_id` | RequestID + Logger + Recovery | Join key for tracing one request across log lines |
+| `method`, `path`, `query`, `status`, `latency`, `ip` | Logger middleware | One `"request"` line per request; level = Error ≥500, Warn ≥400, else Info |
+| `error` | service/worker error paths | Wrapped with `fmt.Errorf(... %w ...)`; never silently dropped |
+
+Security-sensitive failures are logged at `Error` and must never be swallowed
+(e.g. refresh-token-reuse family revocation, session purge). Best-effort
+cleanup failures (session store unavailable, last-login update) are logged at
+`Warn` so they are visible without failing the user-facing operation. The
+Flutter client mirrors this with `AppLogger` (see `frontend/lib/core/services/app_logger.dart`),
+which records 401 refreshes, WebSocket lifecycle, and malformed-frame drops.
+
 ---
 
 ## 2. Database Architecture & Schema Design

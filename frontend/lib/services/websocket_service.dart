@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/constants/api_constants.dart';
+import '../core/services/app_logger.dart';
 
 class WebSocketService {
   WebSocketChannel? _channel;
@@ -13,26 +14,41 @@ class WebSocketService {
   void connect(String token) {
     if (_channel != null) return;
 
-    final uri = Uri.parse('${ApiConstants.chatWs}?token=$token');
-    _channel = WebSocketChannel.connect(uri);
+    // The backend authenticates via the FIRST WebSocket frame, not a query
+    // param. Putting the JWT in the URL leaks it via logs/proxies/referrers
+    // and is also rejected by the server ("first message must be auth").
+    final channel = WebSocketChannel.connect(Uri.parse(ApiConstants.chatWs));
+    _channel = channel;
+    channel.sink.add(jsonEncode({'type': 'auth', 'token': token}));
+    AppLogger.info('Call WS connecting');
 
-    _channel!.stream.listen(
+    channel.stream.listen(
       (message) {
-        final decoded = jsonDecode(message);
-        _messageController.add(decoded);
+        try {
+          final decoded = jsonDecode(message as String);
+          if (decoded is Map<String, dynamic> &&
+              !_messageController.isClosed) {
+            _messageController.add(decoded);
+          }
+        } catch (e) {
+          // Malformed server frame — skip it instead of killing the stream.
+          AppLogger.warn('Call WS dropped malformed frame', e);
+        }
       },
       onDone: () {
+        AppLogger.info('Call WS closed');
         _channel = null;
-        // Could implement reconnection logic here
       },
       onError: (error) {
+        AppLogger.error('Call WS error', error);
         _channel = null;
-        // Handle error
       },
+      cancelOnError: false,
     );
   }
 
   void disconnect() {
+    AppLogger.info('Call WS disconnect requested');
     _channel?.sink.close();
     _channel = null;
   }

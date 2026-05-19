@@ -19,6 +19,7 @@ type MatchViewRow struct {
 	PublicKey         *string
 	NiyyahTimerEndsAt *time.Time
 	MatchedAt         *time.Time
+	NoPhotoMode       bool
 }
 
 // MatchRepository manages swipe likes and mutual matches.

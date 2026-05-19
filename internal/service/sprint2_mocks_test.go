@@ -176,13 +176,17 @@ type likeEntry struct {
 }
 
 type mockMatchRepo struct {
-	mu      sync.Mutex
-	likes   []likeEntry
-	matches map[uuid.UUID]*domain.Match
+	mu           sync.Mutex
+	likes        []likeEntry
+	matches      map[uuid.UUID]*domain.Match
+	noPhotoUsers map[uuid.UUID]bool
 }
 
 func newMockMatchRepo() *mockMatchRepo {
-	return &mockMatchRepo{matches: make(map[uuid.UUID]*domain.Match)}
+	return &mockMatchRepo{
+		matches:      make(map[uuid.UUID]*domain.Match),
+		noPhotoUsers: make(map[uuid.UUID]bool),
+	}
 }
 
 func (m *mockMatchRepo) RecordLike(_ context.Context, userID, targetID uuid.UUID) (bool, uuid.UUID, error) {
@@ -277,8 +281,31 @@ func (m *mockMatchRepo) Unmatch(_ context.Context, _ uuid.UUID, _ uuid.UUID) err
 
 func (m *mockMatchRepo) UnmatchByUsers(_ context.Context, _, _ uuid.UUID) error { return nil }
 
-func (m *mockMatchRepo) ListMatchViews(_ context.Context, _ uuid.UUID, _ string, _ int) ([]*repository.MatchViewRow, string, error) {
-	return nil, "", nil
+func (m *mockMatchRepo) ListMatchViews(_ context.Context, userID uuid.UUID, _ string, _ int) ([]*repository.MatchViewRow, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var rows []*repository.MatchViewRow
+	for _, match := range m.matches {
+		if match.MatchedAt == nil {
+			continue
+		}
+		var other uuid.UUID
+		switch userID {
+		case match.UserAID:
+			other = match.UserBID
+		case match.UserBID:
+			other = match.UserAID
+		default:
+			continue
+		}
+		rows = append(rows, &repository.MatchViewRow{
+			MatchID:     match.ID,
+			OtherUserID: other,
+			AvatarURL:   "http://example.com/avatar.jpg",
+			NoPhotoMode: m.noPhotoUsers[other],
+		})
+	}
+	return rows, "", nil
 }
 
 func (m *mockMatchRepo) GetPendingLikes(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {

@@ -175,7 +175,8 @@ func (r *MatchRepo) ListMatchViews(ctx context.Context, userID uuid.UUID, cursor
 			COALESCE(u.trust_score, 0)        AS trust_score,
 			u.public_key,
 			m.niyyah_timer_ends_at,
-			m.matched_at
+			m.matched_at,
+			COALESCE(p.no_photo_mode, false) AS no_photo_mode
 		FROM social.matches m
 		JOIN social.users u
 			ON u.id = CASE WHEN m.user_a_id = $1 THEN m.user_b_id ELSE m.user_a_id END
@@ -206,6 +207,7 @@ func (r *MatchRepo) ListMatchViews(ctx context.Context, userID uuid.UUID, cursor
 			&row.DisplayName, &row.AvatarURL,
 			&row.TrustScore, &row.PublicKey,
 			&row.NiyyahTimerEndsAt, &row.MatchedAt,
+			&row.NoPhotoMode,
 		); err != nil {
 			return nil, "", fmt.Errorf("scanning match view: %w", err)
 		}

@@ -215,7 +215,7 @@ func run() error {
 
 	// Sprint 4 handlers
 	postHandler := handler.NewPostHandler(postSvc, reputeSvc, log)
-	chatHub := handler.NewHub(chatSvc, matchingSvc, reputeSvc, mahramChatSvc, redisClient, jwtManager, log,
+	chatHub := handler.NewHub(ctx, chatSvc, matchingSvc, reputeSvc, mahramChatSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
 	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)

@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:haptic_feedback/haptic_feedback.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/error_formatter.dart';
 import '../../models/settings.dart';
 import '../../providers/matching_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -88,7 +89,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
               loading: () => const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               ),
-              error: (e, _) => _buildError(e.toString()),
+              error: (e, _) => _buildError(e),
               data: (candidates) => candidates.isEmpty
                   ? _buildEmpty()
                   : Column(
@@ -244,9 +245,11 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     );
   }
 
-  Widget _buildError(String message) {
-    final needsProfile = message.contains('PROFILE_REQUIRED') ||
-        message.contains('complete your profile');
+  Widget _buildError(Object error) {
+    final raw = error.toString();
+    final needsProfile = raw.contains('PROFILE_REQUIRED') ||
+        raw.contains('complete your profile');
+    final message = ErrorFormatter.message(error);
 
     return Center(
       child: Padding(

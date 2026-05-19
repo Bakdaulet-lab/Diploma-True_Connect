@@ -177,8 +177,15 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*AuthR
 		return nil, fmt.Errorf("login: %w", domain.ErrInvalidCredentials)
 	}
 
-	_ = s.sessionStore.ClearAuthFailures(ctx, phoneHashHex)
-	_ = s.userRepo.UpdateLastLogin(ctx, user.ID)
+	if err := s.sessionStore.ClearAuthFailures(ctx, phoneHashHex); err != nil {
+		s.log.Warn("login: failed to clear auth-failure counter (session store down?)",
+			slog.String("error", err.Error()))
+	}
+	if err := s.userRepo.UpdateLastLogin(ctx, user.ID); err != nil {
+		s.log.Warn("login: failed to update last-login timestamp",
+			slog.String("user_id", user.ID.String()),
+			slog.String("error", err.Error()))
+	}
 
 	return s.issueTokens(ctx, user)
 }
@@ -199,8 +206,18 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*Aut
 	// Compromise detection: if a revoked token is presented, an attacker is
 	// replaying a previously-consumed token. Revoke the entire family.
 	if storedToken.Revoked {
-		_ = s.tokenRepo.RevokeAllForUser(ctx, storedToken.UserID)
-		_ = s.sessionStore.RemoveAllRefreshTokens(ctx, storedToken.UserID.String())
+		// Security-critical: a reused token means the family is compromised.
+		// If revocation fails we must surface it, not swallow it.
+		if err := s.tokenRepo.RevokeAllForUser(ctx, storedToken.UserID); err != nil {
+			s.log.Error("refresh: token reuse detected but family revocation FAILED",
+				slog.String("user_id", storedToken.UserID.String()),
+				slog.String("error", err.Error()))
+		}
+		if err := s.sessionStore.RemoveAllRefreshTokens(ctx, storedToken.UserID.String()); err != nil {
+			s.log.Error("refresh: token reuse detected but session purge FAILED",
+				slog.String("user_id", storedToken.UserID.String()),
+				slog.String("error", err.Error()))
+		}
 		return nil, fmt.Errorf("refresh: token reuse detected: %w", domain.ErrUnauthorized)
 	}
 
@@ -208,7 +225,11 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*Aut
 	if err := s.tokenRepo.Revoke(ctx, tokenHash); err != nil {
 		return nil, fmt.Errorf("refresh: revoking old token: %w", err)
 	}
-	_ = s.sessionStore.RemoveRefreshToken(ctx, storedToken.UserID.String(), hex.EncodeToString(tokenHash))
+	if err := s.sessionStore.RemoveRefreshToken(ctx, storedToken.UserID.String(), hex.EncodeToString(tokenHash)); err != nil {
+		s.log.Warn("refresh: failed to remove consumed refresh token from session store",
+			slog.String("user_id", storedToken.UserID.String()),
+			slog.String("error", err.Error()))
+	}
 
 	user, err := s.userRepo.GetByID(ctx, storedToken.UserID)
 	if err != nil {
@@ -234,7 +255,11 @@ func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string) error 
 	}
 
 	if storedToken != nil {
-		_ = s.sessionStore.RemoveRefreshToken(ctx, storedToken.UserID.String(), hex.EncodeToString(tokenHash))
+		if err := s.sessionStore.RemoveRefreshToken(ctx, storedToken.UserID.String(), hex.EncodeToString(tokenHash)); err != nil {
+			s.log.Warn("logout: failed to remove refresh token from session store",
+				slog.String("user_id", storedToken.UserID.String()),
+				slog.String("error", err.Error()))
+		}
 	}
 
 	return nil

@@ -38,16 +38,23 @@ func (e *TrustEngine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.log.Info("trust engine stopped, draining remaining events")
+			// Bound the drain so a slow/stuck recalculation can't hang shutdown.
+			drainCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			for {
 				select {
+				case <-drainCtx.Done():
+					e.log.Warn("trust engine drain timed out, dropping remaining events")
+					cancel()
+					return
 				case userID := <-e.eventCh:
-					if _, err := e.reputeSvc.RecalculateScore(context.Background(), userID); err != nil {
+					if _, err := e.reputeSvc.RecalculateScore(drainCtx, userID); err != nil {
 						e.log.Error("trust engine drain: recalculation failed",
 							slog.String("user_id", userID.String()),
 							slog.String("error", err.Error()),
 						)
 					}
 				default:
+					cancel()
 					return
 				}
 			}

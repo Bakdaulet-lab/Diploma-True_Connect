@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/dio_client.dart';
+import '../core/services/app_logger.dart';
 import '../core/services/push_service.dart';
+import '../core/services/session_service.dart';
 import '../models/user.dart';
 
 // ─── DioClient provider ───────────────────────────────────────────────────────
@@ -32,6 +34,22 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
         _storage = storage,
         super(const AsyncValue.loading()) {
     _restoreSession();
+    sessionExpiredNotifier.addListener(_onSessionExpired);
+  }
+
+  // Fired by the network layer when the refresh token is rejected. Force a
+  // logged-out state; the router redirects to /auth/login on User == null.
+  void _onSessionExpired() {
+    if (mounted && state.value != null) {
+      AppLogger.warn('Session expired (refresh rejected); forcing logout');
+      state = const AsyncValue.data(null);
+    }
+  }
+
+  @override
+  void dispose() {
+    sessionExpiredNotifier.removeListener(_onSessionExpired);
+    super.dispose();
   }
 
   // On app start: restore from cached user JSON immediately (no network call),
@@ -124,6 +142,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       await _saveTokens(authData);
       await _patchFcmToken();
     } on DioException catch (e, st) {
+      AppLogger.warn('Registration failed', e);
       state = AsyncValue.error(_dioMessage(e), st);
     }
   }
@@ -153,6 +172,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
       await _saveTokens(authData);
       await _patchFcmToken();
     } on DioException catch (e, st) {
+      AppLogger.warn('Login failed', e);
       state = AsyncValue.error(_dioMessage(e), st);
     }
   }

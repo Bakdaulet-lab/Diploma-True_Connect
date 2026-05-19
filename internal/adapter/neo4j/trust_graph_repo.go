@@ -153,15 +153,19 @@ func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (
 		     (COALESCE(rater.trust_score, 50) / 100.0) AS trust_weight
 		
 		WITH u, kyc_bonus,
-		     CASE WHEN r IS NOT NULL THEN (r.score * id_weight * trust_weight) ELSE null END as effective_rating
-		
+		     CASE WHEN r IS NOT NULL THEN (id_weight * trust_weight) ELSE null END AS rating_weight,
+		     CASE WHEN r IS NOT NULL THEN (r.score * id_weight * trust_weight) ELSE null END AS effective_rating
+
 		WITH u, kyc_bonus,
 		     SUM(effective_rating) AS sum_effective,
-		     COUNT(effective_rating) AS rating_count
-		
-		// Bayesian Smoothing (default = 2.5 score over 5 virtual ratings)
+		     SUM(rating_weight) AS weight_sum
+
+		// Bayesian smoothing toward 2.5/5 neutral with C=5 virtual ratings.
+		// Denominator is the SUM of rating weights (not a raw count) so a rater
+		// with trust_weight=0 contributes nothing instead of dragging the score
+		// toward 0. With no ratings, weight_sum=0 → (0+12.5)/(0+5)=2.5 (neutral).
 		WITH u, kyc_bonus,
-		     (sum_effective + (2.5 * 5.0)) / (rating_count + 5.0) AS smoothed
+		     (sum_effective + (2.5 * 5.0)) / (weight_sum + 5.0) AS smoothed
 
 		// 3. Aggregate Reports (Platform Behavior Penalty)
 		OPTIONAL MATCH (u)<-[rep:REPORTED]-(reporter:User)

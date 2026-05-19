@@ -29,7 +29,13 @@ func (w *PushWorker) Run(ctx context.Context) {
 			return
 		case e := <-w.eventCh:
 			user, err := w.userRepo.GetByID(ctx, e.UserID)
-			if err != nil || user.FCMToken == nil || *user.FCMToken == "" {
+			if err != nil {
+				w.log.Error("push: failed to load user",
+					slog.String("user", e.UserID.String()),
+					slog.String("err", err.Error()))
+				continue
+			}
+			if user == nil || user.FCMToken == nil || *user.FCMToken == "" {
 				continue
 			}
 			err = w.provider.SendTargeted(ctx, *user.FCMToken, e.Title, e.Body, e.Data)

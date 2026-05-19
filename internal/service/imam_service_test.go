@@ -77,16 +77,40 @@ func TestImamService_ConfirmNikah_Success(t *testing.T) {
 	now := time.Now()
 	matchRepo.mu.Lock()
 	matchRepo.matches[matchID] = &domain.Match{
-		ID:        matchID,
-		UserAID:   userA,
-		UserBID:   userB,
-		MatchedAt: &now,
+		ID:              matchID,
+		UserAID:         userA,
+		UserBID:         userB,
+		MatchedAt:       &now,
+		FamilyIntroDone: true,
 	}
 	matchRepo.mu.Unlock()
 
 	err := svc.ConfirmNikah(context.Background(), matchID, catalogImamID, userA)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestImamService_ConfirmNikah_BeforeFamilyIntro(t *testing.T) {
+	t.Parallel()
+
+	svc, matchRepo, _ := newTestImamService()
+	userA, userB := uuid.New(), uuid.New()
+	matchID := uuid.New()
+	now := time.Now()
+	matchRepo.mu.Lock()
+	matchRepo.matches[matchID] = &domain.Match{
+		ID:              matchID,
+		UserAID:         userA,
+		UserBID:         userB,
+		MatchedAt:       &now,
+		FamilyIntroDone: false, // family introduction not completed yet
+	}
+	matchRepo.mu.Unlock()
+
+	err := svc.ConfirmNikah(context.Background(), matchID, catalogImamID, userA)
+	if !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("expected ErrForbidden when family intro not done, got %v", err)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/domain"
@@ -165,6 +166,41 @@ func TestListMatches_ReturnsOnlyOwnMatches(t *testing.T) {
 	}
 	if len(matches) != 0 {
 		t.Errorf("expected 0 matches for Alice, got %d", len(matches))
+	}
+}
+
+func TestListMatches_NoPhotoMode_HidesAvatar(t *testing.T) {
+	t.Parallel()
+
+	svc, _, matchRepo, _, _ := newTestMatchingService()
+	aliceID := uuid.New()
+	bobID := uuid.New()
+	matchID := uuid.New()
+	now := time.Now()
+
+	matchRepo.mu.Lock()
+	matchRepo.matches[matchID] = &domain.Match{
+		ID:        matchID,
+		UserAID:   aliceID,
+		UserBID:   bobID,
+		MatchedAt: &now,
+	}
+	matchRepo.noPhotoUsers[bobID] = true // Bob enabled no-photo mode
+	matchRepo.mu.Unlock()
+
+	matches, _, err := svc.ListMatches(context.Background(), aliceID, "", 20)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match for Alice, got %d", len(matches))
+	}
+	other := matches[0].OtherUser
+	if other.AvatarURL != "" {
+		t.Errorf("no-photo-mode match should have empty AvatarURL, got %q", other.AvatarURL)
+	}
+	if !other.AvatarBlurred {
+		t.Error("no-photo-mode match should have AvatarBlurred=true")
 	}
 }
 

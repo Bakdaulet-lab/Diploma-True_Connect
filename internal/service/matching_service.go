@@ -44,11 +44,12 @@ type CandidateView struct {
 // MatchView is a match card with user profile data for the frontend.
 // Новая структура для вложенного пользователя
 type MatchUserView struct {
-	UserID      uuid.UUID `json:"user_id"`
-	DisplayName string    `json:"display_name"`
-	AvatarURL   string    `json:"avatar_url"`
-	TrustScore  int       `json:"trust_score"`
-	PublicKey   *string   `json:"public_key,omitempty"`
+	UserID        uuid.UUID `json:"user_id"`
+	DisplayName   string    `json:"display_name"`
+	AvatarURL     string    `json:"avatar_url"`
+	AvatarBlurred bool      `json:"avatar_blurred,omitempty"`
+	TrustScore    int       `json:"trust_score"`
+	PublicKey     *string   `json:"public_key,omitempty"`
 }
 
 // Обновленная основная структура мэтча
@@ -366,14 +367,19 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cur
 
 	views := make([]*MatchView, 0, len(rows))
 	for _, row := range rows {
+		avatarURL := fixAvatarURL(row.AvatarURL)
+		if row.NoPhotoMode {
+			avatarURL = ""
+		}
 		views = append(views, &MatchView{
 			ID: row.MatchID,
 			OtherUser: &MatchUserView{
-				UserID:      row.OtherUserID,
-				DisplayName: row.DisplayName,
-				AvatarURL:   fixAvatarURL(row.AvatarURL),
-				TrustScore:  row.TrustScore,
-				PublicKey:   row.PublicKey,
+				UserID:        row.OtherUserID,
+				DisplayName:   row.DisplayName,
+				AvatarURL:     avatarURL,
+				AvatarBlurred: row.NoPhotoMode,
+				TrustScore:    row.TrustScore,
+				PublicKey:     row.PublicKey,
 			},
 			NiyyahTimerEndsAt: row.NiyyahTimerEndsAt,
 		})

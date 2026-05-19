@@ -54,6 +54,9 @@ func (s *ImamService) ConfirmNikah(ctx context.Context, matchID, imamID, callerI
 	if match.ImamConfirmed {
 		return nil // idempotent
 	}
+	if !match.FamilyIntroDone {
+		return fmt.Errorf("confirm nikah: family introduction required first: %w", domain.ErrForbidden)
+	}
 
 	if err := s.matchRepo.MarkImamConfirmed(ctx, matchID); err != nil {
 		return fmt.Errorf("confirm nikah: %w", err)

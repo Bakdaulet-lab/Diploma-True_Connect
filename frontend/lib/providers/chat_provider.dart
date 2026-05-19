@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/constants/api_constants.dart';
+import '../core/services/app_logger.dart';
 import 'auth_provider.dart';
 
 // ─── Chat Event ───────────────────────────────────────────────────────────────
@@ -124,10 +125,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void _scheduleReconnect() {
-    if (_disposed || _reconnectAttempts >= _maxReconnectAttempts) return;
+    if (_disposed) return;
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      AppLogger.error(
+          'Chat WS giving up after $_reconnectAttempts reconnect attempts');
+      return;
+    }
     // Exponential backoff: 1s, 2s, 4s, 8s, 16s
     final delay = Duration(seconds: 1 << _reconnectAttempts);
     _reconnectAttempts++;
+    AppLogger.warn(
+        'Chat WS reconnect attempt $_reconnectAttempts in ${delay.inSeconds}s');
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, () async {
       await _sub?.cancel();
@@ -210,7 +218,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         default:
           break;
       }
-    } catch (_) {}
+    } catch (e) {
+      // Malformed/unexpected server frame — never crash the chat stream.
+      AppLogger.warn('Chat WS dropped unparseable frame', e);
+    }
   }
 
   void send(String content) {

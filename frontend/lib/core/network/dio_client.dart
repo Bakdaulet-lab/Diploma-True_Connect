@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/api_constants.dart';
+import '../services/app_logger.dart';
+import '../services/session_service.dart';
 import '../services/snack_bar_service.dart';
 
 class DioClient {
@@ -50,6 +52,15 @@ class _AuthInterceptor extends Interceptor {
 
   _AuthInterceptor(this._storage, this._refreshDio, this._mainDio);
 
+  // Single-flight: shared across all requests so concurrent 401s trigger
+  // exactly one /auth/refresh. Without this, parallel refreshes race and the
+  // second one fails (one-time-use refresh-token rotation), wrongly logging
+  // the user out mid-session. Resolves to the new access token, or null if
+  // the refresh genuinely failed.
+  static Future<String?>? _refreshCall;
+
+  static const _retriedKey = '_retriedAfterRefresh';
+
   @override
   Future<void> onRequest(
     RequestOptions options,
@@ -69,49 +80,85 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode == 401) {
-      final refreshToken = await _storage.read(key: 'refresh_token');
-
-      if (refreshToken == null) {
-        handler.next(err);
-        return;
-      }
-
-      try {
-        final resp = await _refreshDio.post(
-          ApiConstants.authRefresh,
-          data: {
-            'refresh_token': refreshToken, // 🔥 ВАЖНО
-          },
-        );
-
-        final data = resp.data as Map<String, dynamic>;
-        final authData = data['data'] ?? data;
-
-        final newAccess = authData['access_token'] as String?;
-        final newRefresh = authData['refresh_token'] as String?;
-
-        if (newAccess != null) {
-          await _storage.write(key: 'access_token', value: newAccess);
-        }
-        if (newRefresh != null) {
-          await _storage.write(key: 'refresh_token', value: newRefresh);
-        }
-
-        final opts = err.requestOptions;
-
-        opts.headers['Authorization'] = 'Bearer $newAccess';
-
-        final retryResp = await _mainDio.fetch(opts); // 🔥 FIX
-
-        handler.resolve(retryResp);
-      } on DioException catch (e) {
-        await _storage.deleteAll();
-        handler.next(e);
-      }
-    } else {
+    if (err.response?.statusCode != 401) {
       handler.next(err);
+      return;
     }
+
+    // Never try to refresh the refresh call itself, and only retry a given
+    // request once to avoid an infinite refresh→401→refresh loop.
+    if (err.requestOptions.path == ApiConstants.authRefresh ||
+        err.requestOptions.extra[_retriedKey] == true) {
+      handler.next(err);
+      return;
+    }
+
+    AppLogger.info('401 on ${err.requestOptions.path}; attempting token refresh');
+    final newToken = await _refreshOnce();
+    if (newToken == null) {
+      // Refresh genuinely failed; _performRefresh already cleared tokens and
+      // signalled the auth layer to route to login.
+      AppLogger.warn('Token refresh failed; routing to login');
+      handler.next(err);
+      return;
+    }
+
+    try {
+      final opts = err.requestOptions;
+      opts.headers['Authorization'] = 'Bearer $newToken';
+      opts.extra[_retriedKey] = true;
+      final retryResp = await _mainDio.fetch(opts);
+      handler.resolve(retryResp);
+    } on DioException catch (e) {
+      handler.next(e);
+    }
+  }
+
+  // Coalesces concurrent callers onto one in-flight refresh, then clears the
+  // shared slot so a later (post-expiry) 401 can refresh again.
+  Future<String?> _refreshOnce() {
+    return _refreshCall ??=
+        _performRefresh().whenComplete(() => _refreshCall = null);
+  }
+
+  Future<String?> _performRefresh() async {
+    final refreshToken = await _storage.read(key: 'refresh_token');
+    if (refreshToken == null) {
+      await _onUnrecoverable();
+      return null;
+    }
+    try {
+      final resp = await _refreshDio.post(
+        ApiConstants.authRefresh,
+        data: {'refresh_token': refreshToken},
+      );
+
+      final data = resp.data as Map<String, dynamic>;
+      final authData = data['data'] ?? data;
+
+      final newAccess = authData['access_token'] as String?;
+      final newRefresh = authData['refresh_token'] as String?;
+
+      if (newAccess != null) {
+        await _storage.write(key: 'access_token', value: newAccess);
+      }
+      if (newRefresh != null) {
+        await _storage.write(key: 'refresh_token', value: newRefresh);
+      }
+      return newAccess;
+    } on DioException {
+      // Refresh token expired/rotated/reused. Clear only the two token keys
+      // (not deleteAll(), which would wipe unrelated secure-storage entries
+      // and races with other in-flight requests) and signal the auth layer.
+      await _onUnrecoverable();
+      return null;
+    }
+  }
+
+  Future<void> _onUnrecoverable() async {
+    await _storage.delete(key: 'access_token');
+    await _storage.delete(key: 'refresh_token');
+    notifySessionExpired();
   }
 }
 
