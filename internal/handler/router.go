@@ -132,6 +132,7 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 		protected.POST("/interactions/:id/confirm", deps.Interaction.ConfirmInteraction)
 		protected.GET("/users/:id/reputation", deps.Interaction.GetReputation)
 		protected.GET("/reputation/leaderboard", deps.Interaction.GetLeaderboard)
+		protected.GET("/reputation/me/breakdown", deps.Interaction.GetMyReputationBreakdown)
 		// в"Ђв"Ђ Social Feed (Posts) в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 		protected.GET("/posts", deps.Post.ListFeed)
 		protected.POST("/posts", userRL, deps.Post.CreatePost)

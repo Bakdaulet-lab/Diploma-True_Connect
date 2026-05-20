@@ -95,6 +95,7 @@ type trackingGraphRepo struct {
 	meetings      []graphEdge
 	reports       []graphEdge
 	scoreToReturn int
+	breakdown     *domain.TrustScoreBreakdown
 	clusters      []repository.SybilCluster
 }
 
@@ -156,6 +157,23 @@ func (m *trackingGraphRepo) ComputeTrustScore(_ context.Context, _ uuid.UUID) (i
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.scoreToReturn, nil
+}
+
+func (m *trackingGraphRepo) ComputeTrustScoreBreakdown(_ context.Context, uid uuid.UUID) (*domain.TrustScoreBreakdown, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.breakdown != nil {
+		cp := *m.breakdown
+		cp.UserID = uid
+		return &cp, nil
+	}
+	return &domain.TrustScoreBreakdown{
+		UserID:         uid,
+		Score:          m.scoreToReturn,
+		SmoothedRating: 2.5,
+		BaseScore:      50.0,
+		RawScore:       float64(m.scoreToReturn),
+	}, nil
 }
 
 func (m *trackingGraphRepo) UpdateTrustScore(_ context.Context, uid uuid.UUID, score int) error {

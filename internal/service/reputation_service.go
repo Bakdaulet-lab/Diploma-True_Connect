@@ -100,6 +100,19 @@ func (s *ReputationService) GetScore(ctx context.Context, userID uuid.UUID) (*do
 	return &domain.TrustScore{UserID: userID, Score: score}, nil
 }
 
+// GetScoreBreakdown returns the full component breakdown of a user's trust
+// score (self-service "why is my score X" view). Not cached — it is an
+// on-demand explain view, not a hot path.
+func (s *ReputationService) GetScoreBreakdown(ctx context.Context, userID uuid.UUID) (*domain.TrustScoreBreakdown, error) {
+	b, err := s.graphRepo.ComputeTrustScoreBreakdown(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get score breakdown: computing: %w", err)
+	}
+	b.UserID = userID
+	b.Badge = (&domain.TrustScore{Score: b.Score}).GetBadge()
+	return b, nil
+}
+
 // GetLeaderboard returns the top N users with the highest reputation scores.
 func (s *ReputationService) GetLeaderboard(ctx context.Context, limit int) ([]domain.LeaderboardEntry, error) {
 	if limit <= 0 || limit > 100 {

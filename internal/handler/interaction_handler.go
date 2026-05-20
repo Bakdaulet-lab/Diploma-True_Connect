@@ -157,6 +157,46 @@ func (h *InteractionHandler) GetReputation(c *gin.Context) {
 		}})
 }
 
+// GetMyReputationBreakdown handles GET /v1/reputation/me/breakdown.
+// Self-only: it exposes moderation signals (report count/penalty), so it
+// always reports on the authenticated user and takes no :id parameter.
+func (h *InteractionHandler) GetMyReputationBreakdown(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		errorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
+		return
+	}
+
+	breakdown, err := h.reputeSvc.GetScoreBreakdown(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("get reputation breakdown error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not get reputation breakdown", nil)
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	ratings, err := h.interactionSvc.GetByRatedUser(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		h.log.Error("get breakdown ratings error", slog.String("error", err.Error()))
+		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not get ratings", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"breakdown": breakdown,
+			"ratings":   ratings,
+		}})
+}
+
 // GetLeaderboard handles GET /v1/reputation/leaderboard
 func (h *InteractionHandler) GetLeaderboard(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))

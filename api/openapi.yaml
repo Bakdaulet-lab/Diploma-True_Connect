@@ -1222,6 +1222,47 @@ paths:
                     items:
                       $ref: '#/components/schemas/LeaderboardEntry'
 
+  /reputation/me/breakdown:
+    get:
+      tags: [Interaction]
+      summary: Breakdown of the authenticated user's own trust score
+      description: >-
+        Self-only. Returns every component the trust engine used to derive the
+        score (KYC bonus, Bayesian-smoothed rating average, report penalty)
+        plus the recent ratings that contributed. Exposes moderation signals,
+        so it never reports on another user.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Trust score breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      breakdown:
+                        $ref: '#/components/schemas/TrustScoreBreakdown'
+                      ratings:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          description: Authentication required
+
   /notifications:
     get:
       tags: [Notification]
@@ -1937,6 +1978,41 @@ components:
         verification_level:
           type: string
           enum: [none, basic, verified]
+
+    TrustScoreBreakdown:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          description: Final clamped trust score (0-100)
+        badge:
+          type: string
+        rating_count:
+          type: integer
+          description: Number of verified ratings received
+        smoothed_rating:
+          type: number
+          format: double
+          description: Bayesian-smoothed average rating (0-5)
+        base_score:
+          type: number
+          format: double
+          description: smoothed_rating * 20
+        kyc_bonus:
+          type: number
+          format: double
+        report_count:
+          type: integer
+        report_penalty:
+          type: number
+          format: double
+        raw_score:
+          type: number
+          format: double
+          description: Score before clamping to 0-100
 
     Notification:
       type: object

@@ -23,6 +23,7 @@ import '../../screens/profile/profile_detail_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 import '../../screens/matches/first_meeting_screen.dart';
 import '../../screens/profile/edit_profile_screen.dart';
+import '../../screens/profile/trust_breakdown_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/splash/splash_screen.dart';
 
@@ -173,6 +174,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/edit',
         builder: (_, __) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/trust',
+        builder: (_, __) => const TrustBreakdownScreen(),
       ),
 
       // 2. Затем маршрут для первой встречи (он не конфликтует)

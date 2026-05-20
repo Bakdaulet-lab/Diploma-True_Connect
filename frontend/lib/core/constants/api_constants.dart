@@ -65,6 +65,9 @@ abstract final class ApiConstants {
   // Halal venues
   static const venues = '/venues';
 
+  // Trust score breakdown (self-only "why is my score X")
+  static const reputationBreakdown = '/reputation/me/breakdown';
+
   // Pending likes (users who liked you)
   static const pendingLikes = '/matching/likes';
 

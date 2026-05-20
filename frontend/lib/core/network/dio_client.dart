@@ -160,17 +160,6 @@ class _AuthInterceptor extends Interceptor {
     await _storage.delete(key: 'refresh_token');
     notifySessionExpired();
   }
-
-  /// Extracts a named cookie value from the Set-Cookie response headers.
-  String? _extractCookieValue(Headers headers, String name) {
-    final cookies = headers['set-cookie'];
-    if (cookies == null) return null;
-    for (final cookie in cookies) {
-      final match = RegExp('$name=([^;]+)').firstMatch(cookie);
-      if (match != null) return match.group(1);
-    }
-    return null;
-  }
 }
 
 class _RetryInterceptor extends Interceptor {

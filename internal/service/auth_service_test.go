@@ -234,6 +234,9 @@ func (m *mockGraphRepo) AddReport(_ context.Context, _, _ uuid.UUID, _ string) e
 func (m *mockGraphRepo) ComputeTrustScore(_ context.Context, _ uuid.UUID) (int, error) {
 	return 50, nil
 }
+func (m *mockGraphRepo) ComputeTrustScoreBreakdown(_ context.Context, uid uuid.UUID) (*domain.TrustScoreBreakdown, error) {
+	return &domain.TrustScoreBreakdown{UserID: uid, Score: 50, SmoothedRating: 2.5, BaseScore: 50.0, RawScore: 50.0}, nil
+}
 func (m *mockGraphRepo) UpdateTrustScore(_ context.Context, _ uuid.UUID, _ int) error { return nil }
 func (m *mockGraphRepo) DetectSybilClusters(_ context.Context) ([]repository.SybilCluster, error) {
 	return nil, nil

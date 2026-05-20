@@ -210,6 +210,126 @@ func (r *TrustGraphRepo) ComputeTrustScore(ctx context.Context, uid uuid.UUID) (
 	return int(score), nil
 }
 
+// ComputeTrustScoreBreakdown runs the same traversal as ComputeTrustScore but
+// returns every intermediate component instead of just the final integer.
+// ComputeTrustScore is intentionally left untouched (hot path, mocked in tests).
+func (r *TrustGraphRepo) ComputeTrustScoreBreakdown(ctx context.Context, uid uuid.UUID) (*domain.TrustScoreBreakdown, error) {
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
+	defer session.Close(ctx)
+
+	neutral := &domain.TrustScoreBreakdown{
+		UserID:         uid,
+		Score:          50,
+		SmoothedRating: 2.5,
+		BaseScore:      50.0,
+		RawScore:       50.0,
+	}
+
+	cypher := `
+		MATCH (u:User {uid: $uid})
+
+		WITH u,
+		     CASE u.verification_level
+		       WHEN 'id_verified' THEN 10.0
+		       WHEN 'photo_verified' THEN 5.0
+		       ELSE 0.0
+		     END AS kyc_bonus
+
+		OPTIONAL MATCH (u)<-[r:RATED]-(rater:User)
+		WHERE r.verified = true
+		WITH u, kyc_bonus, rater, r,
+		     CASE
+		       WHEN rater.verification_level IN ['id_verified', 'photo_verified'] THEN 1.5
+		       ELSE 1.0
+		     END AS id_weight,
+		     (COALESCE(rater.trust_score, 50) / 100.0) AS trust_weight
+
+		WITH u, kyc_bonus,
+		     CASE WHEN r IS NOT NULL THEN (id_weight * trust_weight) ELSE null END AS rating_weight,
+		     CASE WHEN r IS NOT NULL THEN (r.score * id_weight * trust_weight) ELSE null END AS effective_rating
+
+		WITH u, kyc_bonus,
+		     SUM(effective_rating) AS sum_effective,
+		     SUM(rating_weight) AS weight_sum,
+		     COUNT(rating_weight) AS rating_count
+
+		WITH u, kyc_bonus, rating_count,
+		     (sum_effective + (2.5 * 5.0)) / (weight_sum + 5.0) AS smoothed
+
+		OPTIONAL MATCH (u)<-[rep:REPORTED]-(reporter:User)
+		WITH kyc_bonus, rating_count, smoothed,
+		     COUNT(DISTINCT reporter) AS report_count
+
+		WITH kyc_bonus, rating_count, smoothed, report_count,
+		     (smoothed * 20.0) AS base_score,
+		     (report_count * 15.0) AS report_penalty
+
+		WITH kyc_bonus, rating_count, smoothed, report_count, base_score, report_penalty,
+		     (base_score + kyc_bonus - report_penalty) AS raw_score
+
+		RETURN kyc_bonus, rating_count, smoothed, report_count,
+		       base_score, report_penalty, raw_score,
+		       toInteger(
+		         CASE
+		           WHEN raw_score > 100.0 THEN 100.0
+		           WHEN raw_score < 0.0 THEN 0.0
+		           ELSE raw_score
+		         END
+		       ) AS trust_score`
+
+	result, err := session.Run(ctx, cypher, map[string]any{"uid": uid.String()})
+	if err != nil {
+		return nil, fmt.Errorf("computing trust score breakdown: %w", err)
+	}
+
+	record, err := result.Single(ctx)
+	if err != nil {
+		// No node or empty result — neutral, mirroring ComputeTrustScore.
+		return neutral, nil
+	}
+
+	get := func(key string) any {
+		v, _ := record.Get(key)
+		return v
+	}
+
+	return &domain.TrustScoreBreakdown{
+		UserID:         uid,
+		Score:          neoInt(get("trust_score"), 50),
+		RatingCount:    neoInt(get("rating_count"), 0),
+		SmoothedRating: neoFloat(get("smoothed"), 2.5),
+		BaseScore:      neoFloat(get("base_score"), 50.0),
+		KYCBonus:       neoFloat(get("kyc_bonus"), 0.0),
+		ReportCount:    neoInt(get("report_count"), 0),
+		ReportPenalty:  neoFloat(get("report_penalty"), 0.0),
+		RawScore:       neoFloat(get("raw_score"), 50.0),
+	}, nil
+}
+
+// neoInt coerces a Neo4j numeric (int64/float64) to int, or returns def.
+func neoInt(v any, def int) int {
+	switch n := v.(type) {
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	default:
+		return def
+	}
+}
+
+// neoFloat coerces a Neo4j numeric (float64/int64) to float64, or returns def.
+func neoFloat(v any, def float64) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int64:
+		return float64(n)
+	default:
+		return def
+	}
+}
+
 // DeleteUserNode completely removes a user and their edges from the graph.
 func (r *TrustGraphRepo) DeleteUserNode(ctx context.Context, uid uuid.UUID) error {
 	query := `

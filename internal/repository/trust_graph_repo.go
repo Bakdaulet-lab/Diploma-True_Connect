@@ -24,6 +24,11 @@ type TrustGraphRepository interface {
 	// ComputeTrustScore runs the weighted trust score calculation and returns 0-100.
 	ComputeTrustScore(ctx context.Context, uid uuid.UUID) (int, error)
 
+	// ComputeTrustScoreBreakdown runs the same calculation but returns every
+	// component (KYC bonus, smoothed rating, report penalty, ...) for the
+	// self-service "why is my score X" view.
+	ComputeTrustScoreBreakdown(ctx context.Context, uid uuid.UUID) (*domain.TrustScoreBreakdown, error)
+
 	// DeleteUserNode completely removes a user and their edges from the graph.
 	DeleteUserNode(ctx context.Context, uid uuid.UUID) error
 

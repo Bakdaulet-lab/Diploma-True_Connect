@@ -73,37 +73,51 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpacing.lg),
 
-          // Trust Score section
-          _InfoCard(
-            child: Row(
-              children: [
-                AnimatedTrustScoreBadge(
-                    score: profile.trustScore, size: 64),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Сенім ұпайы',
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+          // Trust Score section — tap to see the full breakdown.
+          InkWell(
+            onTap: () => context.push('/profile/trust'),
+            borderRadius: AppRadius.card,
+            child: _InfoCard(
+              child: Row(
+                children: [
+                  AnimatedTrustScoreBadge(
+                      score: profile.trustScore, size: 64),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Сенім ұпайы',
+                          style: GoogleFonts.nunito(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _trustDescription(profile.trustScore),
-                        style: GoogleFonts.nunito(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                            height: 1.4),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          _trustDescription(profile.trustScore),
+                          style: GoogleFonts.nunito(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                              height: 1.4),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Ұпай қалай есептеледі? →',
+                          style: GoogleFonts.nunito(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.textSecondary),
+                ],
+              ),
             ),
           ),
 
