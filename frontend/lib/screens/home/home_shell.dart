@@ -5,41 +5,25 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/notification_provider.dart';
 
 class HomeShell extends ConsumerWidget {
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
-  const HomeShell({super.key, required this.child});
+  const HomeShell({super.key, required this.navigationShell});
 
-  int _tabIndex(BuildContext context) {
-    final loc = GoRouterState.of(context).matchedLocation;
-    if (loc.startsWith('/feed')) return 1;
-    if (loc.startsWith('/matches')) return 2;
-    if (loc.startsWith('/profile')) return 3;
-    if (loc.startsWith('/settings')) return 4;
-    return 0;
-  }
-
-  void _onTabTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/home');
-      case 1:
-        context.go('/feed');
-      case 2:
-        context.go('/matches');
-      case 3:
-        context.go('/profile');
-      case 4:
-        context.go('/settings');
-    }
+  void _onTabTap(int index) {
+    // Tapping the already-active tab resets it to its branch root.
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final index = _tabIndex(context);
+    final index = navigationShell.currentIndex;
     final unreadCount = ref.watch(unreadCountProvider).valueOrNull ?? 0;
 
     return Scaffold(
-      body: child,
+      body: navigationShell,
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.surface,
@@ -49,7 +33,7 @@ class HomeShell extends ConsumerWidget {
         ),
         child: NavigationBar(
           selectedIndex: index,
-          onDestinationSelected: (i) => _onTabTap(context, i),
+          onDestinationSelected: _onTabTap,
           backgroundColor: AppColors.surface,
           surfaceTintColor: Colors.transparent,
           indicatorColor: AppColors.primaryLight,

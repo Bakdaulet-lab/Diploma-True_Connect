@@ -147,6 +147,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     } on DioException catch (e, st) {
       AppLogger.warn('Registration failed', e);
       state = AsyncValue.error(_dioMessage(e), st);
+    } catch (e, st) {
+      AppLogger.warn('Registration failed (unexpected)', e);
+      state = AsyncValue.error('Тіркелу кезінде қате шықты', st);
     }
   }
 
@@ -180,6 +183,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
     } on DioException catch (e, st) {
       AppLogger.warn('Login failed', e);
       state = AsyncValue.error(_dioMessage(e), st);
+    } catch (e, st) {
+      AppLogger.warn('Login failed (unexpected)', e);
+      state = AsyncValue.error('Кіру кезінде қате шықты', st);
     }
   }
 

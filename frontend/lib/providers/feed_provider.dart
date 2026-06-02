@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/api_constants.dart';
@@ -108,13 +109,25 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
 
   Future<void> createPost({
     required String content,
-    String? mediaUrl,
+    Uint8List? imageBytes,
+    String? imageName,
   }) async {
     try {
-      await _dio.post(ApiConstants.posts, data: {
-        'content': content,
-        if (mediaUrl != null) 'media_url': mediaUrl,
-      });
+      if (imageBytes != null) {
+        // Backend reads the photo from the "media" multipart field and uploads
+        // it to MinIO, returning the post with a public media_url.
+        final form = FormData.fromMap({
+          'content': content,
+          'media': MultipartFile.fromBytes(
+            imageBytes,
+            filename: imageName ?? 'post.jpg',
+            contentType: DioMediaType('image', 'jpeg'),
+          ),
+        });
+        await _dio.post(ApiConstants.posts, data: form);
+      } else {
+        await _dio.post(ApiConstants.posts, data: {'content': content});
+      }
       // Refresh the full feed so the new post has author_name from the SQL JOIN.
       await load();
     } on DioException catch (e) {

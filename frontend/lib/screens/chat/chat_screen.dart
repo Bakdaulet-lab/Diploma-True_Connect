@@ -17,8 +17,14 @@ import 'call_screen.dart';
 class ChatScreen extends ConsumerStatefulWidget {
   final String matchId;
   final String otherUserId;
+  final String? initialDraft;
 
-  const ChatScreen({super.key, required this.matchId, this.otherUserId = ''});
+  const ChatScreen({
+    super.key,
+    required this.matchId,
+    this.otherUserId = '',
+    this.initialDraft,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -27,6 +33,15 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _msgController = TextEditingController();
   final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill the composer when arriving from a "share post to chat" action.
+    if (widget.initialDraft != null && widget.initialDraft!.isNotEmpty) {
+      _msgController.text = widget.initialDraft!;
+    }
+  }
 
   @override
   void dispose() {

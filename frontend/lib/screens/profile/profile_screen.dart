@@ -71,7 +71,7 @@ class ProfileScreen extends ConsumerWidget {
           // Completeness progress bar
           _ProfileCompletenessBar(profile: profile),
 
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.md),
 
           // Trust Score section — tap to see the full breakdown.
           InkWell(
@@ -442,7 +442,9 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            profile.displayName,
+            (profile.age != null && profile.age! > 0)
+                ? '${profile.displayName}, ${profile.age}'
+                : profile.displayName,
             style: GoogleFonts.nunito(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -702,6 +704,7 @@ class _ProfileCompletenessBar extends StatelessWidget {
       (profile.city?.isNotEmpty == true,       'Қала'),
       (profile.madhab?.isNotEmpty == true,     'Мазхаб'),
       (profile.languages.isNotEmpty,           'Тілдер'),
+      (profile.age != null && profile.age! > 0, 'Жас'),
     ];
     final filled = checks.where((c) => c.$1).length;
     final hint = checks.firstWhere((c) => !c.$1, orElse: () => (true, '')).$2;

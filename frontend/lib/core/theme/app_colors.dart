@@ -22,7 +22,7 @@ abstract final class AppColors {
   // Text
   static const textPrimary = Color(0xFF1A1208);
   static const textSecondary = Color(0xFF6B5E4E);
-  static const textHint = Color(0xFFA89880);
+  static const textHint = Color(0xFF7A6A58);
 
   // Trust Score levels
   static const trustLow = Color(0xFFCD5C5C);     // 0-39

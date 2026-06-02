@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/matching_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
+import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
 
 class MatchesScreen extends ConsumerWidget {
@@ -200,7 +201,7 @@ class _LikedYouSection extends ConsumerWidget {
           ),
         ),
         SizedBox(
-          height: 160,
+          height: 170,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -415,6 +416,11 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
     final imamConfirmed = widget.match['imam_confirmed'] as bool? ?? false;
     final familyIntroDone =
         widget.match['family_intro_done'] as bool? ?? false;
+    final age = (widget.match['other_user_age'] as num?)?.toInt();
+    final niyyah =
+        NiyyahTypeExt.fromString(widget.match['other_user_niyyah'] as String?);
+    final madhab = widget.match['other_user_madhab'] as String? ?? '';
+    final city = widget.match['other_user_city'] as String? ?? '';
 
     final timerStr = widget.match['niyyah_timer_ends_at'] as String?;
     final timerEndsAt =
@@ -461,12 +467,37 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        name,
+                        (age != null && age > 0) ? '$name, $age' : name,
                         style: GoogleFonts.nunito(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
                         ),
+                      ),
+                      if (city.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined,
+                                size: 12, color: AppColors.textHint),
+                            const SizedBox(width: 3),
+                            Text(
+                              city,
+                              style: GoogleFonts.nunito(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          NiyyahBadge(niyyah: niyyah),
+                          if (madhab.isNotEmpty) MadhabBadge(madhab: madhab),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       _statusRow(imamConfirmed, familyIntroDone),

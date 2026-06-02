@@ -47,8 +47,12 @@ class AuthTokens {
   });
 
   factory AuthTokens.fromJson(Map<String, dynamic> json) => AuthTokens(
-        accessToken: json['access_token'] as String,
-        refreshToken: json['refresh_token'] as String,
+        accessToken: json['access_token'] as String? ?? '',
+        // On web the refresh token is an HttpOnly cookie that Dio cannot read,
+        // so it is absent from the body. Tolerate that instead of throwing — a
+        // non-null cast here used to abort login *after* the access token was
+        // already saved, which is why login only "worked" after a page refresh.
+        refreshToken: json['refresh_token'] as String? ?? '',
         user: User.fromJson(json['user'] as Map<String, dynamic>),
       );
 }

@@ -41,8 +41,13 @@ type loginRequest struct {
 
 type authResponse struct {
 	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	UserID      string `json:"user_id"`
+	// RefreshToken is also returned in the body (in addition to the HttpOnly
+	// cookie) so non-browser clients (the Flutter app) can store it in secure
+	// storage and send it back on /auth/refresh. Browsers can keep using the
+	// cookie. Without this, refresh fails on every platform.
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	UserID       string `json:"user_id"`
 }
 
 // Register handles POST /v1/auth/register
@@ -74,9 +79,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data": authResponse{
-			AccessToken: result.AccessToken,
-			ExpiresIn:   result.ExpiresIn,
-			UserID:      result.UserID.String(),
+			AccessToken:  result.AccessToken,
+			RefreshToken: result.RefreshToken,
+			ExpiresIn:    result.ExpiresIn,
+			UserID:       result.UserID.String(),
 		},
 	})
 }
@@ -105,18 +111,36 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": authResponse{
-			AccessToken: result.AccessToken,
-			ExpiresIn:   result.ExpiresIn,
-			UserID:      result.UserID.String(),
+			AccessToken:  result.AccessToken,
+			RefreshToken: result.RefreshToken,
+			ExpiresIn:    result.ExpiresIn,
+			UserID:       result.UserID.String(),
 		},
 	})
 }
 
 // Refresh handles POST /v1/auth/refresh
+//
+// Accepts the refresh token from:
+//  1. JSON body field "refresh_token"  ← Flutter app (no cookie jar)
+//  2. HttpOnly cookie "refresh_token"  ← browser (cookie sent automatically)
+//
+// Body takes priority so mobile clients work without a cookie jar.
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	refreshToken, err := c.Cookie("refresh_token")
-	if err != nil || refreshToken == "" {
-		errorResponse(c, http.StatusUnauthorized, "MISSING_REFRESH_TOKEN", "refresh token cookie is required", nil)
+	// Try body first (Flutter / non-browser clients).
+	var body struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	_ = c.ShouldBindJSON(&body) // ignore error — body may be empty for cookie path
+
+	refreshToken := body.RefreshToken
+	if refreshToken == "" {
+		// Fall back to cookie (browser clients).
+		refreshToken, _ = c.Cookie("refresh_token")
+	}
+
+	if refreshToken == "" {
+		errorResponse(c, http.StatusUnauthorized, "MISSING_REFRESH_TOKEN", "refresh token is required", nil)
 		return
 	}
 
@@ -130,9 +154,10 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": authResponse{
-			AccessToken: result.AccessToken,
-			ExpiresIn:   result.ExpiresIn,
-			UserID:      result.UserID.String(),
+			AccessToken:  result.AccessToken,
+			RefreshToken: result.RefreshToken,
+			ExpiresIn:    result.ExpiresIn,
+			UserID:       result.UserID.String(),
 		},
 	})
 }

@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/post.dart';
 import '../../providers/feed_provider.dart';
+import '../../providers/matching_provider.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/post_card.dart';
@@ -44,7 +46,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     final feedState = ref.watch(feedProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
@@ -90,18 +92,25 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           return RefreshIndicator(
             color: AppColors.primary,
             onRefresh: () => ref.read(feedProvider.notifier).refresh(),
-            child: ListView.builder(
+            child: ListView.separated(
               controller: _scrollController,
               padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
               itemCount: posts.length,
+              separatorBuilder: (_, __) => const Divider(
+                height: 0.5,
+                thickness: 0.5,
+                color: AppColors.divider,
+              ),
               itemBuilder: (context, i) {
                 final post = posts[i];
                 return RepaintBoundary(
                   child: PostCard(
                     post: post,
+                    onTap: () => _showComments(context, post.id),
                     onLike: () =>
                         ref.read(feedProvider.notifier).likePost(post.id),
                     onComment: () => _showComments(context, post.id),
+                    onShare: () => _showShareSheet(context, post),
                   ),
                 );
               },
@@ -129,6 +138,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: AppRadius.bottomSheet),
       builder: (_) => _CommentsSheet(postId: postId),
+    );
+  }
+
+  void _showShareSheet(BuildContext context, Post post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.bottomSheet),
+      builder: (_) => _ShareToChatSheet(post: post),
     );
   }
 }
@@ -298,6 +317,148 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                         : const Icon(Icons.send, color: AppColors.primary),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Share to chat ──────────────────────────────────────────────────────────
+
+class _ShareToChatSheet extends ConsumerWidget {
+  final Post post;
+  const _ShareToChatSheet({required this.post});
+
+  String _draft() {
+    final author = post.authorName.isNotEmpty ? post.authorName : 'Қолданушы';
+    final content = post.content.length > 1000
+        ? '${post.content.substring(0, 1000)}…'
+        : post.content;
+    final buf = StringBuffer()..writeln('📝 $author жазбасы:');
+    if (content.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('«$content»');
+    }
+    if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln(post.mediaUrl);
+    }
+    return buf.toString().trim();
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncMatches = ref.watch(matchesListProvider);
+
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
+                children: [
+                  const Icon(Icons.send_outlined,
+                      size: 18, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Чатқа бөлісу',
+                    style: GoogleFonts.nunito(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: asyncMatches.when(
+                loading: () => const LoadingWidget(),
+                error: (e, _) => Center(
+                  child: Text(e.toString(),
+                      style: GoogleFonts.nunito(color: AppColors.textSecondary)),
+                ),
+                data: (matches) {
+                  if (matches.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Text(
+                          'Бөлісу үшін сәйкестік қажет.\nАлдымен біреумен сәйкес келіңіз.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.nunito(
+                              fontSize: 14, color: AppColors.textSecondary),
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    itemCount: matches.length,
+                    itemBuilder: (_, i) {
+                      final m = matches[i];
+                      final name = m['other_user_name'] as String? ?? '';
+                      final avatarUrl = m['other_user_avatar_url'] as String?;
+                      final matchId = m['id'] as String? ?? '';
+                      final otherUserId = m['other_user_id'] as String? ?? '';
+                      return ListTile(
+                        leading: CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.primaryLight,
+                          backgroundImage:
+                              avatarUrl != null && avatarUrl.isNotEmpty
+                                  ? CachedNetworkImageProvider(avatarUrl)
+                                  : null,
+                          child: avatarUrl == null || avatarUrl.isEmpty
+                              ? Text(
+                                  name.isNotEmpty
+                                      ? name[0].toUpperCase()
+                                      : '?',
+                                  style: GoogleFonts.nunito(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        title: Text(
+                          name,
+                          style: GoogleFonts.nunito(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios,
+                            size: 14, color: AppColors.textHint),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push(
+                            '/chat/$matchId?userId=$otherUserId',
+                            extra: {'draft': _draft()},
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],

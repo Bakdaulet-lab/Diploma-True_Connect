@@ -103,29 +103,43 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Shell (bottom nav) ───────────────────────────────────────────────
-      ShellRoute(
-        builder: (_, __, child) => HomeShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/home',
-            builder: (_, __) => const DiscoveryScreen(),
-          ),
-          GoRoute(
-            path: '/feed',
-            builder: (_, __) => const FeedScreen(),
-          ),
-          GoRoute(
-            path: '/matches',
-            builder: (_, __) => const MatchesScreen(),
-          ),
-          GoRoute(
-            path: '/profile',
-            builder: (_, __) => const ProfileScreen(),
-          ),
-          GoRoute(
-            path: '/settings',
-            builder: (_, __) => const SettingsScreen(),
-          ),
+      // StatefulShellRoute keeps each tab's screen alive in an IndexedStack,
+      // so switching tabs is instant and preserves scroll position / state
+      // instead of rebuilding (and refetching) the screen every time.
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, navigationShell) =>
+            HomeShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/home',
+              builder: (_, __) => const DiscoveryScreen(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/feed',
+              builder: (_, __) => const FeedScreen(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/matches',
+              builder: (_, __) => const MatchesScreen(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/profile',
+              builder: (_, __) => const ProfileScreen(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/settings',
+              builder: (_, __) => const SettingsScreen(),
+            ),
+          ]),
         ],
       ),
 
@@ -157,9 +171,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (matchId.isEmpty) {
             return const Scaffold(body: Center(child: Text('Match ID жоқ')));
           }
+          final extra = state.extra as Map<String, dynamic>?;
           return ChatScreen(
             matchId: matchId,
             otherUserId: state.uri.queryParameters['userId'] ?? '',
+            initialDraft: extra?['draft'] as String?,
           );
         },
       ),

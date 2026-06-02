@@ -176,7 +176,15 @@ func (r *MatchRepo) ListMatchViews(ctx context.Context, userID uuid.UUID, cursor
 			u.public_key,
 			m.niyyah_timer_ends_at,
 			m.matched_at,
-			COALESCE(p.no_photo_mode, false) AS no_photo_mode
+			COALESCE(p.no_photo_mode, false)  AS no_photo_mode,
+			CASE
+				WHEN p.birth_date IS NOT NULL
+				THEN EXTRACT(year FROM AGE(p.birth_date))::int
+				ELSE NULL
+			END                               AS age,
+			COALESCE(p.niyyah::text, '')      AS niyyah,
+			COALESCE(p.madhab::text, '')      AS madhab,
+			COALESCE(p.city, '')              AS city
 		FROM social.matches m
 		JOIN social.users u
 			ON u.id = CASE WHEN m.user_a_id = $1 THEN m.user_b_id ELSE m.user_a_id END
@@ -208,6 +216,7 @@ func (r *MatchRepo) ListMatchViews(ctx context.Context, userID uuid.UUID, cursor
 			&row.TrustScore, &row.PublicKey,
 			&row.NiyyahTimerEndsAt, &row.MatchedAt,
 			&row.NoPhotoMode,
+			&row.Age, &row.Niyyah, &row.Madhab, &row.City,
 		); err != nil {
 			return nil, "", fmt.Errorf("scanning match view: %w", err)
 		}

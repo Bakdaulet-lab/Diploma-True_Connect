@@ -11,9 +11,9 @@ extension NiyyahTypeExt on NiyyahType {
       case NiyyahType.nikahYear:
         return 'Никях';
       case NiyyahType.seriousMarriage:
-        return 'Серьёзно';
+        return 'Байыпты';
       case NiyyahType.friendship:
-        return 'Знакомство';
+        return 'Достық';
     }
   }
 

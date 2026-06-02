@@ -58,3 +58,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Bundled fonts (loaded offline — see assets/google_fonts/README.md).
+  # The google_fonts package auto-discovers Nunito-*.ttf / Amiri-*.ttf here,
+  # so GoogleFonts.nunito()/amiri() calls work without a runtime network fetch.
+  assets:
+    - assets/google_fonts/

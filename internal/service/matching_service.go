@@ -50,6 +50,10 @@ type MatchUserView struct {
 	AvatarBlurred bool      `json:"avatar_blurred,omitempty"`
 	TrustScore    int       `json:"trust_score"`
 	PublicKey     *string   `json:"public_key,omitempty"`
+	Age           *int      `json:"age,omitempty"`
+	Niyyah        string    `json:"niyyah,omitempty"`
+	Madhab        string    `json:"madhab,omitempty"`
+	City          string    `json:"city,omitempty"`
 }
 
 // Обновленная основная структура мэтча
@@ -380,6 +384,10 @@ func (s *MatchingService) ListMatches(ctx context.Context, userID uuid.UUID, cur
 				AvatarBlurred: row.NoPhotoMode,
 				TrustScore:    row.TrustScore,
 				PublicKey:     row.PublicKey,
+				Age:           row.Age,
+				Niyyah:        row.Niyyah,
+				Madhab:        row.Madhab,
+				City:          row.City,
 			},
 			NiyyahTimerEndsAt: row.NiyyahTimerEndsAt,
 		})

@@ -465,7 +465,7 @@ class _CardPhoto extends StatelessWidget {
                   const Icon(Icons.verified, color: Colors.white, size: 13),
                   const SizedBox(width: 4),
                   Text(
-                    'Верификацияланған',
+                    'Расталған',
                     style: GoogleFonts.nunito(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -635,9 +635,9 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
   String? _madhab;
 
   static const _niyyahs = [
-    ('nikah_year', 'Никах 🌙'),
-    ('serious_marriage', 'Маңызды'),
-    ('friendship', 'Достық'),
+    ('nikah_year', 'Никях 🌙'),
+    ('serious_marriage', 'Байыпты 💍'),
+    ('friendship', 'Достық 🤝'),
   ];
 
   static const _madhabs = [

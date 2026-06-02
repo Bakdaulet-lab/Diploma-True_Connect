@@ -34,9 +34,16 @@ class DioClient {
     _dio.interceptors.add(_ErrorInterceptor());
 
     if (kDebugMode) {
+      // Log only errors. Logging full request/response bodies on every call
+      // (e.g. the feed and candidate lists) serializes large JSON strings to
+      // the console and causes visible jank during navigation.
       _dio.interceptors.add(LogInterceptor(
-        requestBody: true,
-        responseBody: true,
+        request: false,
+        requestHeader: false,
+        requestBody: false,
+        responseHeader: false,
+        responseBody: false,
+        error: true,
         logPrint: (o) => debugPrint('[DioClient] $o'),
       ));
     }

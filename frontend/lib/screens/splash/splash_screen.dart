@@ -26,7 +26,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1200),
     );
 
     _starRotation = Tween<double>(begin: 0, end: 2 * math.pi / 8).animate(

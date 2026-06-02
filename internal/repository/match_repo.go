@@ -20,6 +20,10 @@ type MatchViewRow struct {
 	NiyyahTimerEndsAt *time.Time
 	MatchedAt         *time.Time
 	NoPhotoMode       bool
+	Age               *int
+	Niyyah            string
+	Madhab            string
+	City              string
 }
 
 // MatchRepository manages swipe likes and mutual matches.
