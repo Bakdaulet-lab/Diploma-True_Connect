@@ -17,7 +17,6 @@ import (
 	"github.com/trueconnect/backend/internal/domain"
 	"github.com/trueconnect/backend/internal/handler/middleware"
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
-	"github.com/trueconnect/backend/internal/pkg/halalfilter"
 	"github.com/trueconnect/backend/internal/service"
 )
 
@@ -63,6 +62,7 @@ type Hub struct {
 	matchSvc        *service.MatchingService
 	reputationSvc   *service.ReputationService
 	mahramChatSvc   *service.MahramChatService
+	moderationSvc   *service.ModerationService
 	rdb             *redis.Client
 	jwtManager      *tcjwt.Manager
 	log             *slog.Logger
@@ -78,6 +78,7 @@ func NewHub(
 	matchSvc *service.MatchingService,
 	reputationSvc *service.ReputationService,
 	mahramChatSvc *service.MahramChatService,
+	moderationSvc *service.ModerationService,
 	rdb *redis.Client,
 	jwtManager *tcjwt.Manager,
 	log *slog.Logger,
@@ -90,6 +91,7 @@ func NewHub(
 		matchSvc:       matchSvc,
 		reputationSvc:  reputationSvc,
 		mahramChatSvc:  mahramChatSvc,
+		moderationSvc:  moderationSvc,
 		rdb:            rdb,
 		jwtManager:     jwtManager,
 		log:            log,
@@ -340,8 +342,9 @@ func (h *Hub) handleChatMsg(ctx context.Context, senderID uuid.UUID, payload jso
 		return
 	}
 
-	// C1: halal content filter — hard-block explicit content, flag harassment.
-	isBlocked, isToxic := halalfilter.CheckMessage(p.Content)
+	// C1: ML content moderation (KZ/RU/EN) — hard-block explicit content, flag
+	// harassment. Falls back to the keyword filter if the ML service is down.
+	isBlocked, isToxic := h.moderationSvc.Check(ctx, p.Content)
 	if isBlocked {
 		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "message blocked by content policy"})
 		return
@@ -399,7 +402,7 @@ func (h *Hub) handleMahramChatMsg(ctx context.Context, senderID uuid.UUID, paylo
 		return
 	}
 
-	isBlocked, _ := halalfilter.CheckMessage(p.Content)
+	isBlocked, _ := h.moderationSvc.Check(ctx, p.Content)
 	if isBlocked {
 		h.sendTo(senderID, wsOutgoing{Type: "error", Error: "message blocked by content policy"})
 		return

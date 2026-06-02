@@ -11,4 +11,5 @@ var (
 	ErrAccountSuspended   = errors.New("account suspended")
 	ErrRateLimitExceeded  = errors.New("rate limit exceeded")
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrContentBlocked     = errors.New("content blocked by moderation policy")
 )

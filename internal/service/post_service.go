@@ -32,14 +32,17 @@ type PostService struct {
 	postRepo   repository.PostRepository
 	mediaStore repository.MediaStore
 	notifSvc   *NotificationService
+	moderation *ModerationService
 }
 
-// NewPostService creates a new post service.
-func NewPostService(postRepo repository.PostRepository, mediaStore repository.MediaStore, notifSvc *NotificationService) *PostService {
+// NewPostService creates a new post service. moderation may be nil (posts then
+// skip ML moderation; chat still works independently).
+func NewPostService(postRepo repository.PostRepository, mediaStore repository.MediaStore, notifSvc *NotificationService, moderation *ModerationService) *PostService {
 	return &PostService{
 		postRepo:   postRepo,
 		mediaStore: mediaStore,
 		notifSvc:   notifSvc,
+		moderation: moderation,
 	}
 }
 
@@ -48,6 +51,13 @@ func (s *PostService) CreatePost(ctx context.Context, authorID uuid.UUID, conten
 	content = sanitize.StripHTML(content)
 	if len(content) == 0 || len(content) > 2000 {
 		return nil, fmt.Errorf("create post: content must be 1-2000 chars: %w", domain.ErrInvalidInput)
+	}
+
+	// ML moderation — reject explicit/abusive posts (falls back to keyword filter).
+	if s.moderation != nil {
+		if block, _ := s.moderation.Check(ctx, content); block {
+			return nil, fmt.Errorf("create post: %w", domain.ErrContentBlocked)
+		}
 	}
 
 	var mediaKey string
@@ -160,6 +170,13 @@ func (s *PostService) CreateComment(ctx context.Context, postID, authorID uuid.U
 	content = sanitize.StripHTML(content)
 	if len(content) == 0 || len(content) > 500 {
 		return nil, fmt.Errorf("create comment: content must be 1-500 chars: %w", domain.ErrInvalidInput)
+	}
+
+	// ML moderation — reject explicit/abusive comments (falls back to keyword filter).
+	if s.moderation != nil {
+		if block, _ := s.moderation.Check(ctx, content); block {
+			return nil, fmt.Errorf("create comment: %w", domain.ErrContentBlocked)
+		}
 	}
 
 	post, err := s.postRepo.GetByID(ctx, postID)

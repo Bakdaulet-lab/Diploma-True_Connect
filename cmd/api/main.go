@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/adapter/kyc"
 	minioadapter "github.com/trueconnect/backend/internal/adapter/minio"
+	moderationadapter "github.com/trueconnect/backend/internal/adapter/moderation"
 	neo4jadapter "github.com/trueconnect/backend/internal/adapter/neo4j"
 	"github.com/trueconnect/backend/internal/adapter/postgres"
 	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
@@ -24,6 +25,7 @@ import (
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
 	"github.com/trueconnect/backend/internal/pkg/logger"
 	"github.com/trueconnect/backend/internal/provider"
+	"github.com/trueconnect/backend/internal/repository"
 	"github.com/trueconnect/backend/internal/service"
 	"github.com/trueconnect/backend/internal/worker"
 )
@@ -194,7 +196,19 @@ func run() error {
 	postRepo := postgres.NewPostRepo(pgPool)
 	messageRepo := postgres.NewMessageRepo(pgPool)
 
-	postSvc := service.NewPostService(postRepo, mediaStore, notifSvc)
+	// ML content moderation. If MODERATION_SERVICE_URL is unset, the provider is
+	// nil and ModerationService falls back to the keyword filter — so the app
+	// runs fine with or without the Python ML microservice.
+	var moderationProvider repository.ModerationProvider
+	if url := os.Getenv("MODERATION_SERVICE_URL"); url != "" {
+		moderationProvider = moderationadapter.NewMLProvider(url, log)
+		log.Info("ML moderation enabled", slog.String("url", url))
+	} else {
+		log.Warn("MODERATION_SERVICE_URL not set — using keyword content filter only")
+	}
+	moderationSvc := service.NewModerationService(moderationProvider, log)
+
+	postSvc := service.NewPostService(postRepo, mediaStore, notifSvc, moderationSvc)
 	chatSvc := service.NewChatService(messageRepo, matchRepo, encryptionKey, pushCh)
 
 	// Sprint 10: Mahram group chat (declared before Hub so the Hub can reference it)
@@ -215,7 +229,7 @@ func run() error {
 
 	// Sprint 4 handlers
 	postHandler := handler.NewPostHandler(postSvc, reputeSvc, log)
-	chatHub := handler.NewHub(ctx, chatSvc, matchingSvc, reputeSvc, mahramChatSvc, redisClient, jwtManager, log,
+	chatHub := handler.NewHub(ctx, chatSvc, matchingSvc, reputeSvc, mahramChatSvc, moderationSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
 	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)

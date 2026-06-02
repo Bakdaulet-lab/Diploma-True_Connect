@@ -33,7 +33,7 @@ func (m *dummyMediaStore) UploadDocument(ctx context.Context, userID uuid.UUID, 
 
 func TestCreatePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, err := svc.CreatePost(context.Background(), uuid.New(), "Hello world", nil)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestCreatePost_Success(t *testing.T) {
 
 func TestCreatePost_EmptyContent(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	_, err := svc.CreatePost(context.Background(), uuid.New(), "", nil)
 	if err == nil {
@@ -59,7 +59,7 @@ func TestCreatePost_EmptyContent(t *testing.T) {
 
 func TestCreatePost_TooLong(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	long := strings.Repeat("a", 2001)
 	_, err := svc.CreatePost(context.Background(), uuid.New(), long, nil)
@@ -70,7 +70,7 @@ func TestCreatePost_TooLong(t *testing.T) {
 
 func TestCreatePost_StripsHTML(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, err := svc.CreatePost(context.Background(), uuid.New(), "<b>hello</b>", nil)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestCreatePost_StripsHTML(t *testing.T) {
 
 func TestGetPost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	created, _ := svc.CreatePost(context.Background(), uuid.New(), "test post", nil)
 	got, err := svc.GetPost(context.Background(), created.ID)
@@ -97,7 +97,7 @@ func TestGetPost_Success(t *testing.T) {
 
 func TestGetPost_NotFound(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	_, err := svc.GetPost(context.Background(), uuid.New())
 	if err == nil {
@@ -107,7 +107,7 @@ func TestGetPost_NotFound(t *testing.T) {
 
 func TestDeletePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	authorID := uuid.New()
 	post, _ := svc.CreatePost(context.Background(), authorID, "delete me", nil)
@@ -125,7 +125,7 @@ func TestDeletePost_Success(t *testing.T) {
 
 func TestDeletePost_NotOwner(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "not yours", nil)
 
@@ -137,7 +137,7 @@ func TestDeletePost_NotOwner(t *testing.T) {
 
 func TestListFeed_Paginated(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	authorID := uuid.New()
 	for i := 0; i < 5; i++ {
@@ -155,7 +155,7 @@ func TestListFeed_Paginated(t *testing.T) {
 
 func TestLikePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "like me", nil)
 
@@ -171,7 +171,7 @@ func TestLikePost_Success(t *testing.T) {
 
 func TestLikePost_Idempotent(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "like me twice", nil)
 	userID := uuid.New()
@@ -187,7 +187,7 @@ func TestLikePost_Idempotent(t *testing.T) {
 
 func TestUnlikePost_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "unlike me", nil)
 	userID := uuid.New()
@@ -202,7 +202,7 @@ func TestUnlikePost_Success(t *testing.T) {
 
 func TestCreateComment_Success(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "comment here", nil)
 
@@ -217,7 +217,7 @@ func TestCreateComment_Success(t *testing.T) {
 
 func TestCreateComment_TooLong(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "test", nil)
 	long := strings.Repeat("a", 501)
@@ -230,7 +230,7 @@ func TestCreateComment_TooLong(t *testing.T) {
 
 func TestListComments_Paginated(t *testing.T) {
 	repo := newMockPostRepo()
-	svc := service.NewPostService(repo, &dummyMediaStore{}, nil)
+	svc := service.NewPostService(repo, &dummyMediaStore{}, nil, nil)
 
 	post, _ := svc.CreatePost(context.Background(), uuid.New(), "comments test", nil)
 	for i := 0; i < 5; i++ {

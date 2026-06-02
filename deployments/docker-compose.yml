@@ -10,6 +10,28 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # ML content-moderation microservice (Kazakh/Russian/English toxicity + NSFW).
+  # The Go API calls it over HTTP; if it's down the API falls back to the
+  # keyword filter. If ml/moderation/model is empty it runs in lexicon STUB mode.
+  moderation:
+    build:
+      context: ../ml/moderation
+      dockerfile: service/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_DIR: /app/model
+      MODERATION_STUB: ${MODERATION_STUB:-0}
+    volumes:
+      - ../ml/moderation/model:/app/model:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   api:
     build:
       context: ../
@@ -28,6 +50,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      moderation:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/v1/health || exit 1"]
       interval: 10s

@@ -1,0 +1,13 @@
+# Datasets and trained artifacts are large / not source — do not commit.
+data/raw/
+data/processed/
+model/
+*.pt
+*.bin
+*.safetensors
+__pycache__/
+.ipynb_checkpoints/
+# Keep generated reports out of git except the curated model card.
+reports/*.png
+reports/*.json
+!reports/MODEL_CARD.md

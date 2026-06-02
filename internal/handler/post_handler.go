@@ -75,6 +75,10 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 
 	post, err := h.postSvc.CreatePost(c.Request.Context(), userID, content, mediaData)
 	if err != nil {
+		if errors.Is(err, domain.ErrContentBlocked) {
+			errorResponse(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "post blocked by content policy", nil)
+			return
+		}
 		h.log.Error("create post error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "could not create post", nil)
 		return
@@ -225,6 +229,10 @@ func (h *PostHandler) CreateComment(c *gin.Context) {
 
 	comment, err := h.postSvc.CreateComment(c.Request.Context(), postID, userID, req.Content)
 	if err != nil {
+		if errors.Is(err, domain.ErrContentBlocked) {
+			errorResponse(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "comment blocked by content policy", nil)
+			return
+		}
 		if errors.Is(err, domain.ErrInvalidInput) {
 			errorResponse(c, http.StatusBadRequest, "INVALID_INPUT", "content must be 1-500 characters", nil)
 			return

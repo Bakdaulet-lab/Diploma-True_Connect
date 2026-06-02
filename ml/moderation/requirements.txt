@@ -1,0 +1,14 @@
+# Training + evaluation dependencies (CPU works; GPU optional).
+torch>=2.1
+transformers>=4.40
+datasets>=2.18
+sentencepiece>=0.2          # required by the XLM-RoBERTa tokenizer
+scikit-learn>=1.4
+pandas>=2.0
+numpy>=1.26
+matplotlib>=3.8
+accelerate>=0.30
+# Serving (also listed in service/requirements.txt for the slim image)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
