@@ -16,6 +16,7 @@ import (
 	"github.com/trueconnect/backend/internal/adapter/kyc"
 	minioadapter "github.com/trueconnect/backend/internal/adapter/minio"
 	moderationadapter "github.com/trueconnect/backend/internal/adapter/moderation"
+	photoverifyadapter "github.com/trueconnect/backend/internal/adapter/photoverify"
 	neo4jadapter "github.com/trueconnect/backend/internal/adapter/neo4j"
 	"github.com/trueconnect/backend/internal/adapter/postgres"
 	redisadapter "github.com/trueconnect/backend/internal/adapter/redis"
@@ -24,6 +25,7 @@ import (
 	"github.com/trueconnect/backend/internal/handler"
 	tcjwt "github.com/trueconnect/backend/internal/pkg/jwt"
 	"github.com/trueconnect/backend/internal/pkg/logger"
+	"github.com/trueconnect/backend/internal/pkg/recommender"
 	"github.com/trueconnect/backend/internal/provider"
 	"github.com/trueconnect/backend/internal/repository"
 	"github.com/trueconnect/backend/internal/service"
@@ -130,8 +132,22 @@ func run() error {
 		log,
 	)
 
+	// Photo verification (face presence + NSFW). Empty PHOTO_VERIFIER_URL → nil
+	// verifier → uploads are accepted without CV checks.
+	var photoVerifier repository.PhotoVerifier
+	if url := os.Getenv("PHOTO_VERIFIER_URL"); url != "" {
+		photoVerifier = photoverifyadapter.NewMLProvider(url, log)
+		log.Info("photo verification enabled", slog.String("url", url))
+	} else {
+		log.Warn("PHOTO_VERIFIER_URL not set — profile photos are not CV-verified")
+	}
+
+	// Admin re-review queue for photos rejected by the verifier.
+	photoReviewRepo := postgres.NewPhotoReviewRepo(pgPool)
+	photoReviewSvc := service.NewPhotoReviewService(photoReviewRepo, mediaRepo, mediaStore)
+
 	// Sprint 2 services
-	profileSvc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache)
+	profileSvc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache, photoVerifier, photoReviewRepo)
 
 	notifRepo := postgres.NewNotificationRepo(pgPool)
 	notifSvc := service.NewNotificationService(notifRepo, redisClient, log)
@@ -139,7 +155,17 @@ func run() error {
 	// pushCh is created here so matching service can enqueue FCM push events on Like().
 	pushCh := make(chan domain.PushEvent, 100)
 
-	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo, notifSvc, pushCh)
+	// ML candidate ranking. If RECOMMENDER_MODEL_PATH is unset/invalid the ranker
+	// is nil and matching keeps the default recency/trust ordering.
+	recRanker, err := recommender.Load(os.Getenv("RECOMMENDER_MODEL_PATH"))
+	if err != nil {
+		log.Warn("recommender model failed to load; using default ordering", slog.String("error", err.Error()))
+		recRanker = nil
+	} else if recRanker != nil {
+		log.Info("ML candidate ranking enabled")
+	}
+
+	matchingSvc := service.NewMatchingService(profileRepo, userRepo, matchRepo, settingsRepo, matchingCache, graphRepo, notifSvc, pushCh, recRanker)
 	settingsSvc := service.NewSettingsService(settingsRepo)
 
 	// Sprint 3 repos, services, and trust engine
@@ -221,6 +247,7 @@ func run() error {
 
 	// Sprint 2 handlers
 	profileHandler := handler.NewProfileHandler(profileSvc, reputeSvc, log)
+	photoReviewHandler := handler.NewPhotoReviewHandler(photoReviewSvc, log)
 	matchingHandler := handler.NewMatchingHandler(matchingSvc, log)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, log)
 
@@ -285,6 +312,7 @@ func run() error {
 		User:             userHandler,
 		Report:           reportHandler,
 		Admin:            adminHandler,
+		PhotoReview:      photoReviewHandler,
 		Mahram:           mahramHandler,
 		MahramChat:       mahramChatHandler,
 		Whisper:          whisperHandler,

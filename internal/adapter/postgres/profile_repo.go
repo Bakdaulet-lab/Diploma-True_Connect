@@ -191,7 +191,10 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			COALESCE(p.madhab::text, '')  AS madhab,
 			COALESCE(p.languages, '{}')   AS languages,
 			p.no_photo_mode,
-			(u.verification_level IN ('id_verified', 'photo_verified')) AS is_kyc_verified
+			(u.verification_level IN ('id_verified', 'photo_verified')) AS is_kyc_verified,
+			EXTRACT(year FROM AGE(p.birth_date))::int AS age,
+			ST_Y(p.location::geometry) AS latitude,
+			ST_X(p.location::geometry) AS longitude
 		FROM social.profiles p
 		JOIN social.users u ON u.id = p.user_id
 		WHERE
@@ -255,6 +258,7 @@ func (r *ProfileRepo) FindCandidates(ctx context.Context, opts repository.FindCa
 			&c.UserID, &c.DisplayName, &c.AvatarURL,
 			&c.City, &promptsJSON, &c.TrustScore,
 			&c.Niyyah, &c.Madhab, &c.Languages, &c.NoPhotoMode, &c.IsKYCVerified,
+			&c.Age, &c.Latitude, &c.Longitude,
 		); err != nil {
 			return nil, fmt.Errorf("scanning candidate: %w", err)
 		}

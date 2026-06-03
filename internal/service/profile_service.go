@@ -64,24 +64,32 @@ type ProfileService struct {
 	profileRepo   repository.ProfileRepository
 	mediaRepo     repository.MediaRepository
 	userRepo      repository.UserRepository
-	mediaStore    repository.MediaStore
-	matchingCache repository.MatchingCache
+	mediaStore      repository.MediaStore
+	matchingCache   repository.MatchingCache
+	photoVerifier   repository.PhotoVerifier         // nil → skip CV verification
+	photoReviewRepo repository.PhotoReviewRepository // nil → hard-reject (no queue)
 }
 
-// NewProfileService creates a new profile service.
+// NewProfileService creates a new profile service. photoVerifier may be nil
+// (no CV checks); photoReviewRepo may be nil (rejected photos are hard-rejected
+// instead of held for manual admin review).
 func NewProfileService(
 	profileRepo repository.ProfileRepository,
 	mediaRepo repository.MediaRepository,
 	userRepo repository.UserRepository,
 	mediaStore repository.MediaStore,
 	matchingCache repository.MatchingCache,
+	photoVerifier repository.PhotoVerifier,
+	photoReviewRepo repository.PhotoReviewRepository,
 ) *ProfileService {
 	return &ProfileService{
-		profileRepo:   profileRepo,
-		mediaRepo:     mediaRepo,
-		userRepo:      userRepo,
-		mediaStore:    mediaStore,
-		matchingCache: matchingCache,
+		profileRepo:     profileRepo,
+		mediaRepo:       mediaRepo,
+		userRepo:        userRepo,
+		mediaStore:      mediaStore,
+		matchingCache:   matchingCache,
+		photoVerifier:   photoVerifier,
+		photoReviewRepo: photoReviewRepo,
 	}
 }
 
@@ -205,6 +213,36 @@ func (s *ProfileService) UpsertProfile(ctx context.Context, userID uuid.UUID, in
 // UploadPhoto stores a photo for the user and returns the new media record.
 // If this is the user's first photo it is set as the profile avatar automatically.
 func (s *ProfileService) UploadPhoto(ctx context.Context, userID uuid.UUID, data []byte) (*domain.Media, error) {
+	// CV verification: require a visible face and no explicit content. Fail open
+	// (allow the upload) if the verifier is disabled or unreachable.
+	if s.photoVerifier != nil {
+		verdict, err := s.photoVerifier.Verify(ctx, data)
+		if err == nil && verdict != nil && !verdict.Approved {
+			// Hold for manual admin review when a queue is configured; otherwise
+			// hard-reject. The held image is stored (admin-only) so it can be
+			// viewed and approved/deleted later.
+			if s.photoReviewRepo != nil {
+				objectKey, upErr := s.mediaStore.UploadPhoto(ctx, userID, data)
+				if upErr != nil {
+					return nil, fmt.Errorf("upload photo: storing for review: %w", upErr)
+				}
+				review := &domain.PhotoReview{
+					UserID:    userID,
+					ObjectKey: objectKey,
+					Reasons:   verdict.Reasons,
+					NSFWScore: verdict.NSFWScore,
+					FaceCount: verdict.FaceCount,
+				}
+				if enqErr := s.photoReviewRepo.Enqueue(ctx, review); enqErr != nil {
+					_ = s.mediaStore.DeletePhoto(ctx, objectKey)
+					return nil, fmt.Errorf("upload photo: queueing review: %w", enqErr)
+				}
+				return nil, fmt.Errorf("upload photo: %w", domain.ErrPhotoPendingReview)
+			}
+			return nil, fmt.Errorf("upload photo: %w (%v)", domain.ErrPhotoRejected, verdict.Reasons)
+		}
+	}
+
 	count, err := s.mediaRepo.CountByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("upload photo: checking count: %w", err)

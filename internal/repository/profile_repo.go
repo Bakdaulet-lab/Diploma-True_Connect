@@ -56,4 +56,8 @@ type CandidateRow struct {
 	Languages      []string              `json:"languages"`
 	NoPhotoMode    bool                  `json:"no_photo_mode"`
 	IsKYCVerified  bool                  `json:"is_kyc_verified"`
+	// Ranking features (nullable when unset on the profile).
+	Age       *int     `json:"age"`
+	Latitude  *float64 `json:"latitude"`
+	Longitude *float64 `json:"longitude"`
 }

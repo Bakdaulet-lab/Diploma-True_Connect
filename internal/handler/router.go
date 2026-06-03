@@ -27,6 +27,7 @@ type RouterDeps struct {
 	User         *UserHandler
 	Report       *ReportHandler
 	Admin        *AdminHandler
+	PhotoReview  *PhotoReviewHandler
 	Mahram       *MahramHandler
 	MahramChat   *MahramChatHandler
 	Whisper      *WhisperHandler
@@ -201,6 +202,13 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 			adminGroup.GET("/kyc/:id/document", deps.Admin.GetKYCDocument)
 			adminGroup.POST("/kyc/:id/review", deps.Admin.ReviewKYC)
 			adminGroup.GET("/whisper-flags", deps.Admin.GetWhisperFlags)
+
+			// Re-review queue for photos rejected by the CV verifier.
+			if deps.PhotoReview != nil {
+				adminGroup.GET("/photo-reviews", deps.PhotoReview.List)
+				adminGroup.POST("/photo-reviews/:id/approve", deps.PhotoReview.Approve)
+				adminGroup.POST("/photo-reviews/:id/reject", deps.PhotoReview.Reject)
+			}
 		}
 	}
 

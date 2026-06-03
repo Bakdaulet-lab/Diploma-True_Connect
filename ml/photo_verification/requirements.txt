@@ -1,0 +1,2 @@
+# Evaluation client deps (the service has its own service/requirements.txt).
+requests>=2.31

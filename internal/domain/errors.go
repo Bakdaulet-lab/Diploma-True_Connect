@@ -12,4 +12,6 @@ var (
 	ErrRateLimitExceeded  = errors.New("rate limit exceeded")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrContentBlocked     = errors.New("content blocked by moderation policy")
+	ErrPhotoRejected      = errors.New("photo rejected by verification")
+	ErrPhotoPendingReview = errors.New("photo submitted for manual review")
 )

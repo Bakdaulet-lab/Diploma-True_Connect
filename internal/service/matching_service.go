@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trueconnect/backend/internal/domain"
+	"github.com/trueconnect/backend/internal/pkg/recommender"
 	"github.com/trueconnect/backend/internal/repository"
 )
 
@@ -79,9 +80,11 @@ type MatchingService struct {
 	trustGraphRepo repository.TrustGraphRepository
 	notifSvc       *NotificationService
 	pushCh         chan<- domain.PushEvent
+	ranker         *recommender.Ranker // nil → keep default ordering
 }
 
-// NewMatchingService creates a new matching service.
+// NewMatchingService creates a new matching service. ranker may be nil, in which
+// case candidates keep the default recency/trust ordering.
 func NewMatchingService(
 	profileRepo repository.ProfileRepository,
 	userRepo repository.UserRepository,
@@ -91,6 +94,7 @@ func NewMatchingService(
 	trustGraphRepo repository.TrustGraphRepository,
 	notifSvc *NotificationService,
 	pushCh chan<- domain.PushEvent,
+	ranker *recommender.Ranker,
 ) *MatchingService {
 	return &MatchingService{
 		profileRepo:    profileRepo,
@@ -101,6 +105,7 @@ func NewMatchingService(
 		trustGraphRepo: trustGraphRepo,
 		notifSvc:       notifSvc,
 		pushCh:         pushCh,
+		ranker:         ranker,
 	}
 }
 
@@ -216,6 +221,39 @@ func (s *MatchingService) GetCandidates(ctx context.Context, userID uuid.UUID) (
 		}
 	}
 
+	// ML re-ranking: order candidates by predicted P(mutual like). No-op when
+	// no model is loaded — candidates keep the SQL recency/trust ordering.
+	if s.ranker != nil && len(rows) > 1 {
+		viewerAge := ageFromBirthDate(requesterProfile.BirthDate)
+		pairs := make([]recommender.Pair, len(rows))
+		for i, row := range rows {
+			pairs[i] = recommender.Pair{
+				ViewerAge:       viewerAge,
+				ViewerLat:       requesterProfile.Latitude,
+				ViewerLon:       requesterProfile.Longitude,
+				ViewerCity:      requesterProfile.City,
+				ViewerNiyyah:    string(requesterProfile.Niyyah),
+				ViewerMadhab:    string(requesterProfile.Madhab),
+				ViewerLanguages: requesterProfile.Languages,
+				CandAge:         row.Age,
+				CandLat:         row.Latitude,
+				CandLon:         row.Longitude,
+				CandCity:        row.City,
+				CandNiyyah:      row.Niyyah,
+				CandMadhab:      row.Madhab,
+				CandLanguages:   row.Languages,
+				CandTrust:       row.TrustScore,
+				CandKYC:         row.IsKYCVerified,
+			}
+		}
+		ordered := s.ranker.RankIndices(pairs)
+		reordered := make([]*repository.CandidateRow, len(rows))
+		for newPos, origIdx := range ordered {
+			reordered[newPos] = rows[origIdx]
+		}
+		rows = reordered
+	}
+
 	requesterMadhab := string(requesterProfile.Madhab)
 
 	newSeenIDs := make([]uuid.UUID, 0, len(rows))
@@ -263,6 +301,23 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// ageFromBirthDate computes whole years from a birth date, matching the SQL
+// EXTRACT(year FROM AGE(birth_date)) used for candidate ages (feature parity).
+func ageFromBirthDate(bd *time.Time) *int {
+	if bd == nil {
+		return nil
+	}
+	now := time.Now()
+	years := now.Year() - bd.Year()
+	if now.YearDay() < bd.YearDay() {
+		years--
+	}
+	if years < 0 {
+		years = 0
+	}
+	return &years
 }
 
 // Like records that userID likes targetID.

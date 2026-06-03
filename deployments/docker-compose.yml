@@ -32,6 +32,26 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  # CV photo-verification microservice (face presence + NSFW for avatars).
+  # The Go API calls it on profile-photo upload; if down the API fails open.
+  photo-verifier:
+    build:
+      context: ../ml/photo_verification
+      dockerfile: service/Dockerfile
+    ports:
+      - "8001:8000"   # host 8001 (8000 is taken by moderation)
+    environment:
+      NSFW_THRESHOLD: ${NSFW_THRESHOLD:-0.7}
+      REQUIRE_FACE: ${REQUIRE_FACE:-1}
+      PHOTO_VERIFIER_STUB: ${PHOTO_VERIFIER_STUB:-0}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
   api:
     build:
       context: ../
@@ -39,6 +59,10 @@ services:
     ports:
       - "8080:8080"
     env_file: ../.env
+    volumes:
+      # Recommender model.json (loaded inline by the Go API if
+      # RECOMMENDER_MODEL_PATH=/app/ml/recommender/model.json is set in .env).
+      - ../ml/recommender:/app/ml/recommender:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -51,6 +75,8 @@ services:
       minio:
         condition: service_healthy
       moderation:
+        condition: service_started
+      photo-verifier:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/v1/health || exit 1"]

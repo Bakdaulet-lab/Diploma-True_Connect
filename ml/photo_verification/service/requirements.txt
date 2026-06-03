@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-multipart>=0.0.9        # required for multipart file uploads
+opencv-python-headless>=4.9
+numpy>=1.26
+pillow>=10.0
+torch>=2.1                     # for the NSFW model (optional at runtime)
+transformers>=4.40

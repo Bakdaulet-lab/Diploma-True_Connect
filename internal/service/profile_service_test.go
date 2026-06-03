@@ -31,7 +31,7 @@ func newTestProfileService() (*service.ProfileService, *mockProfileRepo, *mockMe
 	userRepo := newMockUserRepo()
 	mediaStore := newMockMediaStore()
 	matchingCache := newMockMatchingCache()
-	svc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache)
+	svc := service.NewProfileService(profileRepo, mediaRepo, userRepo, mediaStore, matchingCache, nil, nil)
 	return svc, profileRepo, mediaRepo, userRepo, mediaStore, matchingCache
 }
 

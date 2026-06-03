@@ -1,0 +1,4 @@
+# Recommender training/eval (no deep-learning runtime needed).
+pandas>=2.0
+numpy>=1.26
+scikit-learn>=1.4

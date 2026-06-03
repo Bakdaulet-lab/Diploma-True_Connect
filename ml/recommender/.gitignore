@@ -1,0 +1,6 @@
+data/raw/
+data/processed/
+__pycache__/
+reports/*.json
+# model.json IS committed (small) so the Go API can load it; keep it.
+!model.json

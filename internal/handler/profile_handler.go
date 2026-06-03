@@ -192,6 +192,14 @@ func (h *ProfileHandler) UploadPhoto(c *gin.Context) {
 
 	media, err := h.profileSvc.UploadPhoto(c.Request.Context(), userID, data)
 	if err != nil {
+		// Photo held for manual admin review — not an error for the user.
+		if errors.Is(err, domain.ErrPhotoPendingReview) {
+			c.JSON(http.StatusAccepted, gin.H{"data": gin.H{
+				"status":  "pending_review",
+				"message": "Фото жіберілді және модерацияға жіберілді",
+			}})
+			return
+		}
 		h.handleProfileError(c, err)
 		return
 	}
@@ -232,6 +240,9 @@ func (h *ProfileHandler) handleProfileError(c *gin.Context, err error) {
 		errorResponse(c, http.StatusForbidden, "FORBIDDEN", "you do not have permission to perform this action", nil)
 	case errors.Is(err, domain.ErrInvalidInput):
 		errorResponse(c, http.StatusUnprocessableEntity, "INVALID_INPUT", err.Error(), nil)
+	case errors.Is(err, domain.ErrPhotoRejected):
+		errorResponse(c, http.StatusUnprocessableEntity, "PHOTO_REJECTED",
+			"photo must clearly show a face and contain no explicit content", nil)
 	default:
 		h.log.Error("profile error", slog.String("error", err.Error()))
 		errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "an unexpected error occurred", nil)

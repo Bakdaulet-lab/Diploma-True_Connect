@@ -1,0 +1,4 @@
+data/
+__pycache__/
+reports/*.json
+!reports/MODEL_CARD.md
