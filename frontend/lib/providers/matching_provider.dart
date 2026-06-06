@@ -19,11 +19,20 @@ class MatchingNotifier
     state = const AsyncValue.loading();
     try {
       final resp = await _dio.get(ApiConstants.candidates);
+      
+      // Проверяем, жив ли еще провайдер после долгого сетевого запроса
+      if (!mounted) return;
+      
       final list = _extractList(resp.data);
       state = AsyncValue.data(list);
     } on DioException catch (e, st) {
+      // Важно: интерцептор мог увести нас на экран логина во время ошибки 401
+      if (!mounted) return;
+      
       state = AsyncValue.error(dioErrorMessage(e), st);
     } catch (e, st) {
+      if (!mounted) return;
+      
       state = AsyncValue.error(e, st);
     }
   }
