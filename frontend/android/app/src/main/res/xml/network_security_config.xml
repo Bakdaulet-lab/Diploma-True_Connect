@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allows cleartext HTTP only for private/local IP ranges used during development.
+  Production traffic (api.trueconnect.kz) must use HTTPS — this config enforces that.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Android emulator → host machine -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- iPhone hotspot range (172.20.10.x) -->
+        <domain includeSubdomains="false">172.20.10.1</domain>
+        <domain includeSubdomains="false">172.20.10.2</domain>
+        <domain includeSubdomains="false">172.20.10.3</domain>
+        <domain includeSubdomains="false">172.20.10.4</domain>
+        <domain includeSubdomains="false">172.20.10.5</domain>
+        <domain includeSubdomains="false">172.20.10.6</domain>
+        <domain includeSubdomains="false">172.20.10.7</domain>
+        <domain includeSubdomains="false">172.20.10.8</domain>
+        <domain includeSubdomains="false">172.20.10.9</domain>
+        <domain includeSubdomains="false">172.20.10.10</domain>
+        <!-- Wi-Fi home/office ranges -->
+        <domain includeSubdomains="false">192.168.0.1</domain>
+        <domain includeSubdomains="false">192.168.1.1</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

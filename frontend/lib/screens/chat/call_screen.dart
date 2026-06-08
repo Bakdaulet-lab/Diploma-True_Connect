@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../services/websocket_service.dart';
@@ -26,30 +28,48 @@ class _CallScreenState extends State<CallScreen> {
   
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
 
   bool _isMicMuted = false;
-  bool _isVideoTurnedOff = false; // "Blind Date" feature - default to audio initially, then users can reveal
+  bool _isVideoTurnedOff = false;
 
   @override
   void initState() {
     super.initState();
     _initRenderers();
     _initWebRTC();
+    _subscribeToSignaling();
+  }
 
-    // Listen to signaling messages
-    widget.wsService.messages.listen((msg) {
-      if (!mounted) return;
-      final type = msg['type'];
-      final payload = msg['payload'];
+  void _subscribeToSignaling() {
+    _wsSub = widget.wsService.messages.listen(
+      (msg) {
+        if (!mounted) return;
+        try {
+          final type = msg['type'] as String?;
+          if (type == null || !type.startsWith('webrtc_')) return;
 
-      if (payload['match_id'] != widget.matchData['id']) return;
+          final payload = msg['payload'];
+          if (payload is! Map<String, dynamic>) return;
 
-      if (type == 'webrtc_answer' && widget.isCaller) {
-        _setRemoteDescription(payload);
-      } else if (type == 'webrtc_ice_candidate') {
-        _addCandidate(payload);
-      }
-    });
+          final incomingMatchId = payload['match_id'] as String?;
+          if (incomingMatchId != widget.matchData['id']) return;
+
+          switch (type) {
+            case 'webrtc_offer' when !widget.isCaller:
+              _handleOffer(payload);
+            case 'webrtc_answer' when widget.isCaller:
+              _setRemoteDescription(payload);
+            case 'webrtc_ice_candidate':
+              _addCandidate(payload);
+          }
+        } catch (e, st) {
+          debugPrint('[CallScreen] signaling error: $e\n$st');
+        }
+      },
+      onError: (e) => debugPrint('[CallScreen] WS stream error: $e'),
+      cancelOnError: false,
+    );
   }
 
   Future<void> _initRenderers() async {
@@ -193,12 +213,12 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    _wsSub?.cancel();
     _localRenderer.dispose();
     _remoteRenderer.dispose();
     _localStream?.getTracks().forEach((track) => track.stop());
     _localStream?.dispose();
     _peerConnection?.dispose();
-    // Close the call WebSocket so it doesn't leak after the screen is gone.
     widget.wsService.disconnect();
     super.dispose();
   }

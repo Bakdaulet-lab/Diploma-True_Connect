@@ -2,15 +2,25 @@ import 'package:flutter/foundation.dart';
 import 'platform_stub.dart' if (dart.library.io) 'platform_io.dart';
 
 abstract final class ApiConstants {
-  // Build-time overrides for production:
-  //   flutter build ... --dart-define=API_HOST=api.trueconnect.kz \
-  //                      --dart-define=API_SCHEME=https
+  // Build-time / run-time overrides:
+  //
+  //   Android emulator (default, no flags needed):
+  //     flutter run
+  //
+  //   Real device on iPhone hotspot:
+  //     flutter run --dart-define=API_HOST=172.20.10.8
+  //
+  //   Production build:
+  //     flutter build apk --dart-define=API_HOST=api.trueconnect.kz \
+  //                        --dart-define=API_SCHEME=https
   static const String _envHost = String.fromEnvironment('API_HOST');
   static const String _envScheme = String.fromEnvironment('API_SCHEME');
 
   static String get _host {
     if (_envHost.isNotEmpty) return _envHost;
     if (kIsWeb) return 'localhost';
+    // 10.0.2.2 is the Android emulator's alias for the host machine.
+    // Real devices need an explicit API_HOST via --dart-define.
     return isAndroid ? '10.0.2.2' : 'localhost';
   }
 

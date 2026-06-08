@@ -474,29 +474,48 @@ func (h *Hub) handleRead(ctx context.Context, readerID uuid.UUID, payload json.R
 
 // handleWebRTC routes standard WebRTC signaling payloads to the matched user's connection.
 func (h *Hub) handleWebRTC(ctx context.Context, senderID uuid.UUID, msgType string, payload json.RawMessage) {
-	// The frontend should specify the match_id inside any webrtc payload
 	var p struct {
 		MatchID string `json:"match_id"`
 	}
-	// We do a partial unmarshal to figure out who to route the SDP/Ice event to
 	if err := json.Unmarshal(payload, &p); err != nil {
+		h.log.Error("webrtc: malformed payload",
+			slog.String("type", msgType),
+			slog.String("sender", senderID.String()),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
 	matchID, err := uuid.Parse(p.MatchID)
 	if err != nil {
+		h.log.Error("webrtc: invalid match_id",
+			slog.String("type", msgType),
+			slog.String("sender", senderID.String()),
+			slog.String("raw_match_id", p.MatchID),
+		)
 		return
 	}
 
 	match, err := h.matchSvc.GetMatchByID(ctx, matchID, senderID)
 	if err != nil {
+		h.log.Error("webrtc: match lookup failed",
+			slog.String("type", msgType),
+			slog.String("sender", senderID.String()),
+			slog.String("match_id", matchID.String()),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
-	// Just forward the raw payload directly to the recipient over Redis pub/sub
 	recipientID := service.RecipientID(match, senderID)
+	h.log.Info("webrtc: routing signal",
+		slog.String("type", msgType),
+		slog.String("match_id", matchID.String()),
+		slog.String("from", senderID.String()),
+		slog.String("to", recipientID.String()),
+	)
 	h.publish(ctx, recipientID, wsOutgoing{
-		Type:    msgType, // webrtc_offer, webrtc_answer, webrtc_ice_candidate
+		Type:    msgType,
 		Payload: payload,
 	})
 }
