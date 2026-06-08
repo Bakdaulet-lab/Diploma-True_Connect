@@ -10,6 +10,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/profile_provider.dart';
 
 enum _KycStatus { idle, uploading, polling, verified, rejected, banned }
 
@@ -107,6 +108,9 @@ class _KycScreenState extends ConsumerState<KycScreen> {
     final verified = await _pollVerification(dio);
     if (!mounted) return;
 
+    if (verified) {
+      ref.invalidate(ownProfileProvider);
+    }
     setState(() => _status = verified ? _KycStatus.verified : _KycStatus.rejected);
   }
 

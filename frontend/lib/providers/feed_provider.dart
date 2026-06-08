@@ -55,6 +55,21 @@ class FeedNotifier extends StateNotifier<AsyncValue<List<Post>>> {
 
   Future<void> refresh() => load();
 
+  // Refresh without clearing existing posts — no loading spinner shown to user.
+  Future<void> silentRefresh() async {
+    _cursor = null;
+    _hasMore = true;
+    try {
+      final resp = await _dio.get(ApiConstants.posts);
+      final list = _parsePosts(resp.data);
+      _cursor = _extractCursor(resp.data);
+      _hasMore = _cursor != null;
+      state = AsyncValue.data(list);
+    } catch (_) {
+      // Ignore silent-refresh errors — keep existing posts visible.
+    }
+  }
+
   void incrementCommentCount(String postId) {
     final posts = state.valueOrNull;
     if (posts == null) return;

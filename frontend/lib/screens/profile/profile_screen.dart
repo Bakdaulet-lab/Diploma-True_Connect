@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,11 +18,34 @@ import '../../widgets/halal_pattern_painter.dart';
 import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Silent background refresh every 15 s — no spinner shown because of
+    // skipLoadingOnRefresh: true in the when() call below.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      ref.invalidate(ownProfileProvider);
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final asyncProfile = ref.watch(ownProfileProvider);
 
     return Scaffold(
@@ -30,8 +55,7 @@ class ProfileScreen extends ConsumerWidget {
         centerTitle: true,
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
-          child:
-              Divider(height: 1, thickness: 1, color: AppColors.goldBorder),
+          child: Divider(height: 1, thickness: 1, color: AppColors.goldBorder),
         ),
         title: Text(
           'Менің профилім',
@@ -50,16 +74,16 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       body: asyncProfile.when(
+        skipLoadingOnRefresh: true,
         loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.primary)),
-        error: (e, _) => _buildError(context, ref, e.toString()),
-        data: (profile) => _buildProfile(context, ref, profile),
+        error: (e, _) => _buildError(context, e.toString()),
+        data: (profile) => _buildProfile(context, profile),
       ),
     );
   }
 
-  Widget _buildProfile(
-      BuildContext context, WidgetRef ref, Profile profile) {
+  Widget _buildProfile(BuildContext context, Profile profile) {
     final niyyah = NiyyahTypeExt.fromString(profile.niyyah);
 
     return SingleChildScrollView(
@@ -222,7 +246,10 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 if (!profile.isKycVerified)
                   TextButton(
-                    onPressed: () => context.push('/kyc'),
+                    onPressed: () async {
+                      await context.push('/kyc');
+                      ref.invalidate(ownProfileProvider);
+                    },
                     child: Text('Өту',
                         style: GoogleFonts.nunito(
                             color: AppColors.primary,
@@ -256,7 +283,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildError(BuildContext context, WidgetRef ref, String msg) {
+  Widget _buildError(BuildContext context, String msg) {
     final isMissingProfile =
         msg.contains('NOT_FOUND') || msg.contains('resource not found');
 

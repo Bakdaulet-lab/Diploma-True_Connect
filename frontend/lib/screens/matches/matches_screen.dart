@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,16 +12,37 @@ import '../../widgets/halal_pattern_painter.dart';
 import '../../widgets/niyyah_badge.dart';
 import '../../widgets/trust_score_badge.dart';
 
-class MatchesScreen extends ConsumerWidget {
+class MatchesScreen extends ConsumerStatefulWidget {
   const MatchesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MatchesScreen> createState() => _MatchesScreenState();
+}
+
+class _MatchesScreenState extends ConsumerState<MatchesScreen> {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      ref.invalidate(matchesListProvider);
+      ref.invalidate(pendingLikesProvider);
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final asyncMatches = ref.watch(matchesListProvider);
     final asyncLikes = ref.watch(pendingLikesProvider);
 
-    final likeCount =
-        asyncLikes.valueOrNull?.length ?? 0;
+    final likeCount = asyncLikes.valueOrNull?.length ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -70,6 +93,7 @@ class MatchesScreen extends ConsumerWidget {
           ref.refresh(pendingLikesProvider.future),
         ]),
         child: asyncMatches.when(
+          skipLoadingOnRefresh: true,
           loading: () => const Center(
               child: CircularProgressIndicator(color: AppColors.primary)),
           error: (e, _) => _buildError(context, ref, e.toString()),
