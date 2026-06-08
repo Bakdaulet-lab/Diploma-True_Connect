@@ -64,11 +64,11 @@ func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 
 	mimeType := http.DetectContentType(data)
 	switch mimeType {
-	case "image/jpeg", "image/png", "application/pdf":
+	case "image/jpeg", "image/png":
 		// allowed
 	default:
 		errorResponse(c, http.StatusBadRequest, "UNSUPPORTED_FILE_TYPE",
-			"document must be JPEG, PNG, or PDF", nil)
+			"document must be JPEG or PNG", nil)
 		return
 	}
 
@@ -143,49 +143,3 @@ func (h *KYCHandler) GetStatus(c *gin.Context) {
 	})
 }
 
-// HandleWebhook handles POST /v1/kyc/webhook from Sumsub.
-func (h *KYCHandler) HandleWebhook(c *gin.Context) {
-	// In production, validate X-Payload-Signature with crypto/hmac and sumsub webhook secret
-
-	var payload struct {
-		ApplicantId    string `json:"applicantId"`
-		ExternalUserId string `json:"externalUserId"`
-		ReviewStatus   string `json:"reviewStatus"`
-		ReviewResult   struct {
-			ReviewAnswer string `json:"reviewAnswer"`
-		} `json:"reviewResult"`
-	}
-
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		h.log.Error("kyc webhook invalid payload", slog.String("error", err.Error()))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
-		return
-	}
-
-	if payload.ReviewStatus != "completed" {
-		c.Status(http.StatusOK)
-		return
-	}
-
-	userID, err := uuid.Parse(payload.ExternalUserId)
-	if err != nil {
-		h.log.Error("kyc webhook invalid externalUserId", slog.String("id", payload.ExternalUserId))
-		c.Status(http.StatusOK)
-		return
-	}
-
-	ctx := c.Request.Context()
-	newLevel := domain.VerificationNone
-	if payload.ReviewResult.ReviewAnswer == "GREEN" {
-		newLevel = domain.VerificationIDVerified
-	}
-
-	if updateErr := h.userRepo.UpdateVerificationLevel(ctx, userID, newLevel); updateErr != nil {
-		h.log.Error("kyc webhook failed to update local user level", slog.String("error", updateErr.Error()))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-		return
-	}
-
-	h.log.Info("kyc webhook verified, updated user db explicitly", slog.String("user_id", userID.String()), slog.Any("level", newLevel))
-	c.Status(http.StatusOK)
-}

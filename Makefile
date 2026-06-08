@@ -22,12 +22,13 @@ test:
 lint:
 	golangci-lint run ./...
 
-# Database migrations
+# Database migrations (sources .env so Go picks up PG_PASSWORD etc.)
+# PG_HOST is overridden to localhost because migrate runs outside Docker.
 migrate-up:
-	go run ./cmd/migrate up
+	bash -c 'set -a; source .env; set +a; PG_HOST=localhost go run ./cmd/migrate up'
 
 migrate-down:
-	go run ./cmd/migrate down
+	bash -c 'set -a; source .env; set +a; PG_HOST=localhost go run ./cmd/migrate down'
 
 # Docker
 docker-up:
@@ -58,5 +59,5 @@ reset-demo:
 	docker compose -f deployments/docker-compose.yml --env-file .env up --build -d
 	@echo "Waiting for Postgres to be ready..."
 	@sleep 12
-	go run ./cmd/migrate up
+	$(MAKE) migrate-up
 	$(MAKE) seed-halal

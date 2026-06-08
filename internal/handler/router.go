@@ -65,11 +65,6 @@ func NewRouter(deps *RouterDeps) *gin.Engine {
 	// в"Ђв"Ђ Health check (public) в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 	v1.GET("/health", HealthHandler(deps.Health))
 
-	// в"Ђв"Ђ KYC Webhook (public) в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
-	if deps.KYC != nil {
-		v1.POST("/kyc/webhook", deps.KYC.HandleWebhook)
-	}
-
 	// в"Ђв"Ђ Auth (public, tighter rate limit: 20 req/min per IP) в"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђв"Ђ
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(deps.Redis, middleware.RateLimitConfig{

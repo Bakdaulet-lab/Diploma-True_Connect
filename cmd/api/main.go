@@ -259,7 +259,7 @@ func run() error {
 	chatHub := handler.NewHub(ctx, chatSvc, matchingSvc, reputeSvc, mahramChatSvc, moderationSvc, redisClient, jwtManager, log,
 		cfg.Server.CORSOrigins, cfg.Server.Env == "development")
 
-	kycProvider := kyc.NewSumsubProvider("dummy-token", "dummy-secret", log)
+	kycProvider := kyc.NewPhotoProvider(photoVerifier, log)
 	kycHandler := handler.NewKYCHandler(mediaStore, userRepo, kycProvider, log, ctx)
 
 	// Sprint 5 service and handler

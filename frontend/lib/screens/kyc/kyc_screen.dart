@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -9,9 +10,8 @@ import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/halal_pattern_painter.dart';
 
-enum _KycStatus { idle, uploading, pending, verified, banned }
+enum _KycStatus { idle, uploading, polling, verified, rejected, banned }
 
 class KycScreen extends ConsumerStatefulWidget {
   const KycScreen({super.key});
@@ -25,6 +25,27 @@ class _KycScreenState extends ConsumerState<KycScreen> {
   XFile? _backPhoto;
   _KycStatus _status = _KycStatus.idle;
   String? _errorMessage;
+
+  // Polls /kyc/status up to [maxAttempts] times with [interval] between each.
+  // Resolves to true when the backend confirms photo_verified.
+  Future<bool> _pollVerification(Dio dio,
+      {int maxAttempts = 15, Duration interval = const Duration(seconds: 2)}) async {
+    for (var i = 0; i < maxAttempts; i++) {
+      await Future.delayed(interval);
+      if (!mounted) return false;
+      try {
+        final resp = await dio.get('/kyc/status');
+        final data = resp.data is Map ? (resp.data['data'] ?? resp.data) : null;
+        if (data is Map) {
+          final level = data['verification_level'] as String?;
+          if (level == 'photo_verified') return true;
+        }
+      } catch (_) {
+        // ignore transient network errors during polling
+      }
+    }
+    return false;
+  }
 
   Future<void> _pick(bool isFront) async {
     final picker = ImagePicker();
@@ -41,52 +62,54 @@ class _KycScreenState extends ConsumerState<KycScreen> {
   }
 
   Future<void> _submit() async {
-  if (_frontPhoto == null || _backPhoto == null) {
-    setState(() => _errorMessage = 'Жеке куәліктің екі жағын таңдаңыз');
-    return;
-  }
-
-  setState(() {
-    _status = _KycStatus.uploading;
-    _errorMessage = null;
-  });
-
-  try {
-    final dio = ref.read(dioClientProvider).dio;
-
-    final formData = FormData.fromMap({
-      'document': await MultipartFile.fromFile(
-        _frontPhoto!.path, // пока используем front как документ
-        filename: 'document.jpg',
-      ),
-    });
-
-    await dio.post(
-      ApiConstants.kycSubmit,
-      data: formData,
-      options: Options(
-        headers: {
-          // НЕ обязательно, если у тебя interceptor
-          // 'Authorization': 'Bearer $token',
-        },
-        contentType: 'multipart/form-data',
-      ),
-    );
-
-    if (mounted) {
-      setState(() => _status = _KycStatus.pending);
+    if (_frontPhoto == null || _backPhoto == null) {
+      setState(() => _errorMessage = 'Жеке куәліктің екі жағын таңдаңыз');
+      return;
     }
-  } on DioException catch (e) {
-    final data = e.response?.data;
 
     setState(() {
-      _status = _KycStatus.idle;
-      _errorMessage = data is Map && data['error'] != null
-          ? data['error']['message']
-          : e.message ?? 'Ошибка загрузки';
+      _status = _KycStatus.uploading;
+      _errorMessage = null;
     });
+
+    final dio = ref.read(dioClientProvider).dio;
+
+    try {
+      final formData = FormData.fromMap({
+        'document': await MultipartFile.fromFile(
+          _frontPhoto!.path,
+          filename: 'document.jpg',
+        ),
+      });
+
+      await dio.post(
+        ApiConstants.kycSubmit,
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (mounted) {
+        setState(() {
+          _status = _KycStatus.idle;
+          _errorMessage = data is Map && data['error'] != null
+              ? data['error']['message']
+              : e.message ?? 'Ошибка загрузки';
+        });
+      }
+      return;
+    }
+
+    // Document accepted (202). Now poll the status endpoint — the ML pipeline
+    // runs synchronously in a goroutine and typically finishes within a few seconds.
+    if (mounted) setState(() => _status = _KycStatus.polling);
+
+    final verified = await _pollVerification(dio);
+    if (!mounted) return;
+
+    setState(() => _status = verified ? _KycStatus.verified : _KycStatus.rejected);
   }
-}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,14 +117,12 @@ class _KycScreenState extends ConsumerState<KycScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: Colors.white, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
           onPressed: () => context.pop(),
         ),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
-          child:
-              Divider(height: 1, thickness: 1, color: AppColors.goldBorder),
+          child: Divider(height: 1, thickness: 1, color: AppColors.goldBorder),
         ),
         title: Text(
           'KYC Верификация',
@@ -113,7 +134,9 @@ class _KycScreenState extends ConsumerState<KycScreen> {
         ),
       ),
       body: switch (_status) {
-        _KycStatus.pending || _KycStatus.verified => _buildSuccess(),
+        _KycStatus.polling => _buildPolling(),
+        _KycStatus.verified => _buildVerified(),
+        _KycStatus.rejected => _buildRejected(),
         _KycStatus.banned => _buildBanned(),
         _ => _buildForm(),
       },
@@ -126,20 +149,17 @@ class _KycScreenState extends ConsumerState<KycScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Info card
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
               borderRadius: AppRadius.card,
-              border:
-                  Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.shield_outlined,
-                    color: AppColors.primary, size: 24),
+                const Icon(Icons.shield_outlined, color: AppColors.primary, size: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -182,27 +202,14 @@ class _KycScreenState extends ConsumerState<KycScreen> {
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Алдыңғы және артқы жағын таңдаңыз',
-            style: GoogleFonts.nunito(
-                fontSize: 13, color: AppColors.textSecondary),
+            style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
           ),
 
           const SizedBox(height: AppSpacing.lg),
 
-          // Front photo
-          _PhotoPicker(
-            label: 'Алдыңғы жағы',
-            file: _frontPhoto,
-            onTap: () => _pick(true),
-          ),
-
+          _PhotoPicker(label: 'Алдыңғы жағы', file: _frontPhoto, onTap: () => _pick(true)),
           const SizedBox(height: AppSpacing.md),
-
-          // Back photo
-          _PhotoPicker(
-            label: 'Артқы жағы',
-            file: _backPhoto,
-            onTap: () => _pick(false),
-          ),
+          _PhotoPicker(label: 'Артқы жағы', file: _backPhoto, onTap: () => _pick(false)),
 
           if (_errorMessage != null) ...[
             const SizedBox(height: AppSpacing.md),
@@ -214,8 +221,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
               ),
               child: Text(
                 _errorMessage!,
-                style: GoogleFonts.nunito(
-                    fontSize: 13, color: AppColors.accent),
+                style: GoogleFonts.nunito(fontSize: 13, color: AppColors.accent),
               ),
             ),
           ],
@@ -225,14 +231,12 @@ class _KycScreenState extends ConsumerState<KycScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed:
-                  _status == _KycStatus.uploading ? null : _submit,
+              onPressed: _status == _KycStatus.uploading ? null : _submit,
               child: _status == _KycStatus.uploading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                     )
                   : const Text('Жіберу'),
             ),
@@ -242,37 +246,122 @@ class _KycScreenState extends ConsumerState<KycScreen> {
     );
   }
 
-  Widget _buildSuccess() {
+  Widget _buildPolling() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const IslamicStarWidget(size: 64, color: AppColors.secondary),
+            const CircularProgressIndicator(color: AppColors.primary),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Тексерілуде',
+              'ML модель тексеруде...',
               style: GoogleFonts.nunito(
-                fontSize: 24,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Құжаттарыңыз жіберілді. Верификация нәтижесі '
-              '1-2 жұмыс күні ішінде хабарланады.',
+              'Фотоңыздан жүз анықтауда. Бірнеше секунд күтіңіз.',
               textAlign: TextAlign.center,
               style: GoogleFonts.nunito(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                  height: 1.6),
+                  fontSize: 14, color: AppColors.textSecondary, height: 1.6),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerified() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.verified_user_rounded,
+                  size: 64, color: AppColors.primary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'Верификация сәтті өтті!',
+              style: GoogleFonts.nunito(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'ML моделі жүзіңізді анықтап, верификацияны растады. '
+              'Сіздің деңгейіңіз: photo_verified.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.nunito(
+                  fontSize: 14, color: AppColors.textSecondary, height: 1.6),
             ),
             const SizedBox(height: AppSpacing.xl),
             ElevatedButton(
               onPressed: () => context.pop(),
-              child: const Text('Артқа'),
+              child: const Text('Жабу'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRejected() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.face_retouching_off_rounded,
+                  size: 64, color: Colors.orange),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'Жүз анықталмады',
+              style: GoogleFonts.nunito(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange.shade700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'ML модель фотодан жүзді анықтай алмады немесе сурет сапасы жеткіліксіз. '
+              'Жарқырақ жерде, тура қарап, жаңа сурет жіберіп көріңіз.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.nunito(
+                  fontSize: 14, color: AppColors.textSecondary, height: 1.6),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            ElevatedButton(
+              onPressed: () => setState(() {
+                _status = _KycStatus.idle;
+                _frontPhoto = null;
+                _backPhoto = null;
+                _errorMessage = null;
+              }),
+              child: const Text('Қайталап көру'),
             ),
           ],
         ),
@@ -293,8 +382,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                 color: AppColors.accent.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.block,
-                  size: 56, color: AppColors.accent),
+              child: const Icon(Icons.block, size: 56, color: AppColors.accent),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
@@ -312,10 +400,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
               'ашуға рұқсат берілмейді.',
               textAlign: TextAlign.center,
               style: GoogleFonts.nunito(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-                height: 1.6,
-              ),
+                  fontSize: 14, color: AppColors.textSecondary, height: 1.6),
             ),
             const SizedBox(height: AppSpacing.xl),
             OutlinedButton.icon(
@@ -354,14 +439,10 @@ class _PhotoPicker extends StatelessWidget {
       child: Container(
         height: 140,
         decoration: BoxDecoration(
-          color: file != null
-              ? AppColors.primaryLight
-              : AppColors.surfaceVariant,
+          color: file != null ? AppColors.primaryLight : AppColors.surfaceVariant,
           borderRadius: AppRadius.card,
           border: Border.all(
-            color: file != null
-                ? AppColors.primary
-                : AppColors.divider,
+            color: file != null ? AppColors.primary : AppColors.divider,
             width: 1.5,
           ),
         ),
@@ -386,8 +467,7 @@ class _PhotoPicker extends StatelessWidget {
                   ),
                   Text(
                     'Суретті таңдаңыз',
-                    style: GoogleFonts.nunito(
-                        fontSize: 12, color: AppColors.textHint),
+                    style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textHint),
                   ),
                 ],
               ),
