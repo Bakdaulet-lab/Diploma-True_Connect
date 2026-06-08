@@ -31,7 +31,7 @@ func NewMLProvider(baseURL string, log *slog.Logger) *MLProvider {
 	return &MLProvider{
 		baseURL: baseURL,
 		log:     log,
-		client:  &http.Client{Timeout: 8 * time.Second},
+		client:  &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
