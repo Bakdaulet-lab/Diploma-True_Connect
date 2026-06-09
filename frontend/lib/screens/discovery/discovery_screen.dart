@@ -508,6 +508,7 @@ class _CardInfo extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             age > 0 ? '$name, $age' : name,
@@ -563,17 +564,15 @@ class _CardInfo extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          Expanded(
-            child: Text(
-              bio,
-              style: GoogleFonts.nunito(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+          Text(
+            bio,
+            style: GoogleFonts.nunito(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

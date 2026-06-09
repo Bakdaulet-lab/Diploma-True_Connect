@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/phone_formatter.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/halal_pattern_painter.dart';
 
@@ -45,7 +46,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _loading = true);
 
     await ref.read(authStateProvider.notifier).register(
-          phone: _phoneCtr.text.trim(),
+          phone: _phoneCtr.text.replaceAll(' ', ''),
           password: _passCtr.text,
           name: _nameCtr.text.trim(),
         );
@@ -168,17 +169,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           TextFormField(
                             controller: _phoneCtr,
                             keyboardType: TextInputType.phone,
+                            inputFormatters: [KzPhoneFormatter()],
                             decoration: const InputDecoration(
                               hintText: '+7 ___ ___ __ __',
                               prefixIcon: Icon(Icons.phone_outlined,
                                   color: AppColors.textHint),
                             ),
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty) {
+                              final raw = (v ?? '').replaceAll(' ', '');
+                              if (raw.isEmpty || raw == '+7') {
                                 return 'Телефон нөмірін енгізіңіз';
                               }
-                              if (!v.trim().startsWith('+7') ||
-                                  v.trim().length < 12) {
+                              if (!raw.startsWith('+7') || raw.length != 12) {
                                 return 'Форматы: +7XXXXXXXXXX';
                               }
                               return null;
